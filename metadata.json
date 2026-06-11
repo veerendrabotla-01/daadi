@@ -1,0 +1,6 @@
+{
+  "name": "Daadi",
+  "description": "Play Daadi, India's classic strategy board game (also known as Nine Men's Morris or Navakankari) with beautiful traditional boards, intelligent multi-level AI, 2-player Pass & Play mode, game state persistence, audio effects, custom themes, and stats tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
