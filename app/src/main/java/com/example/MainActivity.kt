@@ -115,12 +115,22 @@ fun DaadiAppNavigation() {
         composable("multiplayer_lobby") {
             MultiplayerLobbyScreen(
                 multiplayerManager = multiplayerManager,
+                supabaseManager = (application as com.example.daadi.DaadiApplication).supabaseManager,
                 onBack = { navController.popBackStack() },
+                onManageProfile = { navController.navigate("supabase_auth") },
+                onPlayVsAi = { navController.navigate("difficulty_select") },
                 onGameStarted = {
                     navController.navigate("game") {
                         popUpTo("home")
                     }
                 }
+            )
+        }
+
+        composable("supabase_auth") {
+            com.example.daadi.ui.screens.SupabaseAuthScreen(
+                supabaseManager = (application as com.example.daadi.DaadiApplication).supabaseManager,
+                onBack = { navController.popBackStack() }
             )
         }
 

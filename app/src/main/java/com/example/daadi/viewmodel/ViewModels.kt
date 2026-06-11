@@ -24,7 +24,8 @@ class GameViewModel(
     private val statsRepository: StatsRepository,
     private val settingsRepository: SettingsRepository,
     private val soundManager: SoundManager,
-    val multiplayerManager: MultiplayerManager
+    val multiplayerManager: MultiplayerManager,
+    val supabaseManager: com.example.daadi.data.supabase.SupabaseManager
 ) : ViewModel() {
 
     private val _gameState = MutableStateFlow(GameState())
@@ -281,6 +282,9 @@ class GameViewModel(
                 nextState.gameMode,
                 nextState.aiDifficulty
             )
+            if (nextState.gameMode == GameMode.ONLINE_MULTIPLAYER) {
+                checkAndRecordOnlineMatchFinished(nextState)
+            }
             gameRepository.clearSavedGame()
             return
         }
@@ -490,6 +494,7 @@ class GameViewModel(
         _gameState.value = updatedState
         soundManager.playWin()
         _aiCommentary.value = "Match ended: Both accepted a Handshake Draw!"
+        checkAndRecordOnlineMatchFinished(updatedState)
         gameRepository.clearSavedGame()
     }
 
@@ -502,6 +507,7 @@ class GameViewModel(
         _gameState.value = updatedState
         soundManager.playWin()
         _aiCommentary.value = "Match ended: Opponent surrendered! You win!"
+        checkAndRecordOnlineMatchFinished(updatedState)
         gameRepository.clearSavedGame()
     }
 
@@ -695,6 +701,9 @@ class GameViewModel(
         soundManager.playLose()
         statsRepository.updateStats(opponent, state.gameMode, state.aiDifficulty)
         _gameState.value = updatedState
+        if (state.gameMode == GameMode.ONLINE_MULTIPLAYER) {
+            checkAndRecordOnlineMatchFinished(updatedState)
+        }
         gameRepository.clearSavedGame()
     }
 
@@ -717,6 +726,27 @@ class GameViewModel(
         statsRepository.updateStats(null, state.gameMode, state.aiDifficulty)
         _gameState.value = updatedState
         gameRepository.clearSavedGame()
+    }
+
+    private fun checkAndRecordOnlineMatchFinished(nextState: GameState) {
+        if (nextState.gameMode == GameMode.ONLINE_MULTIPLAYER) {
+            val hostName = if (multiplayerManager.isHost.value) multiplayerManager.localPlayerName.value else multiplayerManager.opponentPlayerName.value
+            val opponentName = if (!multiplayerManager.isHost.value) multiplayerManager.localPlayerName.value else multiplayerManager.opponentPlayerName.value
+            
+            val winnerName = when (nextState.winner) {
+                Player.PLAYER_1 -> hostName
+                Player.PLAYER_2 -> opponentName
+                else -> null
+            }
+            
+            supabaseManager.registerMatchResult(
+                roomCode = multiplayerManager.roomCode.value,
+                hostName = hostName,
+                opponentName = opponentName,
+                winnerName = winnerName,
+                movesCount = nextState.moveHistory.size
+            )
+        }
     }
 
     override fun onCleared() {
@@ -757,7 +787,8 @@ class ViewModelFactory(private val application: DaadiApplication) : ViewModelPro
                     application.statsRepository,
                     application.settingsRepository,
                     application.soundManager,
-                    application.multiplayerManager
+                    application.multiplayerManager,
+                    application.supabaseManager
                 ) as T
             }
             modelClass.isAssignableFrom(StatsViewModel::class.java) -> {

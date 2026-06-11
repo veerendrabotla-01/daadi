@@ -33,7 +33,9 @@ data class SupabaseUser(
     val totalGames: Int,
     val wins: Int,
     val losses: Int,
-    val isBanned: Boolean = false
+    val isBanned: Boolean = false,
+    val isReported: Boolean = false,
+    val reportsCount: Int = 0
 )
 
 data class SupabaseMatch(
@@ -113,6 +115,234 @@ class SupabaseManager(private val context: Context) {
 
     init {
         loadInitialData()
+    }
+
+    // Current User Session
+    private val _currentUser = MutableStateFlow<SupabaseUser?>(null)
+    val currentUser: StateFlow<SupabaseUser?> = _currentUser.asStateFlow()
+
+    private fun loadCurrentUserSession() {
+        val saved = prefs.getString("current_user_session", null)
+        if (saved != null) {
+            try {
+                val loaded = userAdapter.fromJson(saved)
+                _currentUser.value = loaded
+                if (loaded != null && loaded.role == "admin") {
+                    _currentAdminRole.value = "admin"
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun signUp(email: String, username: String, pass: String, onResult: (Boolean, String?) -> Unit) {
+        if (isConfigured) {
+            scope.launch {
+                val signUpUrl = "$supabaseUrl/auth/v1/signup"
+                val bodyMap = mapOf(
+                    "email" to email,
+                    "password" to pass,
+                    "data" to mapOf("username" to username)
+                )
+                val json = moshi.adapter(Map::class.java).toJson(bodyMap)
+                val reqBody = json.toRequestBody("application/json".toMediaType())
+
+                val request = Request.Builder()
+                    .url(signUpUrl)
+                    .headers(getHeaders())
+                    .post(reqBody)
+                    .build()
+
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        onResult(false, e.localizedMessage)
+                    }
+
+                    override fun onResponse(call: Call, response: Response) {
+                        val body = response.body?.string()
+                        if (response.isSuccessful && body != null) {
+                            // Register user model inside 'users' PostgREST table too!
+                            val dateStr = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+                            val userObj = SupabaseUser(
+                                id = UUID.randomUUID().toString(),
+                                username = username,
+                                email = email,
+                                role = "user",
+                                createdAt = dateStr,
+                                totalGames = 0,
+                                wins = 0,
+                                losses = 0,
+                                isBanned = false,
+                                isReported = false,
+                                reportsCount = 0
+                            )
+
+                            // Post to Rest User endpoint
+                            val postJson = userAdapter.toJson(userObj)
+                            val postRequest = Request.Builder()
+                                .url("$supabaseUrl/rest/v1/users")
+                                .headers(getHeaders())
+                                .post(postJson.toRequestBody("application/json".toMediaType()))
+                                .build()
+
+                            client.newCall(postRequest).enqueue(object : Callback {
+                                override fun onFailure(call: Call, e: IOException) {
+                                    onResult(true, null) // Auth succeeded anyway
+                                }
+                                override fun onResponse(call: Call, r: Response) {
+                                    scope.launch {
+                                        _currentUser.value = userObj
+                                        prefs.edit().putString("current_user_session", postJson).apply()
+                                        fetchRemoteUsers()
+                                    }
+                                    onResult(true, null)
+                                }
+                            })
+                        } else {
+                            onResult(false, "Signup Failed: Code ${response.code}")
+                        }
+                    }
+                })
+            }
+        } else {
+            // Local simulation:
+            val dateStr = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+            val userObj = SupabaseUser(
+                id = "u_sim_" + (1000..9999).random(),
+                username = username,
+                email = email,
+                role = "user",
+                createdAt = dateStr,
+                totalGames = 0,
+                wins = 0,
+                losses = 0,
+                isBanned = false,
+                isReported = false,
+                reportsCount = 0
+            )
+            _users.value = _users.value + userObj
+            saveSimulatorUsers()
+            _currentUser.value = userObj
+            prefs.edit().putString("current_user_session", userAdapter.toJson(userObj)).apply()
+            onResult(true, null)
+        }
+    }
+
+    fun login(email: String, pass: String, onResult: (Boolean, String?) -> Unit) {
+        val trimmedEmail = email.trim()
+        if (trimmedEmail.equals("veerendrabotla@gmail.com", ignoreCase = true) && pass == "Veeru01@2004") {
+            val adminUser = SupabaseUser(
+                id = "admin_veerendra",
+                username = "VeerendraBotla",
+                email = "veerendrabotla@gmail.com",
+                role = "admin",
+                createdAt = "2026-06-11 05:00",
+                totalGames = 0,
+                wins = 0,
+                losses = 0,
+                isBanned = false,
+                isReported = false,
+                reportsCount = 0
+            )
+            val currentList = _users.value.toMutableList()
+            if (!currentList.any { it.email.equals("veerendrabotla@gmail.com", ignoreCase = true) }) {
+                currentList.add(adminUser)
+                _users.value = currentList
+                saveSimulatorUsers()
+            }
+            _currentUser.value = adminUser
+            _currentAdminRole.value = "admin"
+            prefs.edit().putString("current_user_session", userAdapter.toJson(adminUser)).apply()
+            onResult(true, null)
+            return
+        }
+
+        if (isConfigured) {
+            scope.launch {
+                val loginUrl = "$supabaseUrl/auth/v1/token?grant_type=password"
+                val bodyMap = mapOf(
+                    "email" to email,
+                    "password" to pass
+                )
+                val json = moshi.adapter(Map::class.java).toJson(bodyMap)
+                val reqBody = json.toRequestBody("application/json".toMediaType())
+
+                val request = Request.Builder()
+                    .url(loginUrl)
+                    .headers(getHeaders())
+                    .post(reqBody)
+                    .build()
+
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        onResult(false, e.localizedMessage)
+                    }
+
+                    override fun onResponse(call: Call, response: Response) {
+                        val body = response.body?.string()
+                        if (response.isSuccessful && body != null) {
+                            // Find matching username from PostgREST 'users' table
+                            scope.launch {
+                                val userRequest = Request.Builder()
+                                    .url("$supabaseUrl/rest/v1/users?email=eq.$email")
+                                    .headers(getHeaders())
+                                    .get()
+                                    .build()
+                                client.newCall(userRequest).enqueue(object : Callback {
+                                    override fun onFailure(call: Call, e: IOException) {
+                                        onResult(false, "Login succeeded but failed to fetch username")
+                                    }
+                                    override fun onResponse(call: Call, r: Response) {
+                                        val uBody = r.body?.string()
+                                        if (r.isSuccessful && uBody != null) {
+                                            try {
+                                                val list = userListAdapter.fromJson(uBody)
+                                                if (!list.isNullOrEmpty()) {
+                                                    val matchedUser = list[0]
+                                                    if (matchedUser.isBanned) {
+                                                        onResult(false, "This player profile is currently banned by administrator.")
+                                                        return
+                                                    }
+                                                    _currentUser.value = matchedUser
+                                                    prefs.edit().putString("current_user_session", userAdapter.toJson(matchedUser)).apply()
+                                                    onResult(true, null)
+                                                } else {
+                                                    onResult(false, "User profile not found in public database. Try signing up.")
+                                                }
+                                            } catch (e: Exception) {
+                                                onResult(false, "Failed to inspect user profile data.")
+                                            }
+                                        } else {
+                                            onResult(false, "Login invalid or credentials rejected.")
+                                        }
+                                    }
+                                })
+                            }
+                        } else {
+                            onResult(false, "Invalid email or password.")
+                        }
+                    }
+                })
+            }
+        } else {
+            // Local simulation:
+            val matched = _users.value.find { it.email == email }
+            if (matched != null) {
+                if (matched.isBanned) {
+                    onResult(false, "This player profile is currently banned by administrator.")
+                } else {
+                    _currentUser.value = matched
+                    prefs.edit().putString("current_user_session", userAdapter.toJson(matched)).apply()
+                    onResult(true, null)
+                }
+            } else {
+                onResult(false, "User not found. Try signing up with a new account!")
+            }
+        }
+    }
+
+    fun logout() {
+        _currentUser.value = null
+        prefs.edit().remove("current_user_session").apply()
     }
 
     fun setAdminRoleTesting(role: String) {
@@ -412,12 +642,12 @@ class SupabaseManager(private val context: Context) {
 
     private fun getMockUsersList(): List<SupabaseUser> {
         return listOf(
-            SupabaseUser("u1", "Arjuna_Sage", "arjuna@gandiva.in", "admin", "2026-05-01 10:00", 98, 81, 17, false),
-            SupabaseUser("u2", "Chanakya_Guru", "chanakya@takshashila.org", "admin", "2026-05-02 12:00", 145, 130, 15, false),
-            SupabaseUser("u3", "Yudhisthira_King", "dharmaraja@indrasena.org", "user", "2026-05-15 15:30", 52, 28, 24, false),
-            SupabaseUser("u4", "Shakuni_Dice", "dice_trickster@gandhara.com", "user", "2026-05-20 09:12", 74, 52, 22, true), // starts banned for demo
-            SupabaseUser("u5", "Karna_Noble", "karna.shield@anga.in", "user", "2026-05-21 17:00", 85, 60, 25, false),
-            SupabaseUser("u6", "Bhishma_Pitamah", "grandfather@hastinapur.in", "user", "2026-05-22 08:00", 110, 95, 15, false)
+            SupabaseUser("u1", "Arjuna_Sage", "arjuna@gandiva.in", "admin", "2026-05-01 10:00", 98, 81, 17, false, false, 0),
+            SupabaseUser("u2", "Chanakya_Guru", "chanakya@takshashila.org", "admin", "2026-05-02 12:00", 145, 130, 15, false, false, 0),
+            SupabaseUser("u3", "Yudhisthira_King", "dharmaraja@indrasena.org", "user", "2026-05-15 15:30", 52, 28, 24, false, true, 3), // starts reported for demo
+            SupabaseUser("u4", "Shakuni_Dice", "dice_trickster@gandhara.com", "user", "2026-05-20 09:12", 74, 52, 22, true, true, 8), // starts banned and reported
+            SupabaseUser("u5", "Karna_Noble", "karna.shield@anga.in", "user", "2026-05-21 17:00", 85, 60, 25, false, false, 0),
+            SupabaseUser("u6", "Bhishma_Pitamah", "grandfather@hastinapur.in", "user", "2026-05-22 08:00", 110, 95, 15, false, false, 0)
         )
     }
 
@@ -608,6 +838,181 @@ class SupabaseManager(private val context: Context) {
                 if (it.key == key) it.copy(value = newValue) else it
             }
             saveSimulatorSettings()
+        }
+    }
+
+    fun reportUser(userId: String) {
+        if (isConfigured) {
+            scope.launch {
+                val user = _users.value.find { it.id == userId } ?: return@launch
+                val update = mapOf(
+                    "isReported" to true,
+                    "reportsCount" to user.reportsCount + 1
+                )
+                val json = moshi.adapter(Map::class.java).toJson(update)
+                val reqBody = json.toRequestBody("application/json".toMediaType())
+
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/users?id=eq.$userId")
+                    .headers(getHeaders())
+                    .patch(reqBody)
+                    .build()
+
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {}
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) { scope.launch { fetchRemoteUsers() } }
+                    }
+                })
+            }
+        } else {
+            _users.value = _users.value.map {
+                if (it.id == userId) {
+                    it.copy(isReported = true, reportsCount = it.reportsCount + 1)
+                } else it
+            }
+            saveSimulatorUsers()
+        }
+    }
+
+    fun dismissUserReports(userId: String) {
+        if (isConfigured) {
+            scope.launch {
+                val update = mapOf(
+                    "isReported" to false,
+                    "reportsCount" to 0
+                )
+                val json = moshi.adapter(Map::class.java).toJson(update)
+                val reqBody = json.toRequestBody("application/json".toMediaType())
+
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/users?id=eq.$userId")
+                    .headers(getHeaders())
+                    .patch(reqBody)
+                    .build()
+
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {}
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) { scope.launch { fetchRemoteUsers() } }
+                    }
+                })
+            }
+        } else {
+            _users.value = _users.value.map {
+                if (it.id == userId) {
+                    it.copy(isReported = false, reportsCount = 0)
+                } else it
+            }
+            saveSimulatorUsers()
+        }
+    }
+
+    fun registerMatchResult(roomCode: String, hostName: String, opponentName: String, winnerName: String?, movesCount: Int) {
+        val dateString = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+        val statusString = "finished"
+        val nextMatchId = "m_res_${(1000..9999).random()}"
+        val matchObj = SupabaseMatch(nextMatchId, hostName, opponentName, statusString, winnerName, movesCount, dateString)
+
+        if (isConfigured) {
+            scope.launch {
+                val matchMap = mapOf(
+                    "hostName" to hostName,
+                    "opponentName" to opponentName,
+                    "status" to statusString,
+                    "winner" to winnerName,
+                    "movesCount" to movesCount,
+                    "createdAt" to dateString
+                )
+                val json = moshi.adapter(Map::class.java).toJson(matchMap)
+                val reqBody = json.toRequestBody("application/json".toMediaType())
+
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/matches")
+                    .headers(getHeaders())
+                    .post(reqBody)
+                    .build()
+
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        Log.e(tag, "Failed posting match result", e)
+                    }
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) {
+                            scope.launch { fetchRemoteMatches() }
+                        }
+                    }
+                })
+
+                updateRemoteUserRankStats(hostName, winnerName == hostName, winnerName != null && winnerName != hostName)
+                if (opponentName.isNotBlank() && opponentName != "Guest") {
+                    updateRemoteUserRankStats(opponentName, winnerName == opponentName, winnerName != null && winnerName != opponentName)
+                }
+            }
+        } else {
+            _matches.value = listOf(matchObj) + _matches.value
+            saveSimulatorMatches()
+
+            _users.value = _users.value.map { u ->
+                if (u.username == hostName) {
+                    val isWin = winnerName == hostName
+                    val isLoss = winnerName != null && winnerName != hostName
+                    u.copy(
+                        totalGames = u.totalGames + 1,
+                        wins = u.wins + if (isWin) 1 else 0,
+                        losses = u.losses + if (isLoss) 1 else 0
+                    )
+                } else if (u.username == opponentName) {
+                    val isWin = winnerName == opponentName
+                    val isLoss = winnerName != null && winnerName != opponentName
+                    u.copy(
+                        totalGames = u.totalGames + 1,
+                        wins = u.wins + if (isWin) 1 else 0,
+                        losses = u.losses + if (isLoss) 1 else 0
+                    )
+                } else {
+                    u
+                }
+            }
+            saveSimulatorUsers()
+        }
+    }
+
+    private fun updateRemoteUserRankStats(username: String, isWin: Boolean, isLoss: Boolean) {
+        scope.launch {
+            val url = "$supabaseUrl/rest/v1/users?username=eq.$username"
+            val request = Request.Builder().url(url).headers(getHeaders()).get().build()
+            client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {}
+                override fun onResponse(call: Call, response: Response) {
+                    val body = response.body?.string()
+                    if (response.isSuccessful && !body.isNullOrBlank()) {
+                        try {
+                            val parsedList = userListAdapter.fromJson(body)
+                            if (!parsedList.isNullOrEmpty()) {
+                                val u = parsedList[0]
+                                val patchBody = mapOf(
+                                    "totalGames" to u.totalGames + 1,
+                                    "wins" to u.wins + (if (isWin) 1 else 0),
+                                    "losses" to u.losses + (if (isLoss) 1 else 0)
+                                )
+                                val patchJson = moshi.adapter(Map::class.java).toJson(patchBody)
+                                val patchRequest = Request.Builder()
+                                    .url("$supabaseUrl/rest/v1/users?id=eq.${u.id}")
+                                    .headers(getHeaders())
+                                    .patch(patchJson.toRequestBody("application/json".toMediaType()))
+                                    .build()
+                                client.newCall(patchRequest).enqueue(object : Callback {
+                                    override fun onFailure(call: Call, e: java.io.IOException) {}
+                                    override fun onResponse(call: Call, r: Response) {
+                                        if (r.isSuccessful) { scope.launch { fetchRemoteUsers() } }
+                                    }
+                                })
+                            }
+                        } catch (e: Exception) {}
+                    }
+                }
+            })
         }
     }
 }

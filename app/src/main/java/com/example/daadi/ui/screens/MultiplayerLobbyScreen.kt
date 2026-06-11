@@ -2,20 +2,27 @@ package com.example.daadi.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountBox
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
+import androidx.compose.material.icons.filled.Warning
+import com.example.daadi.data.network.NetworkUtils
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -30,16 +37,55 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun MultiplayerLobbyScreen(
     multiplayerManager: MultiplayerManager,
+    supabaseManager: com.example.daadi.data.supabase.SupabaseManager,
     onBack: () -> Unit,
+    onManageProfile: () -> Unit,
+    onPlayVsAi: () -> Unit,
     onGameStarted: () -> Unit
 ) {
     val status by multiplayerManager.status.collectAsStateWithLifecycle()
     val roomCode by multiplayerManager.roomCode.collectAsStateWithLifecycle()
     val isHost by multiplayerManager.isHost.collectAsStateWithLifecycle()
     val errorMsg by multiplayerManager.errorMessage.collectAsStateWithLifecycle()
+    val currentUser by supabaseManager.currentUser.collectAsStateWithLifecycle()
+    val localPlayerName by multiplayerManager.localPlayerName.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
 
     var manualRoomCodeInput by remember { mutableStateOf("") }
+    var isOfflineAlertVisible by remember { mutableStateOf(false) }
+    var isNetworkConnected by remember { mutableStateOf(true) }
+
+    // Run active network check on screen mount
+    LaunchedEffect(Unit) {
+        val connected = NetworkUtils.isNetworkAvailable(context)
+        isNetworkConnected = connected
+        if (!connected) {
+            isOfflineAlertVisible = true
+        }
+    }
+
+    var showAuthPromptDialog by remember { mutableStateOf(false) }
+
+    // Connectivity-guard wrapper for matchmaking buttons with login check
+    val checkConnectivityThen = { block: () -> Unit ->
+        val connected = NetworkUtils.isNetworkAvailable(context)
+        isNetworkConnected = connected
+        if (!connected) {
+            isOfflineAlertVisible = true
+        } else if (currentUser == null) {
+            showAuthPromptDialog = true
+        } else {
+            block()
+        }
+    }
+
+    // Sync username with Multiplayer local name
+    LaunchedEffect(currentUser) {
+        if (currentUser != null) {
+            multiplayerManager.setLocalPlayerName(currentUser!!.username)
+        }
+    }
 
     // Automatically navigate when pairing completes successfully
     LaunchedEffect(status) {
@@ -83,6 +129,67 @@ fun MultiplayerLobbyScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Player Profile Badge Card
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFDF8)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(2.dp, Color(0xFFE5A93B).copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                    .clickable { onManageProfile() }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(Color(0xFFFFF3E0), CircleShape)
+                                .border(1.dp, Color(0xFFC75D27), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (currentUser != null) Icons.Default.AccountBox else Icons.Default.Lock,
+                                contentDescription = null,
+                                tint = Color(0xFFC75D27),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = if (currentUser != null) "Logged in Player" else "Playing as Guest",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Gray
+                            )
+                            Text(
+                                text = localPlayerName,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF5C2D0A)
+                            )
+                        }
+                    }
+
+                    TextButton(onClick = onManageProfile) {
+                        Text(
+                            text = if (currentUser != null) "Profile" else "Sign In",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFC75D27)
+                        )
+                    }
+                }
+            }
+
             // 1. Connection Status Bar
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7EA)),
@@ -244,8 +351,10 @@ fun MultiplayerLobbyScreen(
                         // Action 1: Host Room
                         Button(
                             onClick = {
-                                focusManager.clearFocus()
-                                multiplayerManager.hostRoom()
+                                checkConnectivityThen {
+                                    focusManager.clearFocus()
+                                    multiplayerManager.hostRoom()
+                                }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C2D0A)),
                             shape = RoundedCornerShape(8.dp),
@@ -290,9 +399,11 @@ fun MultiplayerLobbyScreen(
 
                         Button(
                             onClick = {
-                                focusManager.clearFocus()
-                                if (manualRoomCodeInput.length == 6) {
-                                    multiplayerManager.joinRoom(manualRoomCodeInput)
+                                checkConnectivityThen {
+                                    focusManager.clearFocus()
+                                    if (manualRoomCodeInput.length == 6) {
+                                        multiplayerManager.joinRoom(manualRoomCodeInput)
+                                    }
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD4A55A)),
@@ -308,8 +419,10 @@ fun MultiplayerLobbyScreen(
                         // Action 3: Quick Match Making
                         Button(
                             onClick = {
-                                focusManager.clearFocus()
-                                multiplayerManager.quickMatch()
+                                checkConnectivityThen {
+                                    focusManager.clearFocus()
+                                    multiplayerManager.quickMatch()
+                                }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC75D27)),
                             shape = RoundedCornerShape(8.dp),
@@ -346,6 +459,103 @@ fun MultiplayerLobbyScreen(
                         lineHeight = 16.sp
                     )
                 }
+            }
+
+            if (isOfflineAlertVisible) {
+                AlertDialog(
+                    onDismissRequest = { isOfflineAlertVisible = false },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = "Offline Info",
+                                tint = Color(0xFFC62828),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Internet Connection Required",
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                color = Color(0xFF5C2D0A)
+                            )
+                        }
+                    },
+                    text = {
+                        Text(
+                            text = "No internet connection detected on your device. Playing real opponents requires cellular mobile data or a WiFi connection. Would you like to play Daadi offline with Chanakya Computer instead?",
+                            fontSize = 14.sp,
+                            color = Color(0xFF8B5E3C)
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                isOfflineAlertVisible = false
+                                onPlayVsAi()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C2D0A))
+                        ) {
+                            Text("Play Computer (Offline)", color = Color.White)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = { isOfflineAlertVisible = false }
+                        ) {
+                            Text("Close", color = Color(0xFFC62828))
+                        }
+                    },
+                    containerColor = Color(0xFFFFF7EA),
+                    shape = RoundedCornerShape(16.dp)
+                )
+            }
+
+            if (showAuthPromptDialog) {
+                AlertDialog(
+                    onDismissRequest = { showAuthPromptDialog = false },
+                    title = {
+                        Text(
+                            text = "Authentication Required",
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = Color(0xFF5C2D0A)
+                        )
+                    },
+                    text = {
+                        Text(
+                            text = "To participate in real-time online matchmaking or private rooms, please sign up or log in to a player profile. Guests may play vs AI offline.",
+                            fontSize = 13.sp,
+                            color = Color.DarkGray
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                showAuthPromptDialog = false
+                                onManageProfile()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C2D0A))
+                        ) {
+                            Text("Log In / Register")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = {
+                                showAuthPromptDialog = false
+                                onPlayVsAi()
+                            },
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFC75D27))
+                        ) {
+                            Text("Play Computer (Offline)")
+                        }
+                    },
+                    containerColor = Color(0xFFFFF7EA),
+                    shape = RoundedCornerShape(16.dp)
+                )
             }
         }
     }

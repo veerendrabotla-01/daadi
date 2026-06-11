@@ -98,7 +98,14 @@ class MultiplayerManager(
     private var simulatorJob: Job? = null
 
     // PieSocket free sandbox websocket url
-    private val webSocketUrl = "wss://free.piesocket.com/v3/demo?api_key=VCX6SpY8ZoZ6Gwz17K0QLW6v8b7X63007077&notify_self=0"
+    private val webSocketUrl: String by lazy {
+        val apiKey = try { com.example.BuildConfig.PIESOCKET_API_KEY } catch (e: Exception) { "" }
+        if (apiKey.isNotBlank() && apiKey != "PIESOCKET_API_KEY_PLACEHOLDER") {
+            "wss://free.piesocket.com/v3/demo?api_key=$apiKey&notify_self=0"
+        } else {
+            "wss://free.piesocket.com/v3/demo?api_key=VCX6SpY8ZoZ6Gwz17K0QLW6v8b7X63007077&notify_self=0"
+        }
+    }
 
     fun setLocalPlayerName(name: String) {
         if (name.isNotBlank()) {
