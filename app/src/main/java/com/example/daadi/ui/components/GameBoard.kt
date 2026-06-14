@@ -26,7 +26,9 @@ fun GameBoard(
     onNodeTapped: (Int) -> Unit,
     modifier: Modifier = Modifier,
     boardTheme: String = "classic_wood",
-    hintNodeId: Int? = null
+    hintMove: Pair<Int?, Int>? = null,
+    highlightLastMove: Boolean = true,
+    lastMoveNodeId: Int? = null
 ) {
     // Pulsing animations for highlights
     val infiniteTransition = rememberInfiniteTransition(label = "board_pulse")
@@ -136,7 +138,7 @@ fun GameBoard(
         drawLine(boardLineColor, getPixel(7), getPixel(23), strokeWidth) // Left cross
 
         // 2. Draw empty nodes as placeholders/receptacles
-        val emptyRadius = 8.dp.toPx()
+        val emptyRadius = 6.dp.toPx()
         for ((nodeId, _) in BoardDefinition.COORDINATES) {
             val center = getPixel(nodeId)
             if (board.nodes[nodeId] == null) {
@@ -165,8 +167,8 @@ fun GameBoard(
         }
 
         // 3. Draw active player pieces as gorgeous beads
-        val pieceRadius = 18.dp.toPx()
-        val shadowOffset = 3.dp.toPx()
+        val pieceRadius = 13.5.dp.toPx()
+        val shadowOffset = 2.dp.toPx()
 
         for ((nodeId, occupant) in board.nodes) {
             if (occupant != null) {
@@ -192,7 +194,7 @@ fun GameBoard(
                         color = Color(0xFFE5A93B),
                         radius = pieceRadius * scaleSelection,
                         center = center,
-                        style = Stroke(width = 3.dp.toPx())
+                        style = Stroke(width = 2.5.dp.toPx())
                     )
                 }
 
@@ -212,19 +214,43 @@ fun GameBoard(
             }
         }
 
-        // 4. Draw Neon cyan hint aura over recommended Node
-        if (hintNodeId != null) {
-            val center = getPixel(hintNodeId)
+        // 4. Draw Neon cyan hint aura over recommended Node(s)
+        if (hintMove != null) {
+            // Highlight target node
+            val targetCenter = getPixel(hintMove.second)
             drawCircle(
                 color = Color(0xFF00E5FF),
                 radius = pieceRadius * 1.6f * scaleSelection,
-                center = center,
+                center = targetCenter,
                 style = Stroke(width = 4.dp.toPx())
             )
             drawCircle(
                 color = Color(0xFF00E5FF),
                 radius = pieceRadius * 0.4f,
-                center = center
+                center = targetCenter
+            )
+
+            // Highlight source node if it's a move (not placement)
+            if (hintMove.first != null) {
+                val sourceCenter = getPixel(hintMove.first!!)
+                drawCircle(
+                    color = Color(0xFF00E5FF),
+                    radius = pieceRadius * 1.2f,
+                    center = sourceCenter,
+                    style = Stroke(width = 2.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(5f, 5f), 0f))
+                )
+            }
+        }
+
+        // 5. Draw Gold highlight for the most recent move
+        if (highlightLastMove && lastMoveNodeId != null) {
+            val center = getPixel(lastMoveNodeId)
+            drawCircle(
+                color = Color(0xFFD4A55A),
+                radius = pieceRadius * 1.4f,
+                center = center,
+                style = Stroke(width = 3.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)),
+                alpha = 0.6f
             )
         }
     }

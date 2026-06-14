@@ -2,16 +2,14 @@ package com.example.daadi.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,54 +21,115 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.daadi.data.supabase.SupabaseManager
 import com.example.daadi.model.GameMode
 import com.example.daadi.model.GameState
 import com.example.daadi.ui.components.SimulatedAdBanner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun HomeScreen(
     savedGameState: GameState?,
+    supabaseManager: SupabaseManager,
     onPlayVsAi: () -> Unit,
     onPlayLocal: () -> Unit,
     onPlayMultiplayer: () -> Unit,
     onResumeGame: () -> Unit,
     onStatsClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onSignInClick: () -> Unit,
+    onFeedbackClick: () -> Unit,
     onDiscardSave: () -> Unit
 ) {
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = Color(0xFFFDF3E3) // Sandstone light cozy background
-    ) {
+    val systemSettings by supabaseManager.systemSettings.collectAsStateWithLifecycle()
+    val isMaintenanceMode = systemSettings.find { it.key == "maintenance_mode" }?.value == "on"
+    val currentUser by supabaseManager.currentUser.collectAsStateWithLifecycle()
+    val isAdmin = currentUser?.role == "admin"
+
+    if (isMaintenanceMode && !isAdmin) {
+        MaintenanceOverlay(onSignInClick)
+        return
+    }
+
+    val announcement = systemSettings.find { it.key == "announcement_text" }?.value ?: ""
+
+    Scaffold(
+        topBar = {
+            @OptIn(ExperimentalMaterial3Api::class)
+            TopAppBar(
+                title = { },
+                actions = {
+                    IconButton(
+                        onClick = onSignInClick,
+                        modifier = Modifier.testTag("home_signin_button")
+                    ) {
+                        Icon(
+                            imageVector = androidx.compose.material.icons.Icons.Default.AccountCircle,
+                            contentDescription = "Profile / Sign In",
+                            tint = Color(0xFF5C2D0A)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent,
+                    navigationIconContentColor = Color(0xFF5C2D0A),
+                    actionIconContentColor = Color(0xFF5C2D0A)
+                )
+            )
+        },
+        containerColor = Color(0xFFFDF3E3)
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .navigationBarsPadding() // Safe nav region
-                .statusBarsPadding()
+                .padding(innerPadding)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Header content
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(top = 42.dp)
-            ) {
-                Text(
-                    "DAADI",
-                    style = MaterialTheme.typography.displayLarge,
-                    color = Color(0xFF5C2D0A),
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 5.sp
-                )
-                Text(
-                    "India's Traditional Board Game",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF8B5E3C),
-                    letterSpacing = 1.sp,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
+                // Header content
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(top = 42.dp)
+                ) {
+                    Text(
+                        "DAADI",
+                        style = MaterialTheme.typography.displayLarge,
+                        color = Color(0xFF5C2D0A),
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 5.sp
+                    )
+                    Text(
+                        "India's Traditional Board Game",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF8B5E3C),
+                        letterSpacing = 1.sp,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+
+                    if (announcement.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFC75D27).copy(alpha = 0.1f)),
+                            shape = RoundedCornerShape(20.dp),
+                            modifier = Modifier.padding(horizontal = 24.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Campaign, contentDescription = null, tint = Color(0xFFC75D27), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    announcement,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFC75D27),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
 
             // Central menu buttons or Resume cards
             Column(
@@ -143,6 +202,57 @@ fun HomeScreen(
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text("Reset", color = Color(0xFFC62828), fontSize = 14.sp)
                                 }
+                            }
+                        }
+                    }
+                }
+
+                // AUTH SECTION (Login or User Profile)
+                val userState = supabaseManager.currentUser.collectAsStateWithLifecycle()
+                val currentUser = userState.value
+                
+                if (currentUser == null) {
+                    Button(
+                        onClick = onSignInClick,
+                        modifier = Modifier.fillMaxWidth().height(54.dp).padding(bottom = 12.dp).testTag("home_signin_button"),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC75D27)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.AccountCircle, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("SIGN IN TO PLAY ONLINE", fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp)
+                            .border(1.dp, Color(0xFF5C2D0A).copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier.size(40.dp).background(Color(0xFF5C2D0A).copy(alpha = 0.1f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(currentUser.username.take(1).uppercase(), fontWeight = FontWeight.Black, color = Color(0xFF5C2D0A))
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(currentUser.username, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text(if (currentUser.role == "admin") "System Admin" else "Active Player", fontSize = 11.sp, color = Color.Gray)
+                            }
+                            if (currentUser.role == "admin") {
+                                IconButton(onClick = onSignInClick /* This routes to admin dashboard in MainActivity for admins */) {
+                                    Icon(Icons.Default.AdminPanelSettings, contentDescription = "Admin", tint = Color(0xFFC75D27))
+                                }
+                            }
+                            IconButton(onClick = { supabaseManager.logout() }) {
+                                Icon(Icons.Default.Logout, contentDescription = "Sign Out", tint = Color.LightGray)
                             }
                         }
                     }
@@ -247,10 +357,67 @@ fun HomeScreen(
                         Text("Settings", color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
                     }
                 }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Feedback Button (Full Width)
+                OutlinedButton(
+                    onClick = onFeedbackClick,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().height(48.dp).testTag("home_feedback_button"),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF5C2D0A).copy(alpha = 0.3f))
+                ) {
+                    Icon(Icons.Default.Message, contentDescription = null, tint = Color(0xFF8B5E3C))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Send Feedback / Bug Report", color = Color(0xFF8B5E3C), fontWeight = FontWeight.Medium)
+                }
             }
 
-            // Simulated Banner Ad at Bottom
-            SimulatedAdBanner(modifier = Modifier.fillMaxWidth())
+            // Simulated Banner Ad area with fixed height to prevent layout shifts
+            val isAdsOn = systemSettings.find { it.key == "ads_launcher" }?.value == "on"
+            Box(modifier = Modifier.fillMaxWidth().height(54.dp)) {
+                if (isAdsOn) {
+                    SimulatedAdBanner(modifier = Modifier.fillMaxWidth())
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MaintenanceOverlay(onSignInClick: () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxSize().background(Color(0xFFFDF3E3)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(32.dp)
+        ) {
+            Icon(
+                Icons.Default.Build,
+                contentDescription = null,
+                tint = Color(0xFFC75D27),
+                modifier = Modifier.size(64.dp)
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                "Under Maintenance",
+                style = MaterialTheme.typography.headlineMedium,
+                color = Color(0xFF5C2D0A),
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                "We're currently polishing the board! The game will be back online shortly. Please check back later.",
+                textAlign = TextAlign.Center,
+                color = Color(0xFF8B5E3C),
+                lineHeight = 22.sp
+            )
+            Spacer(modifier = Modifier.height(32.dp))
+            OutlinedButton(onClick = onSignInClick) {
+                Text("Admin Login", color = Color(0xFF5C2D0A))
+            }
         }
     }
 }

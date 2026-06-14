@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -59,7 +60,8 @@ fun StatsScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color(0xFFFDF3E3),
-                    titleContentColor = Color(0xFF5C2D0A)
+                    titleContentColor = Color(0xFF5C2D0A),
+                    navigationIconContentColor = Color(0xFF5C2D0A)
                 )
             )
         },
@@ -213,6 +215,8 @@ fun SettingsScreen(
     onAdminClick: () -> Unit,
     onBack: () -> Unit
 ) {
+    val uriHandler = LocalUriHandler.current
+    val legalUrl = "https://daadi-legal.vercel.app"
     Scaffold(
         topBar = {
             TopAppBar(
@@ -224,7 +228,8 @@ fun SettingsScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color(0xFFFDF3E3),
-                    titleContentColor = Color(0xFF5C2D0A)
+                    titleContentColor = Color(0xFF5C2D0A),
+                    navigationIconContentColor = Color(0xFF5C2D0A)
                 )
             )
         },
@@ -260,6 +265,128 @@ fun SettingsScreen(
                         onCheckedChange = { onSettingsChanged(settings.copy(soundEnabled = it)) },
                         colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF5C2D0A), checkedTrackColor = Color(0xFFD4A55A)),
                         modifier = Modifier.testTag("sound_toggle")
+                    )
+                }
+            }
+
+            // Countdown Sound effects toggle
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBFA)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().border(1.dp, Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Turn Timer Warnings", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
+                        Text("Soft audio feedback during the final 3 seconds of your turn", fontSize = 11.sp, color = Color.Gray)
+                    }
+                    Switch(
+                        checked = settings.countdownSoundEnabled,
+                        onCheckedChange = { onSettingsChanged(settings.copy(countdownSoundEnabled = it)) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF5C2D0A), checkedTrackColor = Color(0xFFD4A55A)),
+                        modifier = Modifier.testTag("countdown_sound_toggle")
+                    )
+                }
+            }
+
+            // Haptic/Vibration toggle
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBFA)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().border(1.dp, Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Tactile Vibration", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
+                        Text("Gentle haptic feedback during placement and mills", fontSize = 11.sp, color = Color.Gray)
+                    }
+                    Switch(
+                        checked = settings.vibrationEnabled,
+                        onCheckedChange = { onSettingsChanged(settings.copy(vibrationEnabled = it)) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF5C2D0A), checkedTrackColor = Color(0xFFD4A55A)),
+                        modifier = Modifier.testTag("vibration_toggle")
+                    )
+                }
+            }
+
+            Text("GAMEPLAY & VISUALS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8B5E3C), letterSpacing = 1.sp)
+
+            // Last Move Highlight toggle
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBFA)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().border(1.dp, Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Highlight Last Move", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
+                        Text("Show a gold aura around the most recent move", fontSize = 11.sp, color = Color.Gray)
+                    }
+                    Switch(
+                        checked = settings.highlightLastMove,
+                        onCheckedChange = { onSettingsChanged(settings.copy(highlightLastMove = it)) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF5C2D0A), checkedTrackColor = Color(0xFFD4A55A)),
+                        modifier = Modifier.testTag("highlight_move_toggle")
+                    )
+                }
+            }
+
+            // Fast Animations toggle
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBFA)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().border(1.dp, Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Blitz Mode Styles", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
+                        Text("Reduce visual delays for faster board transitions", fontSize = 11.sp, color = Color.Gray)
+                    }
+                    Switch(
+                        checked = settings.fastAnimations,
+                        onCheckedChange = { onSettingsChanged(settings.copy(fastAnimations = it)) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF5C2D0A), checkedTrackColor = Color(0xFFD4A55A)),
+                        modifier = Modifier.testTag("fast_anims_toggle")
+                    )
+                }
+            }
+
+            // Show Rules on Match Start toggle
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBFA)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().border(1.dp, Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Show Rules on Match Start", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
+                        Text("Automatically popup the How-to-Play guide before every new game", fontSize = 11.sp, color = Color.Gray)
+                    }
+                    Switch(
+                        checked = settings.showRulesOnStart,
+                        onCheckedChange = { onSettingsChanged(settings.copy(showRulesOnStart = it)) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF5C2D0A), checkedTrackColor = Color(0xFFD4A55A)),
+                        modifier = Modifier.testTag("rules_toggle")
                     )
                 }
             }
@@ -375,6 +502,47 @@ fun SettingsScreen(
                         Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("OPEN ADMIN PANEL", fontWeight = FontWeight.Black)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text("LEGAL & COMPLIANCE", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8B5E3C), letterSpacing = 1.sp)
+
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF2F2F2)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "Policies & Digital Safety", 
+                        style = MaterialTheme.typography.titleSmall, 
+                        color = Color.DarkGray, 
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Review our commitment to DPDP Act (India) and Fair Play guidelines via the official web portal.", 
+                        fontSize = 11.sp, 
+                        color = Color.Gray
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { uriHandler.openUri(legalUrl) },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Privacy Policy", fontSize = 11.sp)
+                        }
+                        OutlinedButton(
+                            onClick = { uriHandler.openUri(legalUrl) },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Terms of Use", fontSize = 11.sp)
+                        }
                     }
                 }
             }

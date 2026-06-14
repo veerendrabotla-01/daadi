@@ -97,12 +97,16 @@ class MultiplayerManager(
     private var useSimulatorFallback = false
     private var simulatorJob: Job? = null
 
-    // PieSocket free sandbox websocket url
+    // PieSocket dedicated cluster websocket url
     private val webSocketUrl: String by lazy {
         val apiKey = try { com.example.BuildConfig.PIESOCKET_API_KEY } catch (e: Exception) { "" }
+        val clusterId = try { com.example.BuildConfig.PIESOCKET_CLUSTER_ID } catch (e: Exception) { "free" }
+        
         if (apiKey.isNotBlank() && apiKey != "PIESOCKET_API_KEY_PLACEHOLDER") {
-            "wss://free.piesocket.com/v3/demo?api_key=$apiKey&notify_self=0"
+            // Use dedicated cluster and v3/1 endpoint as requested
+            "wss://$clusterId.piesocket.com/v3/1?api_key=$apiKey&notify_self=1"
         } else {
+            // Public demo fallback
             "wss://free.piesocket.com/v3/demo?api_key=VCX6SpY8ZoZ6Gwz17K0QLW6v8b7X63007077&notify_self=0"
         }
     }
@@ -175,7 +179,7 @@ class MultiplayerManager(
                         if (_isHost.value && _status.value == MultiplayerStatus.LOBBY_WAITING) {
                             _opponentPlayerName.value = msg.sender
                             _status.value = MultiplayerStatus.CONNECTED
-                            soundManager.playPlace() // play connection audio
+                            soundManager.playConnect() // play connection audio
                             
                             // Acknowledge by starting and locking roles
                             sendMsg(MultiplayerMsg(
@@ -193,7 +197,7 @@ class MultiplayerManager(
                             _opponentPlayerName.value = msg.sender
                             _status.value = MultiplayerStatus.CONNECTED
                             _localRole.value = Player.PLAYER_2 // Guest is PLAYER_2
-                            soundManager.playPlace()
+                            soundManager.playConnect()
                             onGameStarted?.invoke()
                         }
                     }
@@ -249,8 +253,8 @@ class MultiplayerManager(
         }
     }
 
-    fun hostRoom() {
-        val code = (100000..999999).random().toString()
+    fun hostRoom(customCode: String? = null) {
+        val code = customCode ?: (100000..999999).random().toString()
         _roomCode.value = code
         _isHost.value = true
         _localRole.value = Player.PLAYER_1
@@ -295,31 +299,49 @@ class MultiplayerManager(
                 ))
                 // Wait briefly for HOST response START sequence
                 scope.launch {
-                    delay(3000)
+                    delay(5000)
                     if (_status.value == MultiplayerStatus.CONNECTING) {
-                        // Host didn't receive or reply, let's auto transition to simulated Lobby match
-                        activateSimulatorFallback()
+                        // In manual join, we DO NOT fall back to bot immediately.
+                        // We show an error that the room was not found or host is offline.
+                        _status.value = MultiplayerStatus.ERROR
+                        _errorMessage.value = "Room #$code not found or host is offline. Verify the PIN."
                     }
                 }
             },
             onError = { err ->
                 _status.value = MultiplayerStatus.ERROR
-                _errorMessage.value = err
+                _errorMessage.value = "Connection failed: $err"
             }
         )
     }
 
-    fun quickMatch() {
+    fun quickMatch(onFindMatch: (onJoin: (String) -> Unit, onHost: (String) -> Unit) -> Unit) {
         _status.value = MultiplayerStatus.MATCHMAKING
         _chatMessages.value = emptyList()
-        _roomCode.value = (111111..999999).random().toString()
+        _errorMessage.value = null
         
-        // QuickMatch immediately starts matching sequence.
-        // We simulate a highly exciting network match broker wait of 1.5 - 2.5 seconds, then lock a match! This guarantees matching works immediately.
-        useSimulatorFallback = true
         scope.launch {
-            delay((1500..2800).random().toLong())
-            setupSimulatedMatch()
+            // Give it a tiny delay for "Real feeling"
+            delay(1000)
+            
+            onFindMatch(
+                { foundRoomCode ->
+                    // UI found a match to join
+                    joinRoom(foundRoomCode)
+                },
+                { newRoomCode ->
+                    // UI decided we should host
+                    hostRoom(newRoomCode)
+                    
+                    // Fallback to simulator if no one joins
+                    scope.launch {
+                        delay(12000) // Give more time for real humans
+                        if (_status.value == MultiplayerStatus.LOBBY_WAITING && _opponentPlayerName.value.isEmpty()) {
+                            activateSimulatorFallback()
+                        }
+                    }
+                }
+            )
         }
     }
 
@@ -416,9 +438,9 @@ class MultiplayerManager(
 
     private fun setupSimulatedMatch() {
         _status.value = MultiplayerStatus.CONNECTED
-        val virtualSages = listOf("Arjuna_Sage", "Chanakya_Guru", "Bhishma_Pro", "Dhruva_Warrior", "Karna_Noble")
-        _opponentPlayerName.value = virtualSages.random()
-        soundManager.playPlace()
+        val virtualPlayers = listOf("Aravind_92", "Kabir_Hero", "Rohan_Pro", "Samrat_King", "Vihaan_77", "Aditya_Gamer")
+        _opponentPlayerName.value = virtualPlayers.random()
+        soundManager.playConnect()
         onGameStarted?.invoke()
 
         // Send greeting in dynamic chat!

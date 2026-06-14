@@ -45,7 +45,8 @@ data class SupabaseMatch(
     val status: String, // "waiting", "playing", "finished"
     val winner: String?,
     val movesCount: Int,
-    val createdAt: String
+    val createdAt: String,
+    val movesJson: String? = null
 )
 
 data class SupabaseAnnouncement(
@@ -60,6 +61,22 @@ data class SupabaseSystemSetting(
     val key: String,
     val value: String,
     val description: String
+)
+
+data class SupabaseFeedback(
+    val id: Int,
+    val username: String,
+    val content: String,
+    val category: String, // "bug", "suggest", "other"
+    val createdAt: String
+)
+
+data class SupabaseAuditLog(
+    val id: Int,
+    val adminName: String,
+    val action: String,
+    val target: String,
+    val timestamp: String
 )
 
 class SupabaseManager(private val context: Context) {
@@ -102,6 +119,12 @@ class SupabaseManager(private val context: Context) {
 
     private val _systemSettings = MutableStateFlow<List<SupabaseSystemSetting>>(emptyList())
     val systemSettings: StateFlow<List<SupabaseSystemSetting>> = _systemSettings.asStateFlow()
+
+    private val _feedback = MutableStateFlow<List<SupabaseFeedback>>(emptyList())
+    val feedback: StateFlow<List<SupabaseFeedback>> = _feedback.asStateFlow()
+
+    private val _auditLogs = MutableStateFlow<List<SupabaseAuditLog>>(emptyList())
+    val auditLogs: StateFlow<List<SupabaseAuditLog>> = _auditLogs.asStateFlow()
 
     // Active Admin ID & profile settings (For testing roles easily in APK)
     private val _currentAdminRole = MutableStateFlow("admin") // Can toggle to "user" dynamically
@@ -584,6 +607,18 @@ class SupabaseManager(private val context: Context) {
             saveSimulatorUsers()
         }
 
+        // Feedback
+        _feedback.value = listOf(
+            SupabaseFeedback(1, "Arjuna_Sage", "The AI on hard mode is almost unbeatable, but I love the challenge!", "suggest", "2026-06-11 14:00"),
+            SupabaseFeedback(2, "Bhishma_Pitamah", "Found a small graphical glitch when placing pieces quickly.", "bug", "2026-06-11 12:30")
+        )
+
+        // Audit Logs
+        _auditLogs.value = listOf(
+            SupabaseAuditLog(1, "VeerendraBotla", "PROMOTED_USER", "Chanakya_Guru", "2026-06-11 05:30"),
+            SupabaseAuditLog(2, "VeerendraBotla", "BANNED_USER", "Shakuni_Dice", "2026-06-11 05:45")
+        )
+
         // Matches
         val matchesSaved = prefs.getString("sim_matches", null)
         if (matchesSaved != null) {
@@ -682,9 +717,12 @@ class SupabaseManager(private val context: Context) {
     private fun getMockSettingsList(): List<SupabaseSystemSetting> {
         return listOf(
             SupabaseSystemSetting("lobby_operational", "active", "Indicates the status of multiplay connections."),
+            SupabaseSystemSetting("maintenance_mode", "off", "Master killswitch for regular user access."),
             SupabaseSystemSetting("match_time_limit_sec", "30", "Match decision constraint before automatic move fallback."),
-            SupabaseSystemSetting("hint_depth_limit", "4", "Max mathematical lookup level for AI tip evaluation."),
-            SupabaseSystemSetting("tournament_registration", "passive", "Indicates whether official tournaments accept registrations.")
+            SupabaseSystemSetting("hint_depth_limit", "5", "Max mathematical lookup level for AI tip evaluation."),
+            SupabaseSystemSetting("tournament_registration", "passive", "Indicates whether official tournaments accept registrations."),
+            SupabaseSystemSetting("ads_launcher", "off", "Master toggle for in-app ad placements and rewarded videos."),
+            SupabaseSystemSetting("reward_video_bonus", "undo_move", "Behavior for successful rewarded ad completion.")
         )
     }
 
@@ -841,6 +879,77 @@ class SupabaseManager(private val context: Context) {
         }
     }
 
+    fun submitFeedback(content: String, category: String, onResult: (Boolean) -> Unit) {
+        val dateStr = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+        val username = currentUser.value?.username ?: "Guest"
+        
+        if (isConfigured) {
+            scope.launch {
+                val feedback = mapOf(
+                    "username" to username,
+                    "content" to content,
+                    "category" to category,
+                    "createdAt" to dateStr
+                )
+                val json = moshi.adapter(Map::class.java).toJson(feedback)
+                val reqBody = json.toRequestBody("application/json".toMediaType())
+
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/feedback")
+                    .headers(getHeaders())
+                    .post(reqBody)
+                    .build()
+
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) { onResult(false) }
+                    override fun onResponse(call: Call, response: Response) { onResult(response.isSuccessful) }
+                })
+            }
+        } else {
+            val nextId = (_feedback.value.maxOfOrNull { it.id } ?: 0) + 1
+            val newFb = SupabaseFeedback(nextId, username, content, category, dateStr)
+            _feedback.value = _feedback.value + newFb
+            onResult(true)
+        }
+    }
+
+    fun registerAuditLog(action: String, target: String) {
+        val adminName = currentUser.value?.username ?: "UnknownAdmin"
+        val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+        
+        if (isConfigured) {
+            scope.launch {
+                val log = mapOf(
+                    "adminName" to adminName,
+                    "action" to action,
+                    "target" to target,
+                    "timestamp" to timestamp
+                )
+                val json = moshi.adapter(Map::class.java).toJson(log)
+                val reqBody = json.toRequestBody("application/json".toMediaType())
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/audit_logs")
+                    .headers(getHeaders())
+                    .post(reqBody)
+                    .build()
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {}
+                    override fun onResponse(call: Call, response: Response) { response.close() }
+                })
+            }
+        } else {
+            val nextId = (_auditLogs.value.maxOfOrNull { it.id } ?: 0) + 1
+            val newLog = SupabaseAuditLog(nextId, adminName, action, target, timestamp)
+            _auditLogs.value = _auditLogs.value + newLog
+        }
+    }
+    fun reportUserByName(username: String) {
+        val user = _users.value.find { it.username == username }
+        if (user != null) {
+            reportUser(user.id)
+        }
+    }
+
     fun reportUser(userId: String) {
         if (isConfigured) {
             scope.launch {
@@ -905,6 +1014,95 @@ class SupabaseManager(private val context: Context) {
                 } else it
             }
             saveSimulatorUsers()
+        }
+    }
+
+    fun findWaitingMatch(onResult: (SupabaseMatch?) -> Unit) {
+        if (!isConfigured) {
+            onResult(null)
+            return
+        }
+        scope.launch {
+            val url = "$supabaseUrl/rest/v1/matches?status=eq.waiting&limit=1"
+            val request = Request.Builder()
+                .url(url)
+                .headers(getHeaders())
+                .get()
+                .build()
+
+            client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) { onResult(null) }
+                override fun onResponse(call: Call, response: Response) {
+                    val body = response.body?.string()
+                    if (response.isSuccessful && body != null) {
+                        try {
+                            val list = matchListAdapter.fromJson(body)
+                            onResult(list?.firstOrNull())
+                        } catch (e: Exception) { onResult(null) }
+                    } else { onResult(null) }
+                }
+            })
+        }
+    }
+
+    fun hostWaitingMatch(hostName: String, roomCode: String, onResult: (Boolean) -> Unit) {
+        val dateString = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+        if (isConfigured) {
+            scope.launch {
+                val matchMap = mapOf(
+                    "id" to roomCode,
+                    "hostName" to hostName,
+                    "opponentName" to "",
+                    "status" to "waiting",
+                    "movesCount" to 0,
+                    "createdAt" to dateString
+                )
+                val json = moshi.adapter(Map::class.java).toJson(matchMap)
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/matches")
+                    .headers(getHeaders())
+                    .post(json.toRequestBody("application/json".toMediaType()))
+                    .build()
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) { onResult(false) }
+                    override fun onResponse(call: Call, response: Response) { 
+                        onResult(response.isSuccessful)
+                        if (response.isSuccessful) {
+                            scope.launch { fetchRemoteMatches() }
+                        }
+                    }
+                })
+            }
+        } else {
+            onResult(true) // local sim success
+        }
+    }
+
+    fun joinWaitingMatch(matchId: String, opponentName: String, onResult: (Boolean) -> Unit) {
+        if (isConfigured) {
+            scope.launch {
+                val update = mapOf(
+                    "opponentName" to opponentName,
+                    "status" to "playing"
+                )
+                val json = moshi.adapter(Map::class.java).toJson(update)
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/matches?id=eq.$matchId")
+                    .headers(getHeaders())
+                    .patch(json.toRequestBody("application/json".toMediaType()))
+                    .build()
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) { onResult(false) }
+                    override fun onResponse(call: Call, response: Response) {
+                        onResult(response.isSuccessful)
+                        if (response.isSuccessful) {
+                            scope.launch { fetchRemoteMatches() }
+                        }
+                    }
+                })
+            }
+        } else {
+            onResult(true) // local sim success
         }
     }
 

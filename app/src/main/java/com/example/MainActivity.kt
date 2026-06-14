@@ -78,6 +78,7 @@ fun DaadiAppNavigation() {
 
             HomeScreen(
                 savedGameState = resumeReadySave,
+                supabaseManager = application.supabaseManager,
                 onPlayVsAi = { navController.navigate("difficulty_select") },
                 onPlayLocal = {
                     gameViewModel.startNewGame(GameMode.PASS_AND_PLAY, AIDifficulty.MEDIUM)
@@ -89,10 +90,29 @@ fun DaadiAppNavigation() {
                 onResumeGame = { navController.navigate("game") },
                 onStatsClick = { navController.navigate("stats") },
                 onSettingsClick = { navController.navigate("settings") },
+                onSignInClick = {
+                    val user = application.supabaseManager.currentUser.value
+                    if (user == null) {
+                        navController.navigate("supabase_auth")
+                    } else if (user.role == "admin") {
+                        navController.navigate("supabase_admin")
+                    } else {
+                        // For regular users, maybe navigate to profile or just let them stay on home
+                        navController.navigate("supabase_auth") 
+                    }
+                },
+                onFeedbackClick = { navController.navigate("feedback") },
                 onDiscardSave = {
                     gameViewModel.discardSavedGame()
                     gameViewModel.startNewGame(GameMode.VS_AI, AIDifficulty.MEDIUM)
                 }
+            )
+        }
+
+        composable("feedback") {
+            UserFeedbackScreen(
+                supabaseManager = (application as com.example.daadi.DaadiApplication).supabaseManager,
+                onBack = { navController.popBackStack() }
             )
         }
 
@@ -130,7 +150,12 @@ fun DaadiAppNavigation() {
         composable("supabase_auth") {
             com.example.daadi.ui.screens.SupabaseAuthScreen(
                 supabaseManager = (application as com.example.daadi.DaadiApplication).supabaseManager,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onAuthSuccess = { 
+                    navController.navigate("home") {
+                        popUpTo("home") { inclusive = true }
+                    }
+                }
             )
         }
 
@@ -147,7 +172,7 @@ fun DaadiAppNavigation() {
             val settingsState by settingsViewModel.settings.collectAsStateWithLifecycle()
 
             val turnTimeSeconds by gameViewModel.turnTimeSeconds.collectAsStateWithLifecycle()
-            val hintNodeId by gameViewModel.hintNodeId.collectAsStateWithLifecycle()
+            val hintMove by gameViewModel.hintMove.collectAsStateWithLifecycle()
             val aiCommentary by gameViewModel.aiCommentary.collectAsStateWithLifecycle()
             val showTutorial by gameViewModel.showTutorial.collectAsStateWithLifecycle()
 
@@ -158,6 +183,8 @@ fun DaadiAppNavigation() {
             val drawOfferPendingLocal by gameViewModel.drawOfferPendingLocal.collectAsStateWithLifecycle()
             val chatMessages by multiplayerManager.chatMessages.collectAsStateWithLifecycle()
             val localPlayerName by multiplayerManager.localPlayerName.collectAsStateWithLifecycle()
+            val adsEnabled by gameViewModel.adsEnabled.collectAsStateWithLifecycle()
+            val tutorialWarningMessage by gameViewModel.tutorialWarningMessage.collectAsStateWithLifecycle()
 
             // Calculate valid targets dynamically for board highlights
             val validDestinations = remember(state, selectedNodeId) {
@@ -193,7 +220,7 @@ fun DaadiAppNavigation() {
                 onUndoClick = { gameViewModel.undoLastMove() },
                 boardTheme = settingsState.selectedBoardTheme,
                 turnTimeSeconds = turnTimeSeconds,
-                hintNodeId = hintNodeId,
+                hintMove = hintMove,
                 aiCommentary = aiCommentary,
                 showTutorial = showTutorial,
                 onHintClick = { gameViewModel.computeHint() },
@@ -208,7 +235,12 @@ fun DaadiAppNavigation() {
                 onRespondToRemoteUndo = { gameViewModel.respondToRemoteUndo(it) },
                 chatMessages = chatMessages,
                 onSendChatMessage = { multiplayerManager.sendChat(it) },
-                localPlayerName = localPlayerName
+                localPlayerName = localPlayerName,
+                adsEnabled = adsEnabled,
+                settings = settingsState,
+                onSettingsChanged = { settingsViewModel.updateSettings(it) },
+                onReportOpponent = { gameViewModel.reportOpponent() },
+                tutorialWarningMessage = tutorialWarningMessage
             )
         }
 

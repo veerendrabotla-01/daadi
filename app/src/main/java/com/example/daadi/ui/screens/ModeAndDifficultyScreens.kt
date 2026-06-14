@@ -38,7 +38,8 @@ fun DifficultySelectScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color(0xFFFDF3E3),
-                    titleContentColor = Color(0xFF5C2D0A)
+                    titleContentColor = Color(0xFF5C2D0A),
+                    navigationIconContentColor = Color(0xFF5C2D0A)
                 )
             )
         },

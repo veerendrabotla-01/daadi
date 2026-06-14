@@ -150,7 +150,7 @@ object AIEngine {
     private fun selectHardMove(state: GameState, legalMoves: List<Pair<Int?, Int>>): Pair<Int?, Int> {
         val ai = Player.PLAYER_2
         val isPlacement = state.phase == GamePhase.PLACEMENT
-        val maxDepth = if (isPlacement) 3 else 5
+        val maxDepth = if (isPlacement) 5 else 7 // Increased depth for more "perfect" lookahead
 
         var bestMove: Pair<Int?, Int> = legalMoves.random()
         var bestVal = Int.MIN_VALUE
@@ -158,10 +158,10 @@ object AIEngine {
         val alpha = Int.MIN_VALUE
         val beta = Int.MAX_VALUE
 
-        // Sort moves to optimize alpha-beta cutoff (evaluate immediate wins first)
+        // Sort moves to optimize alpha-beta cutoff (evaluate immediate wins/mills first)
         val sortedMoves = legalMoves.sortedByDescending { move ->
             val boardAfter = applyHypotheticalMove(state.board, move, ai)
-            if (MillDetector.formsNewMill(boardAfter, move.second, ai)) 100 else 0
+            if (MillDetector.formsNewMill(boardAfter, move.second, ai)) 1000 else 0
         }
 
         for (move in sortedMoves) {
@@ -219,46 +219,66 @@ object AIEngine {
      * - Negative: Favors Human (PLAYER_1)
      */
     private fun evaluateBoard(state: GameState): Int {
-        if (state.winner == Player.PLAYER_2) return 10000
-        if (state.winner == Player.PLAYER_1) return -10000
+        if (state.winner == Player.PLAYER_2) return 50000
+        if (state.winner == Player.PLAYER_1) return -50000
 
         var score = 0
+        val board = state.board
 
         // 1. Piece differential
         val p1Count = state.player1PiecesOnBoard
         val p2Count = state.player2PiecesOnBoard
-        score += (p2Count - p1Count) * 200
+        score += (p2Count - p1Count) * 400
 
-        // 2. Check Mills on board
-        val board = state.board
+        // 2. Check Mills and Potential Mills
         var p2Mills = 0
         var p1Mills = 0
+        var p2TwoInALine = 0
+        var p1TwoInALine = 0
+
         for (mill in BoardDefinition.MILLS) {
             val o1 = board.nodes[mill.first]
             val o2 = board.nodes[mill.second]
             val o3 = board.nodes[mill.third]
-            if (o1 == o2 && o2 == o3) {
+            
+            if (o1 != null && o1 == o2 && o2 == o3) {
                 if (o1 == Player.PLAYER_2) p2Mills++
-                else if (o1 == Player.PLAYER_1) p1Mills++
+                else p1Mills++
+            } else {
+                // Check for 2-in-a-line with an empty 3rd spot (threats)
+                val owners = listOf(o1, o2, o3)
+                if (owners.count { it == Player.PLAYER_2 } == 2 && owners.any { it == null }) p2TwoInALine++
+                if (owners.count { it == Player.PLAYER_1 } == 2 && owners.any { it == null }) p1TwoInALine++
             }
         }
         score += p2Mills * 150
-        score -= p1Mills * 180 // Penalize human mills heavily to prioritize blocking
+        score -= p1Mills * 300 // Defensive priority: block human mills
+        score += p2TwoInALine * 30
+        score -= p1TwoInALine * 60 // Block human "open" mills
 
         // 3. Piece Mobility (number of moves available)
-        val p2Mobility = GameEngine.getLegalMoves(state, Player.PLAYER_2).size
-        val p1Mobility = GameEngine.getLegalMoves(state, Player.PLAYER_1).size
-        score += p2Mobility * 10
-        score -= p1Mobility * 10
+        val p2Moves = GameEngine.getLegalMoves(state, Player.PLAYER_2)
+        val p1Moves = GameEngine.getLegalMoves(state, Player.PLAYER_1)
+        score += p2Moves.size * 20
+        score -= p1Moves.size * 20
+        
+        // Penalize blocking (no moves available for a piece)
+        // (Handled partially by moves.size, but let's favor central pieces more)
 
-        // 4. Strategic Position occupancies (side-centers are great to form mills)
+        // 4. Strategic Position occupancies (Crossings/intersections)
         for ((nodeId, owner) in board.nodes) {
+            val connections = BoardDefinition.CONNECTIONS[nodeId]?.size ?: 0
             if (owner == Player.PLAYER_2) {
-                score += if (nodeId in listOf(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23)) 15 else 5
+                score += if (nodeId in listOf(1, 4, 7, 10, 13, 16, 19, 22)) 40 else 15
+                score += connections * 10
             } else if (owner == Player.PLAYER_1) {
-                score -= if (nodeId in listOf(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23)) 15 else 5
+                score -= if (nodeId in listOf(1, 4, 7, 10, 13, 16, 19, 22)) 40 else 15
+                score -= connections * 10
             }
         }
+
+        // 5. Block double-mill threats (T-junctions)
+        // (Handled partially by two-in-a-line, but higher weight for intersections)
 
         return score
     }

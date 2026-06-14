@@ -114,7 +114,8 @@ fun MultiplayerLobbyScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color(0xFFFDF3E3),
-                    titleContentColor = Color(0xFF5C2D0A)
+                    titleContentColor = Color(0xFF5C2D0A),
+                    navigationIconContentColor = Color(0xFF5C2D0A)
                 )
             )
         },
@@ -353,7 +354,12 @@ fun MultiplayerLobbyScreen(
                             onClick = {
                                 checkConnectivityThen {
                                     focusManager.clearFocus()
-                                    multiplayerManager.hostRoom()
+                                    val code = (100000..999999).random().toString()
+                                    supabaseManager.hostWaitingMatch(localPlayerName, code) { success ->
+                                        if (success) {
+                                            multiplayerManager.hostRoom(code)
+                                        }
+                                    }
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C2D0A)),
@@ -392,7 +398,9 @@ fun MultiplayerLobbyScreen(
                                 focusedBorderColor = Color(0xFF5C2D0A),
                                 unfocusedBorderColor = Color(0xFFE5A93B),
                                 focusedLabelColor = Color(0xFF5C2D0A),
-                                unfocusedLabelColor = Color(0xFF8B5E3C)
+                                unfocusedLabelColor = Color(0xFF8B5E3C),
+                                focusedTextColor = Color(0xFF5C2D0A),
+                                unfocusedTextColor = Color(0xFF5C2D0A)
                             ),
                             modifier = Modifier.fillMaxWidth().testTag("join_room_input")
                         )
@@ -402,7 +410,9 @@ fun MultiplayerLobbyScreen(
                                 checkConnectivityThen {
                                     focusManager.clearFocus()
                                     if (manualRoomCodeInput.length == 6) {
-                                        multiplayerManager.joinRoom(manualRoomCodeInput)
+                                        supabaseManager.joinWaitingMatch(manualRoomCodeInput, localPlayerName) { success ->
+                                            multiplayerManager.joinRoom(manualRoomCodeInput)
+                                        }
                                     }
                                 }
                             },
@@ -421,7 +431,20 @@ fun MultiplayerLobbyScreen(
                             onClick = {
                                 checkConnectivityThen {
                                     focusManager.clearFocus()
-                                    multiplayerManager.quickMatch()
+                                    multiplayerManager.quickMatch { onJoin, onHost ->
+                                        supabaseManager.findWaitingMatch { match ->
+                                            if (match != null) {
+                                                supabaseManager.joinWaitingMatch(match.id, localPlayerName) {
+                                                    onJoin(match.id)
+                                                }
+                                            } else {
+                                                val newCode = (100000..999999).random().toString()
+                                                supabaseManager.hostWaitingMatch(localPlayerName, newCode) { success ->
+                                                    onHost(newCode)
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC75D27)),

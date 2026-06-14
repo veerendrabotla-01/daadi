@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -53,6 +54,8 @@ fun SupabaseAuthScreen(
     var localSuccessMsg by remember { mutableStateOf<String?>(null) }
     var hasAcceptedTerms by remember { mutableStateOf(false) }
     var showPrivacyPolicyDialog by remember { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
+    val legalUrl = "https://daadi-legal.vercel.app"
 
     Scaffold(
         topBar = {
@@ -73,7 +76,8 @@ fun SupabaseAuthScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color(0xFFFDF3E3),
-                    titleContentColor = Color(0xFF5C2D0A)
+                    titleContentColor = Color(0xFF5C2D0A),
+                    navigationIconContentColor = Color(0xFF5C2D0A)
                 )
             )
         },
@@ -360,7 +364,12 @@ fun SupabaseAuthScreen(
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF5C2D0A),
-                                focusedLabelColor = Color(0xFF5C2D0A)
+                                focusedLabelColor = Color(0xFF5C2D0A),
+                                focusedTextColor = Color(0xFF5C2D0A),
+                                unfocusedTextColor = Color(0xFF5C2D0A),
+                                unfocusedLabelColor = Color(0xFF8B5E3C),
+                                focusedPlaceholderColor = Color(0xFF8B5E3C),
+                                unfocusedPlaceholderColor = Color(0xFF8B5E3C).copy(alpha = 0.6f)
                             )
                         )
 
@@ -381,7 +390,12 @@ fun SupabaseAuthScreen(
                                 singleLine = true,
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = Color(0xFF5C2D0A),
-                                    focusedLabelColor = Color(0xFF5C2D0A)
+                                    focusedLabelColor = Color(0xFF5C2D0A),
+                                    focusedTextColor = Color(0xFF5C2D0A),
+                                    unfocusedTextColor = Color(0xFF5C2D0A),
+                                    unfocusedLabelColor = Color(0xFF8B5E3C),
+                                    focusedPlaceholderColor = Color(0xFF8B5E3C),
+                                    unfocusedPlaceholderColor = Color(0xFF8B5E3C).copy(alpha = 0.6f)
                                 )
                             )
                         }
@@ -409,7 +423,12 @@ fun SupabaseAuthScreen(
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF5C2D0A),
-                                focusedLabelColor = Color(0xFF5C2D0A)
+                                focusedLabelColor = Color(0xFF5C2D0A),
+                                focusedTextColor = Color(0xFF5C2D0A),
+                                unfocusedTextColor = Color(0xFF5C2D0A),
+                                unfocusedLabelColor = Color(0xFF8B5E3C),
+                                focusedPlaceholderColor = Color(0xFF8B5E3C),
+                                unfocusedPlaceholderColor = Color(0xFF8B5E3C).copy(alpha = 0.6f)
                             )
                         )
 
@@ -624,11 +643,25 @@ fun SupabaseAuthScreen(
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = { showPrivacyPolicyDialog = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C2D0A))
-                ) {
-                    Text("I Understand")
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    Button(
+                        onClick = { 
+                            uriHandler.openUri(legalUrl)
+                            showPrivacyPolicyDialog = false 
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC75D27)),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Read Online", fontSize = 11.sp, maxLines = 1)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = { showPrivacyPolicyDialog = false },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C2D0A)),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Close", fontSize = 11.sp, maxLines = 1)
+                    }
                 }
             },
             containerColor = Color(0xFFFFF7EA)

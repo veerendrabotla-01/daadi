@@ -22,12 +22,16 @@ class SoundManager(private val settingsRepository: SettingsRepository) {
         return settingsRepository.getSettings().soundEnabled
     }
 
+    private fun isCountdownSoundEnabled(): Boolean {
+        return settingsRepository.getSettings().countdownSoundEnabled
+    }
+
     fun playPlace() {
         if (!isSoundEnabled()) return
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // Short, warm high pitch beep for placement
-                toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 80)
+                // Short, warm acoustic-like tap for placement
+                toneGenerator?.startTone(ToneGenerator.TONE_DTMF_0, 60)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -38,8 +42,8 @@ class SoundManager(private val settingsRepository: SettingsRepository) {
         if (!isSoundEnabled()) return
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // Quick prompt tone for movement
-                toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP, 100)
+                // Soft slide-like tone
+                toneGenerator?.startTone(ToneGenerator.TONE_DTMF_1, 70)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -50,8 +54,8 @@ class SoundManager(private val settingsRepository: SettingsRepository) {
         if (!isSoundEnabled()) return
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // Low warning buzz tone for capture
-                toneGenerator?.startTone(ToneGenerator.TONE_PROP_PROMPT, 180)
+                // Distinct downward alert
+                toneGenerator?.startTone(ToneGenerator.TONE_PROP_PROMPT, 150)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -62,8 +66,8 @@ class SoundManager(private val settingsRepository: SettingsRepository) {
         if (!isSoundEnabled()) return
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // High success beep-beep
-                toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP2, 120)
+                // Harmonic double beep for success
+                toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP2, 100)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -74,9 +78,9 @@ class SoundManager(private val settingsRepository: SettingsRepository) {
         if (!isSoundEnabled()) return
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 250)
-                Thread.sleep(100)
-                toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 250)
+                toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 200)
+                Thread.sleep(150)
+                toneGenerator?.startTone(ToneGenerator.TONE_DTMF_5, 300)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -87,7 +91,7 @@ class SoundManager(private val settingsRepository: SettingsRepository) {
         if (!isSoundEnabled()) return
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                toneGenerator?.startTone(ToneGenerator.TONE_PROP_PROMPT, 300)
+                toneGenerator?.startTone(ToneGenerator.TONE_PROP_PROMPT, 400)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -98,9 +102,7 @@ class SoundManager(private val settingsRepository: SettingsRepository) {
         if (!isSoundEnabled()) return
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 80)
-                Thread.sleep(60)
-                toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP2, 80)
+                toneGenerator?.startTone(ToneGenerator.TONE_DTMF_7, 80)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -108,10 +110,33 @@ class SoundManager(private val settingsRepository: SettingsRepository) {
     }
 
     fun playCountdownTick() {
+        if (!isSoundEnabled() || !isCountdownSoundEnabled()) return
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // Neutral, very short tick for urgency but not annoyance
+                toneGenerator?.startTone(ToneGenerator.TONE_CDMA_PIP, 40)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun playConnect() {
         if (!isSoundEnabled()) return
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP, 30)
+                toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 150)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun playError() {
+        if (!isSoundEnabled()) return
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                toneGenerator?.startTone(ToneGenerator.TONE_CDMA_SOFT_ERROR_LITE, 100)
             } catch (e: Exception) {
                 e.printStackTrace()
             }

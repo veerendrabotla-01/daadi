@@ -95,6 +95,11 @@ data class PlayerStats(
 data class AppSettings(
     val soundEnabled: Boolean = true,
     val musicEnabled: Boolean = true,
+    val countdownSoundEnabled: Boolean = true,
+    val vibrationEnabled: Boolean = true,
+    val highlightLastMove: Boolean = true,
+    val fastAnimations: Boolean = false,
     val defaultDifficulty: AIDifficulty = AIDifficulty.MEDIUM,
-    val selectedBoardTheme: String = "classic_wood"
+    val selectedBoardTheme: String = "classic_wood",
+    val showRulesOnStart: Boolean = true
 )

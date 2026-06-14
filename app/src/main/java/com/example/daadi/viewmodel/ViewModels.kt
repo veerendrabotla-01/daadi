@@ -46,8 +46,12 @@ class GameViewModel(
     private val _turnTimeSeconds = MutableStateFlow(30)
     val turnTimeSeconds: StateFlow<Int> = _turnTimeSeconds.asStateFlow()
 
-    private val _hintNodeId = MutableStateFlow<Int?>(null)
-    val hintNodeId: StateFlow<Int?> = _hintNodeId.asStateFlow()
+    // Administrative Ads Logic
+    private val _adsEnabled = MutableStateFlow(false)
+    val adsEnabled: StateFlow<Boolean> = _adsEnabled.asStateFlow()
+
+    private val _hintMove = MutableStateFlow<Pair<Int?, Int>?>(null)
+    val hintMove: StateFlow<Pair<Int?, Int>?> = _hintMove.asStateFlow()
 
     private val _aiCommentary = MutableStateFlow("Chanakya Bot: Let the clash of wits begin!")
     val aiCommentary: StateFlow<String> = _aiCommentary.asStateFlow()
@@ -68,8 +72,20 @@ class GameViewModel(
     val drawOfferPendingLocal: StateFlow<Boolean> = _drawOfferPendingLocal.asStateFlow()
 
     private var timerJob: kotlinx.coroutines.Job? = null
+    private var tutorialWarningJob: kotlinx.coroutines.Job? = null
+    private val _tutorialWarningMessage = MutableStateFlow<String?>(null)
+    val tutorialWarningMessage: StateFlow<String?> = _tutorialWarningMessage.asStateFlow()
+
+    private var currentSettings = AppSettings()
 
     init {
+        // Collect settings to respect user preferences (like blitz mode)
+        viewModelScope.launch {
+            settingsRepository.settingsFlow.collect {
+                currentSettings = it
+            }
+        }
+
         // Try restoring saved game initially if it exists
         val saved = gameRepository.loadGame()
         if (saved != null && saved.winner == null) {
@@ -103,6 +119,14 @@ class GameViewModel(
         multiplayerManager.onGameStarted = {
             startNewGame(GameMode.ONLINE_MULTIPLAYER, AIDifficulty.MEDIUM)
         }
+
+        // Initialize Ads visibility from remote configuration
+        viewModelScope.launch {
+            supabaseManager.systemSettings.collect { settings ->
+                val adSetting = settings.find { it.key == "ads_launcher" }
+                _adsEnabled.value = adSetting?.value == "on"
+            }
+        }
     }
 
     /**
@@ -125,7 +149,7 @@ class GameViewModel(
         _isAiThinking.value = false
         _showPauseMenu.value = false
         _recentInvalidNode.value = null
-        _hintNodeId.value = null
+        _hintMove.value = null
         _showRemoteDrawRequest.value = false
         _showRemoteUndoRequest.value = false
         _undoPendingLocal.value = false
@@ -149,7 +173,7 @@ class GameViewModel(
      */
     fun tapNode(nodeId: Int) {
         if (_isAiThinking.value) return // Block input during AI thinking
-        _hintNodeId.value = null
+        _hintMove.value = null
         val state = _gameState.value
         if (state.winner != null) return
 
@@ -249,6 +273,7 @@ class GameViewModel(
 
     private fun flashInvalidNode(nodeId: Int) {
         _recentInvalidNode.value = nodeId
+        soundManager.playError()
         viewModelScope.launch {
             delay(300)
             if (_recentInvalidNode.value == nodeId) {
@@ -296,15 +321,16 @@ class GameViewModel(
     }
 
     private fun triggerAiTurn() {
-        if (_isAiThinking.value) return
+        if (_isAiThinking.value || _showTutorial.value) return
         _isAiThinking.value = true
 
         viewModelScope.launch {
-            // Simulate brief strategic delay so AI doesn't feel instantaneous/glitchy
-            delay(600)
+            // Respect Fast Animations (Blitz Mode) setting
+            val aiDelay = if (currentSettings.fastAnimations) 500L else 1200L
+            delay(aiDelay)
 
             val currentState = _gameState.value
-            if (currentState.winner != null || currentState.currentPlayer != Player.PLAYER_2) {
+            if (currentState.winner != null || currentState.currentPlayer != Player.PLAYER_2 || _showTutorial.value) {
                 _isAiThinking.value = false
                 return@launch
             }
@@ -532,7 +558,7 @@ class GameViewModel(
         _turnTimeSeconds.value = 30
         
         val state = _gameState.value
-        if (state.winner != null || state.phase == GamePhase.GAME_OVER) return
+        if (state.winner != null || state.phase == GamePhase.GAME_OVER || _showTutorial.value) return
         
         val localRole = if (state.gameMode == GameMode.ONLINE_MULTIPLAYER) {
             multiplayerManager.localRole.value
@@ -548,8 +574,8 @@ class GameViewModel(
                 delay(1000)
                 _turnTimeSeconds.value -= 1
                 
-                // Play soft warnings in last 5 seconds
-                if (_turnTimeSeconds.value in 1..5) {
+                // Play soft warnings in last 3 seconds
+                if (_turnTimeSeconds.value in 1..3) {
                     soundManager.playCountdownTick()
                 }
             }
@@ -674,13 +700,54 @@ class GameViewModel(
     fun computeHint() {
         val hint = AIEngine.getHint(_gameState.value)
         if (hint != null) {
-            _hintNodeId.value = hint.second
+            _hintMove.value = hint
             soundManager.playHint()
+            
+            val moveDesc = if (hint.first == null) {
+                "Suggested: Place a piece at node ${hint.second + 1}"
+            } else {
+                "Suggested: Move piece from ${hint.first!! + 1} to ${hint.second + 1}"
+            }
+            _aiCommentary.value = "Chanakya Bot: $moveDesc"
+        }
+    }
+
+    fun reportOpponent() {
+        val opponentName = multiplayerManager.opponentPlayerName.value
+        if (opponentName.isNotBlank()) {
+            supabaseManager.reportUserByName(opponentName)
+            _aiCommentary.value = "Report submitted. We take fair play seriously!"
         }
     }
 
     fun toggleTutorial(visible: Boolean) {
         _showTutorial.value = visible
+        if (visible) {
+            timerJob?.cancel()
+            startTutorialWarningTimer()
+        } else {
+            _tutorialWarningMessage.value = null
+            tutorialWarningJob?.cancel()
+            startTurnTimer()
+            if (_gameState.value.currentPlayer == Player.PLAYER_2 && _gameState.value.gameMode == GameMode.VS_AI) {
+                triggerAiTurn()
+            }
+        }
+    }
+
+    private fun startTutorialWarningTimer() {
+        tutorialWarningJob?.cancel()
+        tutorialWarningJob = viewModelScope.launch {
+            delay(10000) // 10 seconds of reading time
+            var countdown = 10
+            while (countdown > 0) {
+                _tutorialWarningMessage.value = "Match begins in $countdown seconds... Close guide to play!"
+                delay(1000)
+                countdown--
+            }
+            // Auto close tutorial if they are completely idle
+            toggleTutorial(false)
+        }
     }
 
     fun resignGame() {
@@ -709,8 +776,27 @@ class GameViewModel(
 
     fun offerDrawGame() {
         val state = _gameState.value
-        if (state.winner != null) return
+        if (state.winner != null || state.phase == GamePhase.GAME_OVER) return
         
+        val totalMoves = state.moveHistory.size
+        val movesSinceCapture = state.moveHistory.takeLastWhile { it.capturedNode == null }.size
+        
+        // Condition: At least some balance must be established (e.g. 20 moves)
+        if (totalMoves < 16) {
+            _aiCommentary.value = "Too early for a draw! Let the battle progress."
+            return
+        }
+        
+        if (state.gameMode == GameMode.VS_AI) {
+            // AI accepts draw if many moves passed without capture or if match is very long
+            if (movesSinceCapture > 30 || totalMoves > 100) {
+                finalizeDraw(state)
+            } else {
+                _aiCommentary.value = "Chanakya Bot: I believe I can still win. Let us proceed!"
+            }
+            return
+        }
+
         if (state.gameMode == GameMode.ONLINE_MULTIPLAYER) {
             _drawOfferPendingLocal.value = true
             multiplayerManager.sendDrawOffer()
@@ -718,13 +804,19 @@ class GameViewModel(
             return
         }
 
+        // For Pass & Play, immediate draw (assuming mutual verbal agreement on same device)
+        finalizeDraw(state)
+    }
+
+    private fun finalizeDraw(state: GameState) {
         val updatedState = state.copy(
             winner = null, 
             phase = GamePhase.GAME_OVER
         )
-        soundManager.playWin()
+        soundManager.playPlace() // Neutral sound
         statsRepository.updateStats(null, state.gameMode, state.aiDifficulty)
         _gameState.value = updatedState
+        _aiCommentary.value = "Match ended in a Handshake Draw!"
         gameRepository.clearSavedGame()
     }
 

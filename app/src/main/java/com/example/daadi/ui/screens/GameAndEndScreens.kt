@@ -41,7 +41,7 @@ fun GameScreen(
     onUndoClick: () -> Unit,
     boardTheme: String,
     turnTimeSeconds: Int,
-    hintNodeId: Int?,
+    hintMove: Pair<Int?, Int>?,
     aiCommentary: String,
     showTutorial: Boolean,
     onHintClick: () -> Unit,
@@ -57,7 +57,12 @@ fun GameScreen(
     onRespondToRemoteUndo: (Boolean) -> Unit = {},
     chatMessages: List<com.example.daadi.data.multiplayer.ChatMessage> = emptyList(),
     onSendChatMessage: (String) -> Unit = {},
-    localPlayerName: String = "You"
+    localPlayerName: String = "You",
+    adsEnabled: Boolean = false,
+    settings: AppSettings = AppSettings(),
+    onSettingsChanged: (AppSettings) -> Unit = {},
+    onReportOpponent: () -> Unit = {},
+    tutorialWarningMessage: String? = null
 ) {
     var showResetConfirmation by remember { mutableStateOf(false) }
     var showQuitConfirmation by remember { mutableStateOf(false) }
@@ -65,6 +70,13 @@ fun GameScreen(
     var showDrawConfirmation by remember { mutableStateOf(false) }
     var showResignConfirmation by remember { mutableStateOf(false) }
     var showChatSheet by remember { mutableStateOf(false) }
+
+    // Automatic tutorial popup on match start (first move)
+    LaunchedEffect(state.moveHistory, settings.showRulesOnStart) {
+        if (settings.showRulesOnStart && state.moveHistory.isEmpty() && state.winner == null) {
+            onTutorialToggle(true)
+        }
+    }
 
     // Dynamic adaptive background color based on boardTheme
     val dynamicBackgroundColor = when (boardTheme) {
@@ -106,6 +118,11 @@ fun GameScreen(
                         )
                     }
                 },
+                navigationIcon = {
+                    IconButton(onClick = onBackHomeClick, modifier = Modifier.testTag("game_back_button")) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Exit to Menu", tint = dynamicTextColor)
+                    }
+                },
                 actions = {
                     if (state.winner == null) {
                         IconButton(onClick = onPauseClick, modifier = Modifier.testTag("pause_button")) {
@@ -115,7 +132,9 @@ fun GameScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = dynamicBackgroundColor,
-                    titleContentColor = dynamicTextColor
+                    titleContentColor = dynamicTextColor,
+                    navigationIconContentColor = dynamicTextColor,
+                    actionIconContentColor = dynamicTextColor
                 )
             )
         },
@@ -188,29 +207,29 @@ fun GameScreen(
                         Spacer(modifier = Modifier.height(10.dp))
                     }
 
-                    // Chips layout showing detailed hand counts
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        // Player 1 (Red)
-                        GameStatusChip(
-                            label = if (state.gameMode == GameMode.VS_AI) "You (Red)" else "Red",
-                            handCount = state.player1PiecesInHand,
-                            boardCount = state.player1PiecesOnBoard,
-                            color = Color(0xFFCC2222),
-                            modifier = Modifier.weight(1f)
-                        )
+                // Chips layout showing detailed hand counts
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Player 1 (Red)
+                    GameStatusChip(
+                        label = if (state.gameMode == GameMode.VS_AI) "You (Red)" else "Red",
+                        handCount = state.player1PiecesInHand,
+                        boardCount = state.player1PiecesOnBoard,
+                        color = Color(0xFFCC2222),
+                        modifier = Modifier.weight(1f)
+                    )
 
-                        // Player 2 (Blue)
-                        GameStatusChip(
-                            label = if (state.gameMode == GameMode.VS_AI) "Bot (Blue)" else "Blue",
-                            handCount = state.player2PiecesInHand,
-                            boardCount = state.player2PiecesOnBoard,
-                            color = Color(0xFF1A5276),
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                    // Player 2 (Blue)
+                    GameStatusChip(
+                        label = if (state.gameMode == GameMode.VS_AI) "Bot (Blue)" else "Blue",
+                        handCount = state.player2PiecesInHand,
+                        boardCount = state.player2PiecesOnBoard,
+                        color = Color(0xFF1A5276),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
 
                     if (state.gameMode == GameMode.VS_AI && state.winner == null) {
                         Spacer(modifier = Modifier.height(10.dp))
@@ -260,52 +279,65 @@ fun GameScreen(
                         recentInvalidNode = recentInvalidNode,
                         onNodeTapped = onNodeTapped,
                         boardTheme = boardTheme,
-                        hintNodeId = hintNodeId,
-                        modifier = Modifier.sizeIn(maxWidth = 420.dp, maxHeight = 420.dp)
+                        hintMove = hintMove,
+                        highlightLastMove = settings.highlightLastMove,
+                        lastMoveNodeId = state.moveHistory.lastOrNull()?.toNode,
+                        modifier = Modifier.sizeIn(maxWidth = 440.dp, maxHeight = 440.dp)
                     )
+                }
 
-                    // Overlay for active captures
-                    if (state.isCapturePending && !isAiThinking) {
-                        val isUserCapturer = state.gameMode == GameMode.VS_AI && state.currentPlayer == Player.PLAYER_1
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color(0xCC221105))
-                                .padding(12.dp)
-                                .align(Alignment.BottomCenter)
-                        ) {
-                            Text(
-                                text = if (isUserCapturer) {
-                                    "✨ DAADI Closed! Tap an opponent Blue piece to capture it!"
-                                } else if (state.gameMode == GameMode.VS_AI) {
-                                    "Bot is capturing your Red piece..."
-                                } else {
-                                    "✨ DAADI closed! Tap opponent bead to remove it."
-                                },
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
+                // Tutorial Countdown Warning Overlay
+                AnimatedVisibility(
+                    visible = tutorialWarningMessage != null,
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 2.dp)
+                            .background(Color(0xFFC75D27), RoundedCornerShape(8.dp))
+                            .padding(8.dp)
+                    ) {
+                        Text(
+                            text = tutorialWarningMessage ?: "",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
+                }
 
-                    // Loading Spinner for AI thinking
-                    if (isAiThinking) {
-                        Box(
-                            modifier = Modifier
-                                .size(88.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xCC221105)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator(color = Color(0xFFE5A93B), modifier = Modifier.size(28.dp))
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text("Thinking", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
+                // Dedicated instruction area for captures and status (Moved away from board overlay)
+                AnimatedVisibility(
+                    visible = state.isCapturePending && !isAiThinking,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    val isUserCapturer = state.gameMode == GameMode.VS_AI && state.currentPlayer == Player.PLAYER_1
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .background(Color(0xFFC62828), RoundedCornerShape(8.dp))
+                            .padding(8.dp)
+                    ) {
+                        Text(
+                            text = if (isUserCapturer) {
+                                "✨ DAADI CLOSED! REMOVE A BLUE PIECE!"
+                            } else if (state.gameMode == GameMode.VS_AI) {
+                                "Bot is removing your Red piece..."
+                            } else {
+                                "✨ DAADI CLOSED! REMOVE OPPONENT PIECE!"
+                            },
+                            color = Color.White,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
 
@@ -543,6 +575,28 @@ fun GameScreen(
                                 color = Color(0xFF8B5E3C),
                                 lineHeight = 18.sp
                             )
+                            Spacer(modifier = Modifier.height(14.dp))
+                            
+                            // "Don't show again" toggle
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onSettingsChanged(settings.copy(showRulesOnStart = !settings.showRulesOnStart)) }
+                            ) {
+                                Checkbox(
+                                    checked = !settings.showRulesOnStart,
+                                    onCheckedChange = { onSettingsChanged(settings.copy(showRulesOnStart = !it)) },
+                                    colors = CheckboxDefaults.colors(checkedColor = Color(0xFF5C2D0A))
+                                )
+                                Text(
+                                    text = "Don't show rules automatically",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF5C2D0A),
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            
                             Spacer(modifier = Modifier.height(14.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -930,20 +984,40 @@ fun GameScreen(
                             // Play again & Menu CTAs
                             Button(
                                 onClick = onRestartClick,
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C2D0A)),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF5C2D0A),
+                                    contentColor = Color.White
+                                ),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(46.dp)
                                     .testTag("play_again_button")
                             ) {
-                                Icon(Icons.Default.Refresh, contentDescription = null)
+                                Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White)
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Play Rematch")
+                                Text("Play Rematch", color = Color.White)
                             }
-
+ 
+                            if (state.gameMode == GameMode.ONLINE_MULTIPLAYER) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Button(
+                                    onClick = onReportOpponent,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336)),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(46.dp)
+                                        .testTag("report_opponent_button")
+                                ) {
+                                    Icon(Icons.Default.Report, contentDescription = null, tint = Color.White)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Report Unfair Play", color = Color.White)
+                                }
+                            }
+ 
                             // Undo offer buttons (Loss only in single mode)
-                            if (state.gameMode == GameMode.VS_AI && !isWin) {
+                            if (state.gameMode == GameMode.VS_AI && !isWin && adsEnabled) {
                                 Spacer(modifier = Modifier.height(10.dp))
                                 Button(
                                     onClick = { showAdOfferDialog = true },
@@ -1047,24 +1121,25 @@ fun GameStatusChip(
         modifier = modifier.border(1.dp, color.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
     ) {
         Column(
-            modifier = Modifier.padding(10.dp),
+            modifier = Modifier.padding(6.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 label,
-                fontSize = 12.sp,
+                fontSize = 10.sp,
                 color = color,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
             )
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             Row(horizontalArrangement = Arrangement.SpaceAround, modifier = Modifier.fillMaxWidth()) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("In Hand", fontSize = 10.sp, color = Color.Gray)
-                    Text("$handCount", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5C2D0A))
+                    Text("Hand", fontSize = 8.sp, color = Color.Gray)
+                    Text("$handCount", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5C2D0A))
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("On Board", fontSize = 10.sp, color = Color.Gray)
-                    Text("$boardCount", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5C2D0A))
+                    Text("Board", fontSize = 8.sp, color = Color.Gray)
+                    Text("$boardCount", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5C2D0A))
                 }
             }
         }
