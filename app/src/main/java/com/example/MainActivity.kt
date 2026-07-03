@@ -4,17 +4,28 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.daadi.DaadiApplication
 import com.example.daadi.engine.GameEngine
 import com.example.daadi.model.AIDifficulty
@@ -27,29 +38,268 @@ import com.example.daadi.viewmodel.SettingsViewModel
 import com.example.daadi.viewmodel.StatsViewModel
 import com.example.daadi.viewmodel.ViewModelFactory
 
+import android.os.Vibrator
+import android.os.VibrationEffect
+import android.content.Context
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import com.example.daadi.viewmodel.HapticPattern
+import com.example.daadi.model.RuleSet
+
+import android.media.AudioAttributes
+import android.media.SoundPool
+import java.util.concurrent.ConcurrentHashMap
+
+import androidx.lifecycle.lifecycleScope
+import com.google.android.gms.ads.MobileAds
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import com.example.daadi.viewmodel.SoundEvent
+
 class MainActivity : ComponentActivity() {
+    private var soundPool: SoundPool? = null
+    private val soundMap = ConcurrentHashMap<SoundEvent, Int>()
+    private var soundsLoaded = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+        // 15. Prevent screenshots and screen recording (Disabled to allow AI Studio preview streaming; re-enable for production release)
+        // window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        
+        // 16. Prevent tapjacking / overlay attacks
+        window.decorView.filterTouchesWhenObscured = true
+        
+        // Handle incoming deep link
+        handleDeepLink(intent)
+        
+        // 18. Prevent clipboard leaks when app goes to background
+        lifecycle.addObserver(androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                if (clipboard != null && clipboard.hasPrimaryClip()) {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                        clipboard.clearPrimaryClip()
+                    } else {
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("", ""))
+                    }
+                }
+            }
+        })
+        
+        // Initialize Sound Effects Engine asynchronously
+        initSoundPool()
+
+        // Gather GDPR/EEA Consent using User Messaging Platform (UMP) before initializing ads
+        val app = applicationContext as DaadiApplication
+        app.adManager.gatherConsent(this) {
+            com.example.daadi.util.SecureLog.d("MainActivity", "AdMob Consent state checked. Ready for compliant placements.")
+        }
+
+        // 20. Device Integrity and Anti-Cheat Startup Verification
+        lifecycleScope.launch(Dispatchers.IO) {
+            val isRooted = com.example.daadi.util.SecurityUtils.isRooted()
+            val isEmulator = com.example.daadi.util.SecurityUtils.isEmulator()
+            val isDebugger = com.example.daadi.util.SecurityUtils.isDebuggerConnected()
+            
+            if (isRooted) {
+                com.example.daadi.util.SecureLog.e("SECURITY", "Rooted device detected. Logging violation.")
+                app.supabaseManager.logAntiCheatViolation(null, "ROOT_DETECTION", "high", "Device is rooted")
+            }
+            if (isEmulator) {
+                com.example.daadi.util.SecureLog.i("SECURITY", "Emulator detected.")
+                app.supabaseManager.logAntiCheatViolation(null, "EMULATOR_DETECTION", "medium", "Device is emulator")
+            }
+            if (isDebugger && !BuildConfig.DEBUG) {
+                com.example.daadi.util.SecureLog.w("SECURITY", "Debugger connected in release build!")
+                app.supabaseManager.logAntiCheatViolation(null, "DEBUGGER_DETECTION", "high", "Debugger attached to release app")
+            }
+        }
+
         setContent {
             MyApplicationTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    DaadiAppNavigation()
+                    val sharedGameViewModel: GameViewModel = viewModel(factory = ViewModelFactory(LocalContext.current.applicationContext as DaadiApplication))
+                    val maintenanceMode by sharedGameViewModel.maintenanceMode.collectAsStateWithLifecycle()
+                    val globalBroadcast by sharedGameViewModel.globalBroadcast.collectAsStateWithLifecycle()
+                    val currentUser by sharedGameViewModel.supabaseManager.currentUser.collectAsStateWithLifecycle()
+
+                    androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
+                        DaadiAppNavigation(
+                            onPlaySound = { event -> playEffect(event) }
+                        )
+
+                        // 1. GLOBAL BROADCAST BANNER (Overlays Navigation)
+                        globalBroadcast?.let { message ->
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = true,
+                                enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+                                exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
+                            ) {
+                                Surface(
+                                    modifier = androidx.compose.ui.Modifier.fillMaxWidth().statusBarsPadding(),
+                                    color = Color(0xFFC62828),
+                                    tonalElevation = 8.dp
+                                ) {
+                                    Row(
+                                        modifier = androidx.compose.ui.Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.Notifications, contentDescription = null, tint = Color.White, modifier = androidx.compose.ui.Modifier.size(16.dp))
+                                        androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.width(12.dp))
+                                        Text(
+                                            text = message,
+                                            color = Color.White,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = androidx.compose.ui.Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // 2. MAINTENANCE MODE KILLS-WITCH (Hard block for non-admins)
+                        if (maintenanceMode && currentUser?.role != "admin") {
+                            Surface(
+                                modifier = Modifier.fillMaxSize(),
+                                color = Color.Black.copy(alpha = 0.95f)
+                            ) {
+                                Column(
+                                    modifier = Modifier.fillMaxSize().padding(32.dp),
+                                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                                ) {
+                                    Icon(imageVector = Icons.Default.Build, contentDescription = null, tint = Color.Cyan, modifier = androidx.compose.ui.Modifier.size(80.dp))
+                                    androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(24.dp))
+                                    Text("SERVER MAINTENANCE", color = Color.White, fontWeight = FontWeight.Black, fontSize = 24.sp)
+                                    androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.height(8.dp))
+                                    Text(
+                                        "The Daadi command center is undergoing architectural upgrades. We will be back online shortly.",
+                                        color = Color.Gray,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
+            }
+        }
+    }
+
+    private fun initSoundPool() {
+        val attr = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_GAME)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        
+        soundPool = SoundPool.Builder()
+            .setMaxStreams(3)
+            .setAudioAttributes(attr)
+            .build()
+            
+        soundPool?.setOnLoadCompleteListener { _, _, _ ->
+            soundsLoaded = true
+        }
+
+        // Load assets asynchronously from res/raw
+        lifecycleScope.launch(Dispatchers.IO) {
+            soundPool?.let { pool ->
+                soundMap[SoundEvent.PLACE] = pool.load(this@MainActivity, R.raw.place_piece, 1)
+                soundMap[SoundEvent.MILL] = pool.load(this@MainActivity, R.raw.mill_formed, 1)
+                soundMap[SoundEvent.WIN] = pool.load(this@MainActivity, R.raw.game_over, 1)
+                soundMap[SoundEvent.LOSE] = pool.load(this@MainActivity, R.raw.game_over, 1)
+            }
+        }
+    }
+
+    private fun playEffect(event: SoundEvent) {
+        if (!soundsLoaded) return
+        val soundId = soundMap[event] ?: return
+        soundPool?.play(soundId, 1f, 1f, 1, 0, 1f)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        soundPool?.release()
+        soundPool = null
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleDeepLink(intent)
+    }
+
+    private fun handleDeepLink(intent: android.content.Intent?) {
+        val uri = intent?.data
+        if (uri != null && uri.scheme == "daadi" && uri.host == "auth-callback") {
+            val app = applicationContext as DaadiApplication
+            app.supabaseManager.handleAuthDeepLink(uri) { success, error ->
+                com.example.daadi.util.SecureLog.d("MainActivity", "Deep Link Auth result: success=$success, error=$error")
             }
         }
     }
 }
 
 @Composable
-fun DaadiAppNavigation() {
+fun DaadiAppNavigation(onPlaySound: (SoundEvent) -> Unit) {
     val navController = rememberNavController()
     val context = LocalContext.current
     val application = context.applicationContext as DaadiApplication
     val multiplayerManager = application.multiplayerManager
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // Shared GameViewModel to handle global match lifecycle and backgrounding
+    val sharedGameViewModel: GameViewModel = viewModel(factory = ViewModelFactory(application))
+
+    // Advanced Device Sound Engine integration
+    DisposableEffect(sharedGameViewModel) {
+        sharedGameViewModel.onPlaySound = onPlaySound
+        onDispose { sharedGameViewModel.onPlaySound = null }
+    }
+
+    // Advanced Device Haptic Engine integration
+    val vibrator = remember { context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator }
+    DisposableEffect(sharedGameViewModel) {
+        sharedGameViewModel.onPerformHaptic = { pattern ->
+            when (pattern) {
+                HapticPattern.TICK -> {
+                    vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+                }
+                HapticPattern.MILL -> {
+                    val timings = longArrayOf(0, 40, 100, 40)
+                    val amplitudes = intArrayOf(0, VibrationEffect.DEFAULT_AMPLITUDE, 0, VibrationEffect.DEFAULT_AMPLITUDE)
+                    vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
+                }
+                HapticPattern.LOSS -> {
+                    vibrator.vibrate(VibrationEffect.createOneShot(200, 255))
+                }
+            }
+        }
+        onDispose { sharedGameViewModel.onPerformHaptic = null }
+    }
+
+    LaunchedEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE -> {
+                    sharedGameViewModel.onAppPaused()
+                }
+                Lifecycle.Event.ON_RESUME -> {
+                    sharedGameViewModel.onAppResumed()
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+    }
 
     NavHost(
         navController = navController,
@@ -68,24 +318,25 @@ fun DaadiAppNavigation() {
 
         // 2. Home Dashboard
         composable("home") {
-            val gameViewModel: GameViewModel = viewModel(factory = ViewModelFactory(application))
-            val activeGameState by gameViewModel.gameState.collectAsStateWithLifecycle()
+            val activeGameState by sharedGameViewModel.gameState.collectAsStateWithLifecycle()
 
             // Determine if a resume-ready save state exists
             val resumeReadySave = activeGameState.takeIf {
-                it.winner == null && (it.player1PiecesOnBoard > 0 || it.player2PiecesOnBoard > 0 || it.player1PiecesInHand < 9)
+                it.winner == null && (it.player1PiecesOnBoard > 0 || it.player2PiecesOnBoard > 0 || it.player1PiecesInHand < (if (it.ruleSet == RuleSet.TWELVE_MENS_MORRIS) 12 else 9))
             }
 
             HomeScreen(
                 savedGameState = resumeReadySave,
                 supabaseManager = application.supabaseManager,
-                onPlayVsAi = { navController.navigate("difficulty_select") },
-                onPlayLocal = {
-                    gameViewModel.startNewGame(GameMode.PASS_AND_PLAY, AIDifficulty.MEDIUM)
+                onPlayVsAi = { ruleSet ->
+                    navController.navigate("difficulty_select?ruleSet=${ruleSet.name}")
+                },
+                onPlayLocal = { ruleSet ->
+                    sharedGameViewModel.startNewGame(GameMode.PASS_AND_PLAY, AIDifficulty.MEDIUM, ruleSet)
                     navController.navigate("game")
                 },
-                onPlayMultiplayer = {
-                    navController.navigate("multiplayer_lobby")
+                onPlayMultiplayer = { ruleSet ->
+                    navController.navigate("multiplayer_lobby?ruleSet=${ruleSet.name}")
                 },
                 onResumeGame = { navController.navigate("game") },
                 onStatsClick = { navController.navigate("stats") },
@@ -94,17 +345,16 @@ fun DaadiAppNavigation() {
                     val user = application.supabaseManager.currentUser.value
                     if (user == null) {
                         navController.navigate("supabase_auth")
-                    } else if (user.role == "admin") {
+                    } else if (application.supabaseManager.hasPermission("admin_dashboard")) {
                         navController.navigate("supabase_admin")
                     } else {
-                        // For regular users, maybe navigate to profile or just let them stay on home
                         navController.navigate("supabase_auth") 
                     }
                 },
                 onFeedbackClick = { navController.navigate("feedback") },
                 onDiscardSave = {
-                    gameViewModel.discardSavedGame()
-                    gameViewModel.startNewGame(GameMode.VS_AI, AIDifficulty.MEDIUM)
+                    sharedGameViewModel.discardSavedGame()
+                    sharedGameViewModel.startNewGame(GameMode.VS_AI, AIDifficulty.MEDIUM)
                 }
             )
         }
@@ -117,14 +367,17 @@ fun DaadiAppNavigation() {
         }
 
         // 3. Difficulty Configs
-        composable("difficulty_select") {
-            val gameViewModel: GameViewModel = viewModel(factory = ViewModelFactory(application))
-
+        composable(
+            route = "difficulty_select?ruleSet={ruleSet}",
+            arguments = listOf(androidx.navigation.navArgument("ruleSet") { defaultValue = RuleSet.NINE_MENS_MORRIS.name })
+        ) { backStackEntry ->
+            val ruleSetName = backStackEntry.arguments?.getString("ruleSet") ?: RuleSet.NINE_MENS_MORRIS.name
+            val ruleSet = RuleSet.valueOf(ruleSetName)
             DifficultySelectScreen(
                 onStartGame = { difficulty ->
-                    gameViewModel.startNewGame(GameMode.VS_AI, difficulty)
+                    sharedGameViewModel.startNewGame(GameMode.VS_AI, difficulty, ruleSet)
                     navController.navigate("game") {
-                        popUpTo("home") // Clear difficulty Screen from backstack
+                        popUpTo("home")
                     }
                 },
                 onBack = { navController.popBackStack() }
@@ -132,14 +385,20 @@ fun DaadiAppNavigation() {
         }
 
         // 3.5 Multiplayer Matchmaker Lobby
-        composable("multiplayer_lobby") {
+        composable(
+            route = "multiplayer_lobby?ruleSet={ruleSet}",
+            arguments = listOf(androidx.navigation.navArgument("ruleSet") { defaultValue = RuleSet.NINE_MENS_MORRIS.name })
+        ) { backStackEntry ->
+            val ruleSetName = backStackEntry.arguments?.getString("ruleSet") ?: RuleSet.NINE_MENS_MORRIS.name
+            val ruleSet = RuleSet.valueOf(ruleSetName)
             MultiplayerLobbyScreen(
                 multiplayerManager = multiplayerManager,
                 supabaseManager = (application as com.example.daadi.DaadiApplication).supabaseManager,
                 onBack = { navController.popBackStack() },
                 onManageProfile = { navController.navigate("supabase_auth") },
-                onPlayVsAi = { navController.navigate("difficulty_select") },
+                onPlayVsAi = { navController.navigate("difficulty_select?ruleSet=${ruleSet.name}") },
                 onGameStarted = {
+                    sharedGameViewModel.startNewGame(GameMode.ONLINE_MULTIPLAYER, AIDifficulty.MEDIUM, ruleSet)
                     navController.navigate("game") {
                         popUpTo("home")
                     }
@@ -155,36 +414,40 @@ fun DaadiAppNavigation() {
                     navController.navigate("home") {
                         popUpTo("home") { inclusive = true }
                     }
+                },
+                onNavigateToAdmin = {
+                    navController.navigate("supabase_admin")
                 }
             )
         }
 
         // 4. Main Game Board Screening
         composable("game") {
-            val gameViewModel: GameViewModel = viewModel(factory = ViewModelFactory(application))
             val settingsViewModel: SettingsViewModel = viewModel(factory = ViewModelFactory(application))
 
-            val state by gameViewModel.gameState.collectAsStateWithLifecycle()
-            val selectedNodeId by gameViewModel.selectedNodeId.collectAsStateWithLifecycle()
-            val isAiThinking by gameViewModel.isAiThinking.collectAsStateWithLifecycle()
-            val recentInvalidNode by gameViewModel.recentInvalidNode.collectAsStateWithLifecycle()
-            val showPauseMenu by gameViewModel.showPauseMenu.collectAsStateWithLifecycle()
+            val state by sharedGameViewModel.gameState.collectAsStateWithLifecycle()
+            val selectedNodeId by sharedGameViewModel.selectedNodeId.collectAsStateWithLifecycle()
+            val isAiThinking by sharedGameViewModel.isAiThinking.collectAsStateWithLifecycle()
+            val recentInvalidNode by sharedGameViewModel.recentInvalidNode.collectAsStateWithLifecycle()
+            val showPauseMenu by sharedGameViewModel.showPauseMenu.collectAsStateWithLifecycle()
             val settingsState by settingsViewModel.settings.collectAsStateWithLifecycle()
 
-            val turnTimeSeconds by gameViewModel.turnTimeSeconds.collectAsStateWithLifecycle()
-            val hintMove by gameViewModel.hintMove.collectAsStateWithLifecycle()
-            val aiCommentary by gameViewModel.aiCommentary.collectAsStateWithLifecycle()
-            val showTutorial by gameViewModel.showTutorial.collectAsStateWithLifecycle()
+            val turnTimeSeconds by sharedGameViewModel.turnTimeSeconds.collectAsStateWithLifecycle()
+            val hintMove by sharedGameViewModel.hintMove.collectAsStateWithLifecycle()
+            val aiCommentary by sharedGameViewModel.aiCommentary.collectAsStateWithLifecycle()
+            val showTutorial by sharedGameViewModel.showTutorial.collectAsStateWithLifecycle()
 
             // Multiplayer flows
-            val showRemoteDrawRequest by gameViewModel.showRemoteDrawRequest.collectAsStateWithLifecycle()
-            val showRemoteUndoRequest by gameViewModel.showRemoteUndoRequest.collectAsStateWithLifecycle()
-            val undoPendingLocal by gameViewModel.undoPendingLocal.collectAsStateWithLifecycle()
-            val drawOfferPendingLocal by gameViewModel.drawOfferPendingLocal.collectAsStateWithLifecycle()
+            val showRemoteDrawRequest by sharedGameViewModel.showRemoteDrawRequest.collectAsStateWithLifecycle()
+            val showRemoteUndoRequest by sharedGameViewModel.showRemoteUndoRequest.collectAsStateWithLifecycle()
+            val undoPendingLocal by sharedGameViewModel.undoPendingLocal.collectAsStateWithLifecycle()
+            val drawOfferPendingLocal by sharedGameViewModel.drawOfferPendingLocal.collectAsStateWithLifecycle()
             val chatMessages by multiplayerManager.chatMessages.collectAsStateWithLifecycle()
             val localPlayerName by multiplayerManager.localPlayerName.collectAsStateWithLifecycle()
-            val adsEnabled by gameViewModel.adsEnabled.collectAsStateWithLifecycle()
-            val tutorialWarningMessage by gameViewModel.tutorialWarningMessage.collectAsStateWithLifecycle()
+            val opponentPlayerName by multiplayerManager.opponentPlayerName.collectAsStateWithLifecycle()
+            val opponentProfile by multiplayerManager.opponentProfile.collectAsStateWithLifecycle()
+            val adsEnabled by sharedGameViewModel.adsEnabled.collectAsStateWithLifecycle()
+            val tutorialWarningMessage by sharedGameViewModel.tutorialWarningMessage.collectAsStateWithLifecycle()
 
             // Calculate valid targets dynamically for board highlights
             val validDestinations = remember(state, selectedNodeId) {
@@ -207,40 +470,52 @@ fun DaadiAppNavigation() {
                 isAiThinking = isAiThinking,
                 recentInvalidNode = recentInvalidNode,
                 showPauseMenu = showPauseMenu,
-                onNodeTapped = { gameViewModel.tapNode(it) },
-                onPauseClick = { gameViewModel.togglePauseMenu() },
+                onNodeTapped = { sharedGameViewModel.tapNode(it) },
+                onPauseClick = { sharedGameViewModel.togglePauseMenu() },
                 onRestartClick = {
-                    gameViewModel.startNewGame(state.gameMode, state.aiDifficulty)
+                    sharedGameViewModel.startNewGame(state.gameMode, state.aiDifficulty)
                 },
                 onBackHomeClick = {
+                    if (state.winner == null && state.gameMode == GameMode.ONLINE_MULTIPLAYER) {
+                        sharedGameViewModel.resignGame()
+                    }
+                    sharedGameViewModel.clearCurrentMatch()
                     navController.navigate("home") {
                         popUpTo("home") { inclusive = true }
                     }
                 },
-                onUndoClick = { gameViewModel.undoLastMove() },
+                onUndoClick = { sharedGameViewModel.undoLastMove() },
                 boardTheme = settingsState.selectedBoardTheme,
                 turnTimeSeconds = turnTimeSeconds,
                 hintMove = hintMove,
                 aiCommentary = aiCommentary,
                 showTutorial = showTutorial,
-                onHintClick = { gameViewModel.computeHint() },
-                onTutorialToggle = { gameViewModel.toggleTutorial(it) },
-                onResignClick = { gameViewModel.resignGame() },
-                onOfferDrawClick = { gameViewModel.offerDrawGame() },
+                onHintClick = { sharedGameViewModel.computeHint() },
+                onTutorialToggle = { sharedGameViewModel.toggleTutorial(it) },
+                onResignClick = { sharedGameViewModel.resignGame() },
+                onOfferDrawClick = { sharedGameViewModel.offerDrawGame() },
                 showRemoteDrawRequest = showRemoteDrawRequest,
                 showRemoteUndoRequest = showRemoteUndoRequest,
                 undoPendingLocal = undoPendingLocal,
                 drawOfferPendingLocal = drawOfferPendingLocal,
-                onRespondToRemoteDraw = { gameViewModel.respondToRemoteDraw(it) },
-                onRespondToRemoteUndo = { gameViewModel.respondToRemoteUndo(it) },
+                onRespondToRemoteDraw = { sharedGameViewModel.respondToRemoteDraw(it) },
+                onRespondToRemoteUndo = { sharedGameViewModel.respondToRemoteUndo(it) },
                 chatMessages = chatMessages,
                 onSendChatMessage = { multiplayerManager.sendChat(it) },
                 localPlayerName = localPlayerName,
+                opponentPlayerName = opponentPlayerName,
+                opponentProfile = opponentProfile,
                 adsEnabled = adsEnabled,
                 settings = settingsState,
                 onSettingsChanged = { settingsViewModel.updateSettings(it) },
-                onReportOpponent = { gameViewModel.reportOpponent() },
-                tutorialWarningMessage = tutorialWarningMessage
+                onReportOpponent = {
+                    sharedGameViewModel.reportOpponent { success, message ->
+                        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                },
+                tutorialWarningMessage = tutorialWarningMessage,
+                connectionStatus = state.connectionStatus,
+                reconnectionCountdown = state.reconnectionCountdown
             )
         }
 
@@ -264,11 +539,33 @@ fun DaadiAppNavigation() {
             val application = context.applicationContext as DaadiApplication
             val settingsViewModel: SettingsViewModel = viewModel(factory = ViewModelFactory(application))
             val settingsState by settingsViewModel.settings.collectAsStateWithLifecycle()
+            val currentUser by application.supabaseManager.currentUser.collectAsStateWithLifecycle()
+            val isAdmin = application.supabaseManager.hasPermission("admin_dashboard")
 
             SettingsScreen(
                 settings = settingsState,
+                isAdmin = isAdmin,
                 onSettingsChanged = { settingsViewModel.updateSettings(it) },
                 onAdminClick = { navController.navigate("supabase_admin") },
+                onDeleteAccount = {
+                    application.supabaseManager.deleteAccountGDPR { success ->
+                        if (success) {
+                            android.widget.Toast.makeText(context, "Account deleted successfully.", android.widget.Toast.LENGTH_LONG).show()
+                            navController.navigate("supabase_auth")
+                        } else {
+                            android.widget.Toast.makeText(context, "Failed to delete account. Please try again.", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+                onExportData = {
+                    application.supabaseManager.requestDataExport { success ->
+                        if (success) {
+                            android.widget.Toast.makeText(context, "Data export request sent! Check your registered email.", android.widget.Toast.LENGTH_LONG).show()
+                        } else {
+                            android.widget.Toast.makeText(context, "Failed to request data export. Please try again.", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
                 onBack = { navController.popBackStack() }
             )
         }
@@ -276,6 +573,7 @@ fun DaadiAppNavigation() {
         // 7. Supabase Administration Operations Control Center
         composable("supabase_admin") {
             SupabaseAdminScreen(
+                viewModel = sharedGameViewModel,
                 supabaseManager = application.supabaseManager,
                 onBack = { navController.popBackStack() }
             )

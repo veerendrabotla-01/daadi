@@ -1,100 +1,109 @@
 package com.example.daadi.ui.components
 
-import androidx.compose.animation.*
+import android.app.Activity
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
+import androidx.compose.ui.viewinterop.AndroidView
+import com.example.daadi.DaadiApplication
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdSize
+import com.google.android.gms.ads.AdView
+
+@Composable
+fun BannerAdView(
+    modifier: Modifier = Modifier,
+    adUnitId: String
+) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val context = LocalContext.current
+    
+    // Use remember(adUnitId) to ensure a fresh AdView if the unit ID changes
+    key(adUnitId) {
+        val adView = remember {
+            AdView(context).apply {
+                setAdSize(AdSize.BANNER)
+                setAdUnitId(adUnitId)
+            }
+        }
+
+        DisposableEffect(lifecycleOwner) {
+            val observer = LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_RESUME -> adView.resume()
+                    Lifecycle.Event.ON_PAUSE -> adView.pause()
+                    Lifecycle.Event.ON_DESTROY -> adView.destroy()
+                    else -> {}
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+                adView.destroy()
+            }
+        }
+
+        AndroidView(
+            modifier = modifier.fillMaxWidth(),
+            factory = { 
+                adView.apply {
+                    try {
+                        (context.applicationContext as? DaadiApplication)?.ensureWebViewCacheDirs()
+                    } catch (e: Exception) {}
+                    loadAd(AdRequest.Builder().build())
+                }
+            }
+        )
+    }
+}
 
 /**
- * Aesthetic Simulated banner ads.
- * Displayed at the bottom of the screen on Home and Between games in non-gameplay moments.
+ * Top level composable to show an Ad Banner based on configuration.
+ */
+@Composable
+fun AdaptiveAdBanner(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val app = context.applicationContext as DaadiApplication
+    val adConfig by app.supabaseManager.adConfig.collectAsState()
+    val systemSettings by app.supabaseManager.systemSettings.collectAsState()
+    
+    val isAdsEnabledByLauncher = systemSettings.find { it.key == "ads_launcher" }?.value == "on"
+    
+    if (adConfig.isMonetizationGlobalOverride || isAdsEnabledByLauncher) {
+        BannerAdView(modifier = modifier, adUnitId = adConfig.bannerAdUnitId)
+    }
+}
+
+/**
+ * Animated simulated banner used during development or as a fallback.
  */
 @Composable
 fun SimulatedAdBanner(modifier: Modifier = Modifier) {
-    var closed by remember { mutableStateOf(false) }
-    if (closed) return
-
-    val adCampaigns = listOf(
-        Pair("Spices of India Coffee - Pure Sandalwood Roast", "Order now and get 25% Off! code: DAADI25"),
-        Pair("Play Saffron Carrom Match Online", "Compete with 2 million players worldwide for free!"),
-        Pair("Royal Taj Hotels & Resorts", "Experience the ultimate luxury of Rajasthan. Book rooms today.")
-    )
-    val randomCampaign = remember { adCampaigns.random() }
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(54.dp)
-            .background(Color(0xFFFFF9E6))
-            .border(1.dp, Color(0xFFE5A93B))
-            .padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .background(Color(0xFFE5A93B), RoundedCornerShape(2.dp))
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        "Ad",
-                        fontSize = 9.sp,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    randomCampaign.first,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF5C2D0A),
-                    maxLines = 1
-                )
-            }
-            Text(
-                randomCampaign.second,
-                fontSize = 10.sp,
-                color = Color.Gray,
-                maxLines = 1
-            )
-        }
-
-        IconButton(
-            onClick = { closed = true },
-            modifier = Modifier.size(24.dp)
-        ) {
-            Icon(
-                Icons.Default.Close,
-                contentDescription = "Close Ad",
-                tint = Color.Gray,
-                modifier = Modifier.size(14.dp)
-            )
-        }
-    }
+    AdaptiveAdBanner(modifier = modifier)
 }
 
 /**
@@ -105,48 +114,51 @@ fun RewardedAdOfferDialog(
     onDismiss: () -> Unit,
     onRewardEarned: () -> Unit
 ) {
-    var isWatching by remember { mutableStateOf(false) }
-    var secondsLeft by remember { mutableStateOf(3) }
-
-    LaunchedEffect(isWatching) {
-        if (isWatching) {
-            while (secondsLeft > 0) {
-                delay(1000)
-                secondsLeft -= 1
-            }
-            onRewardEarned()
-            onDismiss()
-        }
-    }
+    val context = LocalContext.current
+    val activity = context as? Activity
+    val app = context.applicationContext as DaadiApplication
+    val adManager = app.adManager
 
     AlertDialog(
-        onDismissRequest = { if (!isWatching) onDismiss() },
+        onDismissRequest = onDismiss,
         confirmButton = {
-            if (!isWatching) {
-                Button(
-                    onClick = { isWatching = true },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFE5A93B),
-                        contentColor = Color.White
-                    ),
-                    modifier = Modifier.testTag("watch_ad_button")
-                ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Watch Ad & Save")
-                }
+            Button(
+                onClick = {
+                    if (activity != null) {
+                        adManager.showRewarded(
+                            activity = activity,
+                            onRewardEarned = {
+                                app.supabaseManager.incrementAdImpressions()
+                                onRewardEarned()
+                            },
+                            onAdDismissed = {
+                                onDismiss()
+                            }
+                        )
+                    } else {
+                        onRewardEarned()
+                        onDismiss()
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFE5A93B),
+                    contentColor = Color.White
+                ),
+                modifier = Modifier.testTag("watch_ad_button")
+            ) {
+                Icon(Icons.Default.PlayArrow, contentDescription = null)
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Watch Ad & Save")
             }
         },
         dismissButton = {
-            if (!isWatching) {
-                TextButton(onClick = onDismiss, modifier = Modifier.testTag("skip_ad_button")) {
-                    Text("No, Thanks", color = Color.Gray)
-                }
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("skip_ad_button")) {
+                Text("No, Thanks", color = Color.Gray)
             }
         },
         title = {
             Text(
-                text = if (isWatching) "Loading Sponsor..." else "Undo Last Defeat?",
+                text = "Undo Last Defeat?",
                 style = MaterialTheme.typography.titleLarge,
                 color = Color(0xFF5C2D0A)
             )
@@ -156,29 +168,19 @@ fun RewardedAdOfferDialog(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
             ) {
-                if (isWatching) {
-                    CircularProgressIndicator(color = Color(0xFFE5A93B))
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        "Granting your Undo benefit in $secondsLeft seconds...",
-                        fontSize = 14.sp,
-                        textAlign = TextAlign.Center
-                    )
-                } else {
-                    Icon(
-                        Icons.Default.Star,
-                        contentDescription = "Gold Reward",
-                        tint = Color(0xFFE5A93B),
-                        modifier = Modifier.size(54.dp)
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Text(
-                        "Watch a quick 3-second sponsor message to undo your mistake and reclaim your position on the board!",
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 18.sp
-                    )
-                }
+                Icon(
+                    Icons.Default.Star,
+                    contentDescription = "Gold Reward",
+                    tint = Color(0xFFE5A93B),
+                    modifier = Modifier.size(54.dp)
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                Text(
+                    "Watch a short sponsored video to undo your mistake and reclaim your position on the board!",
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 18.sp
+                )
             }
         },
         shape = RoundedCornerShape(16.dp),

@@ -67,6 +67,22 @@ object BoardDefinition {
         23 to listOf(22, 16, 15)
     )
 
+    val DIAGONAL_CONNECTIONS: Map<Int, List<Int>> = mapOf(
+        0 to listOf(8), 8 to listOf(0, 16), 16 to listOf(8),
+        2 to listOf(10), 10 to listOf(2, 18), 18 to listOf(10),
+        4 to listOf(12), 12 to listOf(4, 20), 20 to listOf(12),
+        6 to listOf(14), 14 to listOf(6, 22), 22 to listOf(14)
+    )
+
+    fun getConnections(nodeId: Int, ruleSet: com.example.daadi.model.RuleSet): List<Int> {
+        val base = CONNECTIONS[nodeId] ?: emptyList()
+        if (ruleSet == com.example.daadi.model.RuleSet.TWELVE_MENS_MORRIS) {
+            val diag = DIAGONAL_CONNECTIONS[nodeId] ?: emptyList()
+            return base + diag
+        }
+        return base
+    }
+
     // The 16 possible mills (3-in-a-row straight lines)
     val MILLS: List<Triple<Int, Int, Int>> = listOf(
         // Outer Horizontal
@@ -96,4 +112,41 @@ object BoardDefinition {
         Triple(5, 13, 21), // Bottom Cross
         Triple(7, 15, 23)  // Left Cross
     )
+
+    val DIAGONAL_MILLS: List<Triple<Int, Int, Int>> = listOf(
+        Triple(0, 8, 16),
+        Triple(2, 10, 18),
+        Triple(4, 12, 20),
+        Triple(6, 14, 22)
+    )
+
+    // Readable names for nodes (e.g., "Outer Top-Left")
+    fun getNodeName(nodeId: Int): String {
+        val ring = when (nodeId) {
+            in 0..7 -> "Outer"
+            in 8..15 -> "Middle"
+            in 16..23 -> "Inner"
+            else -> "Unknown"
+        }
+        val posInRing = nodeId % 8
+        val position = when (posInRing) {
+            0 -> "Top-Left"
+            1 -> "Top-Center"
+            2 -> "Top-Right"
+            3 -> "Middle-Right"
+            4 -> "Bottom-Right"
+            5 -> "Bottom-Center"
+            6 -> "Bottom-Left"
+            7 -> "Middle-Left"
+            else -> "Unknown"
+        }
+        return "$ring $position"
+    }
+
+    fun getMills(ruleSet: com.example.daadi.model.RuleSet): List<Triple<Int, Int, Int>> {
+        if (ruleSet == com.example.daadi.model.RuleSet.TWELVE_MENS_MORRIS) {
+            return MILLS + DIAGONAL_MILLS
+        }
+        return MILLS
+    }
 }

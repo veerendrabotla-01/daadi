@@ -5,7 +5,29 @@ import com.example.daadi.engine.GameEngine
 import com.example.daadi.engine.MillDetector
 import com.example.daadi.model.*
 
+data class AiConfig(
+    val maxDepth: Int = 4,
+    val pincerTwoOfThreeWeight: Int = 30,
+    val captureProximityWeight: Int = 200,
+    val pathBlockingWeight: Int = 60,
+    val pieceDifferentialWeight: Int = 400,
+    val millWeight: Int = 150
+)
+
 object AIEngine {
+
+    var currentConfig = AiConfig()
+    
+    // Telemetry Counters
+    var totalNodesEvaluated = 0L
+    var totalPruningClips = 0L
+    var lastExecutionTime = 0L
+
+    fun resetTelemetry() {
+        totalNodesEvaluated = 0
+        totalPruningClips = 0
+        lastExecutionTime = 0
+    }
 
     /**
      * Entry point for selecting the best move for the AI (Player 2).
@@ -27,15 +49,22 @@ object AIEngine {
      */
     fun getHint(state: GameState): Pair<Int?, Int>? {
         val player = state.currentPlayer
+        val opponent = GameEngine.getNextPlayer(player)
+        val ruleSet = state.ruleSet
+
+        if (state.isCapturePending) {
+            // Suggest a capture target
+            val target = selectCapture(state, opponent)
+            return if (target != null) Pair(null, target) else null
+        }
+
         val legalMoves = GameEngine.getLegalMoves(state, player)
         if (legalMoves.isEmpty()) return null
-
-        val opponent = GameEngine.getNextPlayer(player)
 
         // 1. Check if we can form an immediate mill
         for (move in legalMoves) {
             val hypotheticalBoard = applyHypotheticalMove(state.board, move, player)
-            if (MillDetector.formsNewMill(hypotheticalBoard, move.second, player)) {
+            if (MillDetector.formsNewMill(hypotheticalBoard, move.second, player, ruleSet)) {
                 return move
             }
         }
@@ -45,7 +74,7 @@ object AIEngine {
         val emptyNodes = state.board.nodes.filter { it.value == null }.keys
         for (emptyNode in emptyNodes) {
             val hypotheticalBoard = state.board.copy(nodes = state.board.nodes + (emptyNode to opponent))
-            if (MillDetector.formsNewMill(hypotheticalBoard, emptyNode, opponent)) {
+            if (MillDetector.formsNewMill(hypotheticalBoard, emptyNode, opponent, ruleSet)) {
                 opponentPlacementsOfConcern.add(emptyNode)
             }
         }
@@ -58,7 +87,7 @@ object AIEngine {
         }
 
         // 3. Fallback: select moves targeting higher centrality adjacency nodes
-        val sortedMoves = legalMoves.sortedByDescending { BoardDefinition.CONNECTIONS[it.second]?.size ?: 0 }
+        val sortedMoves = legalMoves.sortedByDescending { BoardDefinition.getConnections(it.second, ruleSet).size }
         return sortedMoves.firstOrNull() ?: legalMoves.randomOrNull()
     }
 
@@ -66,8 +95,9 @@ object AIEngine {
      * Entry point for selecting which opponent piece to capture.
      */
     fun selectCapture(state: GameState, opponent: Player): Int? {
+        val ruleSet = state.ruleSet
         val capturableNodes = state.board.nodes.filter { (nodeId, owner) ->
-            owner == opponent && MillDetector.isPieceCapturable(state.board, nodeId, opponent)
+            owner == opponent && MillDetector.isPieceCapturable(state.board, nodeId, opponent, ruleSet)
         }.keys
 
         if (capturableNodes.isEmpty()) return null
@@ -79,8 +109,9 @@ object AIEngine {
         // 4. Default: pick randomly.
 
         // Let's check if any capturable piece is close to forming a mill for the opponent
+        val allMills = BoardDefinition.getMills(ruleSet)
         for (node in capturableNodes) {
-            val opponentMillsPending = BoardDefinition.MILLS.filter { mill ->
+            val opponentMillsPending = allMills.filter { mill ->
                 mill.first == node || mill.second == node || mill.third == node
             }.any { mill ->
                 val otherNodes = listOf(mill.first, mill.second, mill.third).filter { it != node }
@@ -92,7 +123,7 @@ object AIEngine {
         }
 
         // Return the node which has the most connections
-        return capturableNodes.maxByOrNull { BoardDefinition.CONNECTIONS[it]?.size ?: 0 } ?: capturableNodes.random()
+        return capturableNodes.maxByOrNull { BoardDefinition.getConnections(it, ruleSet).size } ?: capturableNodes.random()
     }
 
     /**
@@ -104,12 +135,13 @@ object AIEngine {
     private fun selectMediumMove(state: GameState, legalMoves: List<Pair<Int?, Int>>): Pair<Int?, Int> {
         val ai = Player.PLAYER_2
         val human = Player.PLAYER_1
+        val ruleSet = state.ruleSet
 
         // 1. Can we form an immediate mill?
         for (move in legalMoves) {
             val hypotheticalBoard = applyHypotheticalMove(state.board, move, ai)
             val toNode = move.second
-            if (MillDetector.formsNewMill(hypotheticalBoard, toNode, ai)) {
+            if (MillDetector.formsNewMill(hypotheticalBoard, toNode, ai, ruleSet)) {
                 return move
             }
         }
@@ -121,7 +153,7 @@ object AIEngine {
         val emptyNodes = state.board.nodes.filter { it.value == null }.keys
         for (emptyNode in emptyNodes) {
             val hypotheticalBoard = state.board.copy(nodes = state.board.nodes + (emptyNode to human))
-            if (MillDetector.formsNewMill(hypotheticalBoard, emptyNode, human)) {
+            if (MillDetector.formsNewMill(hypotheticalBoard, emptyNode, human, ruleSet)) {
                 humanPlacementsOfConcern.add(emptyNode)
             }
         }
@@ -135,7 +167,7 @@ object AIEngine {
         }
 
         // 3. Fallback: Prefer moves that place on higher occupancy or side-centers to form mills
-        val strategicMove = legalMoves.filter { BoardDefinition.CONNECTIONS[it.second]?.size ?: 0 >= 3 }
+        val strategicMove = legalMoves.filter { BoardDefinition.getConnections(it.second, ruleSet).size >= 3 }
         if (strategicMove.isNotEmpty()) {
             return strategicMove.random()
         }
@@ -148,9 +180,11 @@ object AIEngine {
      * Limit depth to 4 during placements to remain ultra-fast, and depth 5 during movement.
      */
     private fun selectHardMove(state: GameState, legalMoves: List<Pair<Int?, Int>>): Pair<Int?, Int> {
+        val startTime = System.currentTimeMillis()
         val ai = Player.PLAYER_2
         val isPlacement = state.phase == GamePhase.PLACEMENT
-        val maxDepth = if (isPlacement) 5 else 7 // Increased depth for more "perfect" lookahead
+        val maxDepth = if (isPlacement) currentConfig.maxDepth else currentConfig.maxDepth + 2 // Scale based on config
+        val ruleSet = state.ruleSet
 
         var bestMove: Pair<Int?, Int> = legalMoves.random()
         var bestVal = Int.MIN_VALUE
@@ -158,25 +192,51 @@ object AIEngine {
         val alpha = Int.MIN_VALUE
         val beta = Int.MAX_VALUE
 
+        // --- DRAW CONTEMPT & REPETITION TRACKER ---
+        // Identify moves that would result in a state we recently occupied
+        val recentMoves = state.moveHistory.takeLast(6)
+        val shuttlingNodes = mutableSetOf<Int>()
+        if (recentMoves.size >= 4) {
+            // Check if player has been moving the same piece back and forth
+            val aiMoves = recentMoves.filter { it.player == Player.PLAYER_2 && it.type == MoveType.MOVE }
+            if (aiMoves.size >= 2) {
+                shuttlingNodes.add(aiMoves.last().fromNode!!)
+            }
+        }
+
         // Sort moves to optimize alpha-beta cutoff (evaluate immediate wins/mills first)
         val sortedMoves = legalMoves.sortedByDescending { move ->
+            var score = 0
             val boardAfter = applyHypotheticalMove(state.board, move, ai)
-            if (MillDetector.formsNewMill(boardAfter, move.second, ai)) 1000 else 0
+            if (MillDetector.formsNewMill(boardAfter, move.second, ai, ruleSet)) score += 1000
+            
+            // Penalize shuttling (repetitive back-and-forth moves)
+            if (move.first != null && move.second in shuttlingNodes) score -= 500
+            
+            score
         }
 
         for (move in sortedMoves) {
             val hypotheticalState = simulateGameState(state, move, ai)
-            val v = minimax(hypotheticalState, maxDepth - 1, alpha, beta, false)
+            var v = minimax(hypotheticalState, maxDepth - 1, alpha, beta, false)
+            
+            // Inject Draw Contempt: slightly penalize repetition in evaluation
+            if (move.first != null && move.second in shuttlingNodes) {
+                v -= 100 // Contempt for repetition
+            }
+
             if (v > bestVal) {
                 bestVal = v
                 bestMove = move
             }
         }
 
+        lastExecutionTime = System.currentTimeMillis() - startTime
         return bestMove
     }
 
     private fun minimax(state: GameState, depth: Int, alphaInput: Int, betaInput: Int, isMax: Boolean): Int {
+        totalNodesEvaluated++
         var alpha = alphaInput
         var beta = betaInput
 
@@ -198,7 +258,10 @@ object AIEngine {
                 val nextState = simulateGameState(state, move, Player.PLAYER_2)
                 value = maxOf(value, minimax(nextState, depth - 1, alpha, beta, false))
                 alpha = maxOf(alpha, value)
-                if (alpha >= beta) break
+                if (alpha >= beta) {
+                    totalPruningClips++
+                    break
+                }
             }
             return value
         } else {
@@ -207,7 +270,10 @@ object AIEngine {
                 val nextState = simulateGameState(state, move, Player.PLAYER_1)
                 value = minOf(value, minimax(nextState, depth - 1, alpha, beta, true))
                 beta = minOf(beta, value)
-                if (alpha >= beta) break
+                if (alpha >= beta) {
+                    totalPruningClips++
+                    break
+                }
             }
             return value
         }
@@ -224,11 +290,12 @@ object AIEngine {
 
         var score = 0
         val board = state.board
+        val ruleSet = state.ruleSet
 
         // 1. Piece differential
         val p1Count = state.player1PiecesOnBoard
         val p2Count = state.player2PiecesOnBoard
-        score += (p2Count - p1Count) * 400
+        score += (p2Count - p1Count) * currentConfig.pieceDifferentialWeight
 
         // 2. Check Mills and Potential Mills
         var p2Mills = 0
@@ -236,7 +303,7 @@ object AIEngine {
         var p2TwoInALine = 0
         var p1TwoInALine = 0
 
-        for (mill in BoardDefinition.MILLS) {
+        for (mill in BoardDefinition.getMills(ruleSet)) {
             val o1 = board.nodes[mill.first]
             val o2 = board.nodes[mill.second]
             val o3 = board.nodes[mill.third]
@@ -251,23 +318,20 @@ object AIEngine {
                 if (owners.count { it == Player.PLAYER_1 } == 2 && owners.any { it == null }) p1TwoInALine++
             }
         }
-        score += p2Mills * 150
-        score -= p1Mills * 300 // Defensive priority: block human mills
-        score += p2TwoInALine * 30
-        score -= p1TwoInALine * 60 // Block human "open" mills
+        score += p2Mills * currentConfig.millWeight
+        score -= p1Mills * (currentConfig.millWeight * 2) // Defensive priority
+        score += p2TwoInALine * currentConfig.pincerTwoOfThreeWeight
+        score -= p1TwoInALine * (currentConfig.pincerTwoOfThreeWeight * 2) // Block human "open" mills
 
         // 3. Piece Mobility (number of moves available)
         val p2Moves = GameEngine.getLegalMoves(state, Player.PLAYER_2)
         val p1Moves = GameEngine.getLegalMoves(state, Player.PLAYER_1)
-        score += p2Moves.size * 20
-        score -= p1Moves.size * 20
+        score += p2Moves.size * currentConfig.pathBlockingWeight / 3
+        score -= p1Moves.size * currentConfig.pathBlockingWeight / 3
         
-        // Penalize blocking (no moves available for a piece)
-        // (Handled partially by moves.size, but let's favor central pieces more)
-
-        // 4. Strategic Position occupancies (Crossings/intersections)
+        // 4. Strategic Position occupancies
         for ((nodeId, owner) in board.nodes) {
-            val connections = BoardDefinition.CONNECTIONS[nodeId]?.size ?: 0
+            val connections = BoardDefinition.getConnections(nodeId, ruleSet).size
             if (owner == Player.PLAYER_2) {
                 score += if (nodeId in listOf(1, 4, 7, 10, 13, 16, 19, 22)) 40 else 15
                 score += connections * 10
@@ -276,9 +340,6 @@ object AIEngine {
                 score -= connections * 10
             }
         }
-
-        // 5. Block double-mill threats (T-junctions)
-        // (Handled partially by two-in-a-line, but higher weight for intersections)
 
         return score
     }
@@ -293,6 +354,7 @@ object AIEngine {
     }
 
     private fun simulateGameState(state: GameState, move: Pair<Int?, Int>, player: Player): GameState {
+        val ruleSet = state.ruleSet
         val updatedNodes = state.board.nodes.toMutableMap()
         if (move.first != null) {
             updatedNodes[move.first!!] = null
@@ -302,7 +364,7 @@ object AIEngine {
 
         // Capture logic simplify for state evaluation:
         // If simulated move triggers a mill, simulate standard AI/human capture to keep the state accurate.
-        val formsMill = MillDetector.formsNewMill(newBoard, move.second, player)
+        val formsMill = MillDetector.formsNewMill(newBoard, move.second, player, ruleSet)
         val opponent = if (player == Player.PLAYER_1) Player.PLAYER_2 else Player.PLAYER_1
 
         var p1OnBoard = state.player1PiecesOnBoard
@@ -317,7 +379,7 @@ object AIEngine {
         if (formsMill) {
             // Find a hypothetical capture target
             val possibleTarget = updatedNodes.filter { (node, owner) ->
-                owner == opponent && MillDetector.isPieceCapturable(newBoard, node, opponent)
+                owner == opponent && MillDetector.isPieceCapturable(newBoard, node, opponent, ruleSet)
             }.keys.firstOrNull()
 
             if (possibleTarget != null) {

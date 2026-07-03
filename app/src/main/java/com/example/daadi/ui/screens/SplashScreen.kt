@@ -1,5 +1,8 @@
 package com.example.daadi.ui.screens
 
+import com.example.daadi.data.supabase.SupabaseManager
+
+
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*

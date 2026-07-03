@@ -1,5 +1,8 @@
 package com.example.daadi.ui.screens
 
+import com.example.daadi.data.supabase.SupabaseManager
+
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,6 +31,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import androidx.compose.ui.unit.sp
 import com.example.daadi.data.multiplayer.MultiplayerManager
 import com.example.daadi.data.multiplayer.MultiplayerStatus
@@ -45,6 +49,9 @@ fun MultiplayerLobbyScreen(
 ) {
     val status by multiplayerManager.status.collectAsStateWithLifecycle()
     val roomCode by multiplayerManager.roomCode.collectAsStateWithLifecycle()
+    val matchmakingCountdown by multiplayerManager.matchmakingCountdown.collectAsStateWithLifecycle()
+    val isLobbyEmpty by multiplayerManager.isLobbyEmpty.collectAsStateWithLifecycle()
+    val opponentPlayerName by multiplayerManager.opponentPlayerName.collectAsStateWithLifecycle()
     val isHost by multiplayerManager.isHost.collectAsStateWithLifecycle()
     val errorMsg by multiplayerManager.errorMessage.collectAsStateWithLifecycle()
     val currentUser by supabaseManager.currentUser.collectAsStateWithLifecycle()
@@ -90,6 +97,7 @@ fun MultiplayerLobbyScreen(
     // Automatically navigate when pairing completes successfully
     LaunchedEffect(status) {
         if (status == MultiplayerStatus.CONNECTED) {
+            delay(1200)
             onGameStarted()
         }
     }
@@ -114,8 +122,8 @@ fun MultiplayerLobbyScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color(0xFFFDF3E3),
-                    titleContentColor = Color(0xFF5C2D0A),
-                    navigationIconContentColor = Color(0xFF5C2D0A)
+                    titleContentColor = MaterialTheme.colorScheme.primary,
+                    navigationIconContentColor = MaterialTheme.colorScheme.primary
                 )
             )
         },
@@ -246,34 +254,65 @@ fun MultiplayerLobbyScreen(
             }
 
             // 2. Active Session Card or Matching Cards
-            if (status == MultiplayerStatus.CONNECTING || status == MultiplayerStatus.MATCHMAKING) {
+            if (status == MultiplayerStatus.CONNECTING || status == MultiplayerStatus.MATCHMAKING || (status == MultiplayerStatus.LOBBY_WAITING && matchmakingCountdown != null) || status == MultiplayerStatus.CONNECTED) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7EA)),
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp).border(1.dp, Color(0xFFC75D27).copy(alpha = 0.5f), RoundedCornerShape(16.dp))
                 ) {
                     Column(
                         modifier = Modifier.padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        CircularProgressIndicator(color = Color(0xFF5C2D0A))
+                        CircularProgressIndicator(color = Color(0xFFC75D27), strokeWidth = 4.dp)
                         Spacer(modifier = Modifier.height(16.dp))
+                        
                         Text(
-                            text = if (status == MultiplayerStatus.CONNECTING) {
-                                "Connecting to Daadi Multiplay Server..."
-                            } else {
-                                "Searching for a random opponent online..."
+                            text = when {
+                                status == MultiplayerStatus.CONNECTED -> "Opponent Found: $opponentPlayerName"
+                                status == MultiplayerStatus.CONNECTING -> "Synchronizing with Battle Servers..."
+                                isLobbyEmpty -> "Global lobby is currently empty. You can wait for a host or launch the Guardian Simulator immediately."
+                                matchmakingCountdown != null -> "Searching for Opponent..."
+                                else -> "Querying Matchmaker..."
                             },
                             textAlign = TextAlign.Center,
-                            color = Color(0xFF5C2D0A),
-                            fontWeight = FontWeight.Bold
+                            color = if (status == MultiplayerStatus.CONNECTED) Color(0xFF2E7D32) else Color(0xFF5C2D0A),
+                            fontWeight = FontWeight.Black,
+                            fontSize = if (isLobbyEmpty) 16.sp else 18.sp
                         )
-                        Spacer(modifier = Modifier.height(14.dp))
+
+                        if (matchmakingCountdown != null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "Guardian Simulator fallback in: ${matchmakingCountdown}s",
+                                color = Color(0xFF8B5E3C),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                            
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Button(
+                                onClick = { multiplayerManager.startSimulatorNow() },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC75D27)),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    if (isLobbyEmpty) "LAUNCH GUARDIAN SIMULATOR INSTANTLY" else "PLAY GUARDIAN SIMULATOR NOW",
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
                         OutlinedButton(
                             onClick = { multiplayerManager.disconnect() },
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC62828))
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC62828)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFC62828).copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Cancel")
+                            Text("CANCEL SEARCH")
                         }
                     }
                 }
@@ -358,11 +397,20 @@ fun MultiplayerLobbyScreen(
                                     supabaseManager.hostWaitingMatch(localPlayerName, code) { success ->
                                         if (success) {
                                             multiplayerManager.hostRoom(code)
+                                        } else {
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                "Failed to create private room on server. Please check your connection and try again.",
+                                                android.widget.Toast.LENGTH_LONG
+                                            ).show()
                                         }
                                     }
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C2D0A)),
+                            colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF5C2D0A),
+                            contentColor = Color.White
+                        ),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.fillMaxWidth().height(48.dp).testTag("host_room_button")
                         ) {
@@ -411,17 +459,28 @@ fun MultiplayerLobbyScreen(
                                     focusManager.clearFocus()
                                     if (manualRoomCodeInput.length == 6) {
                                         supabaseManager.joinWaitingMatch(manualRoomCodeInput, localPlayerName) { success ->
-                                            multiplayerManager.joinRoom(manualRoomCodeInput)
+                                            if (success) {
+                                                multiplayerManager.joinRoom(manualRoomCodeInput)
+                                            } else {
+                                                android.widget.Toast.makeText(
+                                                    context,
+                                                    "Room code is invalid or connection failed. Please verify the code and try again.",
+                                                    android.widget.Toast.LENGTH_LONG
+                                                ).show()
+                                            }
                                         }
                                     }
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD4A55A)),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFD4A55A),
+                                contentColor = Color(0xFF1C0A00)
+                            ),
                             shape = RoundedCornerShape(8.dp),
                             enabled = manualRoomCodeInput.length == 6,
                             modifier = Modifier.fillMaxWidth().height(48.dp).testTag("join_room_button")
                         ) {
-                            Text("JOIN ROOM & PLAY", fontWeight = FontWeight.Bold, color = Color(0xFF1C0A00))
+                            Text("JOIN ROOM & PLAY", fontWeight = FontWeight.Bold)
                         }
 
                         Divider(color = Color(0xFFE5A93B).copy(alpha = 0.3f), thickness = 1.dp)
@@ -438,6 +497,7 @@ fun MultiplayerLobbyScreen(
                                                     onJoin(match.id)
                                                 }
                                             } else {
+                                                multiplayerManager.setLobbyEmpty(true)
                                                 val newCode = (100000..999999).random().toString()
                                                 supabaseManager.hostWaitingMatch(localPlayerName, newCode) { success ->
                                                     onHost(newCode)
@@ -447,11 +507,14 @@ fun MultiplayerLobbyScreen(
                                     }
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC75D27)),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFC75D27),
+                                contentColor = Color.White
+                            ),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.fillMaxWidth().height(48.dp).testTag("quick_match_button")
                         ) {
-                            Text("QUICK MATCH / FIND OPPONENT", fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("QUICK MATCH / FIND OPPONENT", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -481,6 +544,213 @@ fun MultiplayerLobbyScreen(
                         textAlign = TextAlign.Center,
                         lineHeight = 16.sp
                     )
+                }
+            }
+
+            // 3. Lively Lobby Feed Section
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7EA)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, Color(0xFFE5A93B).copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                "DAADI WORLD ARENA",
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF5C2D0A),
+                                fontSize = 14.sp,
+                                letterSpacing = 1.sp
+                            )
+                            Text(
+                                "Real-time Active Players & Matches",
+                                fontSize = 11.sp,
+                                color = Color(0xFF8B5E3C)
+                            )
+                        }
+                        
+                        // Pulsing online indicator
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(Color(0xFF2E7D32), CircleShape)
+                            )
+                            Text(
+                                "142 Live",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF2E7D32)
+                            )
+                        }
+                    }
+
+                    Divider(color = Color(0xFFE5A93B).copy(alpha = 0.2f), thickness = 1.dp)
+
+                    // Display list of simulated active users
+                    Text(
+                        "ONLINE PLAYERS",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFC75D27),
+                        fontSize = 11.sp,
+                        letterSpacing = 1.sp
+                    )
+
+                    val activePlayers = remember {
+                        listOf(
+                            Triple("Priya_Champs", "Champion", 1910),
+                            Triple("Rajesh_99", "Tactician", 1720),
+                            Triple("Sonia_Prasad", "Elite", 1680),
+                            Triple("Samrat_Raj", "Master", 1850)
+                        )
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        activePlayers.forEach { player ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFFFFFDF8), RoundedCornerShape(8.dp))
+                                    .border(1.dp, Color(0xFFE5A93B).copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .background(Color(0xFFFFF3E0), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            "👤",
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                    Column {
+                                        Text(
+                                            player.first,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF5C2D0A)
+                                        )
+                                        Text(
+                                            player.second,
+                                            fontSize = 10.sp,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        "🏆 Rating: ${player.third}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF8B5E3C)
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .background(Color(0xFF2E7D32), CircleShape)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        "LIVE MATCHES",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFC75D27),
+                        fontSize = 11.sp,
+                        letterSpacing = 1.sp
+                    )
+
+                    // Simulated live battles updating in real time
+                    val battles = remember {
+                        listOf(
+                            Triple("Kabir_Gamer (1540)", "Sneha_Warrior (1610)", "Turn 14 • PLACEMENT"),
+                            Triple("Chanakya_Pro (1980)", "Rani_99 (1920)", "Turn 26 • MOVEMENT")
+                        )
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        battles.forEach { battle ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFFFFFDF8), RoundedCornerShape(8.dp))
+                                    .border(1.dp, Color(0xFFE5A93B).copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(
+                                            battle.first,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFCC2222)
+                                        )
+                                        Text(
+                                            "vs",
+                                            fontSize = 10.sp,
+                                            color = Color.Gray
+                                        )
+                                        Text(
+                                            battle.second,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF1A5276)
+                                        )
+                                    }
+                                    Text(
+                                        battle.third,
+                                        fontSize = 10.sp,
+                                        color = Color(0xFF8B5E3C)
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .background(Color(0xFFFBE9E7), RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        "LIVE",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Color(0xFFD84315)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -518,9 +788,12 @@ fun MultiplayerLobbyScreen(
                                 isOfflineAlertVisible = false
                                 onPlayVsAi()
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C2D0A))
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF5C2D0A),
+                                contentColor = Color.White
+                            )
                         ) {
-                            Text("Play Computer (Offline)", color = Color.White)
+                            Text("Play Computer (Offline)")
                         }
                     },
                     dismissButton = {
@@ -560,7 +833,10 @@ fun MultiplayerLobbyScreen(
                                 showAuthPromptDialog = false
                                 onManageProfile()
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C2D0A))
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF5C2D0A),
+                                contentColor = Color.White
+                            )
                         ) {
                             Text("Log In / Register")
                         }

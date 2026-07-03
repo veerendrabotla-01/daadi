@@ -10,6 +10,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.example.daadi.engine.BoardDefinition
@@ -28,8 +29,54 @@ fun GameBoard(
     boardTheme: String = "classic_wood",
     hintMove: Pair<Int?, Int>? = null,
     highlightLastMove: Boolean = true,
-    lastMoveNodeId: Int? = null
+    lastMove: com.example.daadi.model.GameMove? = null,
+    ruleSet: com.example.daadi.model.RuleSet = com.example.daadi.model.RuleSet.NINE_MENS_MORRIS
 ) {
+    // Persistent state for piece offsets to enable smooth transitions
+    // key: current nodeId where piece is intended to be
+    val piecePositions = remember { mutableStateMapOf<Int, Animatable<Offset, AnimationVector2D>>() }
+
+    // Sync animation states with actual board model changes
+    LaunchedEffect(board) {
+        val last = lastMove
+        if (last != null && last.type == com.example.daadi.model.MoveType.MOVE) {
+            val from = last.fromNode!!
+            val to = last.toNode
+            if (piecePositions.containsKey(from) && !piecePositions.containsKey(to)) {
+                // Transfer the existing animator to the brand new location
+                val anim = piecePositions.remove(from)!!
+                piecePositions[to] = anim
+            }
+        }
+
+        // 1. Clean up stale animators (captures or unexpected drifts)
+        val currentOccupied = board.nodes.filter { it.value != null }.keys
+        val stale = piecePositions.keys.filter { it !in currentOccupied }
+        stale.forEach { piecePositions.remove(it) }
+
+        // 2. Initialize animators for newly placed pieces
+        for (nodeId in currentOccupied) {
+            if (!piecePositions.containsKey(nodeId)) {
+                val pos = BoardDefinition.COORDINATES[nodeId] ?: Pair(0.5f, 0.5f)
+                piecePositions[nodeId] = Animatable(Offset(pos.first, pos.second), Offset.VectorConverter)
+            }
+        }
+    }
+
+    // Trigger animations for any piece whose node has changed
+    piecePositions.forEach { (nodeId, animatable) ->
+        val target = BoardDefinition.COORDINATES[nodeId] ?: Pair(0.5f, 0.5f)
+        val destination = Offset(target.first, target.second)
+        LaunchedEffect(nodeId, destination) {
+            if (animatable.targetValue != destination) {
+                animatable.animateTo(
+                    targetValue = destination,
+                    animationSpec = tween(300, easing = FastOutSlowInEasing)
+                )
+            }
+        }
+    }
+
     // Pulsing animations for highlights
     val infiniteTransition = rememberInfiniteTransition(label = "board_pulse")
     val pulseAlpha by infiniteTransition.animateFloat(
@@ -69,12 +116,39 @@ fun GameBoard(
         else -> Color(0xFFBDC3C7)
     }
 
+    // --- TELEMETRY TRACKER ---
+    val drawStartTime = System.nanoTime()
+    var lastLogTime by remember { mutableLongStateOf(0L) }
+
+    // Pre-calculate density-dependent values to avoid reading density in every draw frame
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val strokeWidth = remember(density) { with(density) { 5.dp.toPx() } }
+    val emptyRadius = remember(density) { with(density) { 6.dp.toPx() } }
+    val pieceRadius = remember(density) { with(density) { 13.5.dp.toPx() } }
+    val shadowOffset = remember(density) { with(density) { 2.dp.toPx() } }
+
+    var canvasSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    val nodePixels = remember(canvasSize) {
+        val w = canvasSize.width.toFloat()
+        val h = canvasSize.height.toFloat()
+        if (w == 0f || h == 0f) {
+            BoardDefinition.COORDINATES.mapValues { (_, coords) -> Offset(0f, 0f) }
+        } else {
+            BoardDefinition.COORDINATES.mapValues { (_, coords) ->
+                Offset(coords.first * w, coords.second * h)
+            }
+        }
+    }
+
     Canvas(
         modifier = modifier
             .aspectRatio(1f)
             .fillMaxWidth()
             .padding(12.dp)
             .testTag("game_board_canvas")
+            .onGloballyPositioned { coordinates ->
+                canvasSize = coordinates.size
+            }
             .pointerInput(board) {
                 detectTapGestures { offset ->
                     // Map tap coordinates (pixels) to ratios
@@ -104,43 +178,51 @@ fun GameBoard(
         val w = size.width
         val h = size.height
 
-        // 1. Draw outer, middle, inner concentric squares
-        // We use BoardDefinition coordinates mapping to actual pixel points
-        fun getPixel(nodeId: Int): Offset {
-            val coords = BoardDefinition.COORDINATES[nodeId] ?: Pair(0.5f, 0.5f)
-            return Offset(coords.first * w, coords.second * h)
+        // Capture telemetry for frame overhead with throttling
+        val drawDurationMs = (System.nanoTime() - drawStartTime) / 1_000_000
+        val currentTime = System.currentTimeMillis()
+        if (drawDurationMs > 16 && (currentTime - lastLogTime) > 2000) { 
+            // Throttled logging to avoid overhead
+            com.example.daadi.util.SecureLog.w("DAADI_TELEMETRY", "Slow Frame Detected: Board Draw took ${drawDurationMs}ms")
+            lastLogTime = currentTime
         }
 
-        val strokeWidth = 5.dp.toPx()
-
         // Outer square
-        drawLine(boardLineColor, getPixel(0), getPixel(2), strokeWidth)
-        drawLine(boardLineColor, getPixel(2), getPixel(4), strokeWidth)
-        drawLine(boardLineColor, getPixel(4), getPixel(6), strokeWidth)
-        drawLine(boardLineColor, getPixel(6), getPixel(0), strokeWidth)
+        drawLine(boardLineColor, nodePixels[0]!!, nodePixels[2]!!, strokeWidth)
+        drawLine(boardLineColor, nodePixels[2]!!, nodePixels[4]!!, strokeWidth)
+        drawLine(boardLineColor, nodePixels[4]!!, nodePixels[6]!!, strokeWidth)
+        drawLine(boardLineColor, nodePixels[6]!!, nodePixels[0]!!, strokeWidth)
 
         // Middle square
-        drawLine(boardLineColor, getPixel(8), getPixel(10), strokeWidth)
-        drawLine(boardLineColor, getPixel(10), getPixel(12), strokeWidth)
-        drawLine(boardLineColor, getPixel(12), getPixel(14), strokeWidth)
-        drawLine(boardLineColor, getPixel(14), getPixel(8), strokeWidth)
+        drawLine(boardLineColor, nodePixels[8]!!, nodePixels[10]!!, strokeWidth)
+        drawLine(boardLineColor, nodePixels[10]!!, nodePixels[12]!!, strokeWidth)
+        drawLine(boardLineColor, nodePixels[12]!!, nodePixels[14]!!, strokeWidth)
+        drawLine(boardLineColor, nodePixels[14]!!, nodePixels[8]!!, strokeWidth)
 
         // Inner square
-        drawLine(boardLineColor, getPixel(16), getPixel(18), strokeWidth)
-        drawLine(boardLineColor, getPixel(18), getPixel(20), strokeWidth)
-        drawLine(boardLineColor, getPixel(20), getPixel(22), strokeWidth)
-        drawLine(boardLineColor, getPixel(22), getPixel(16), strokeWidth)
+        drawLine(boardLineColor, nodePixels[16]!!, nodePixels[18]!!, strokeWidth)
+        drawLine(boardLineColor, nodePixels[18]!!, nodePixels[20]!!, strokeWidth)
+        drawLine(boardLineColor, nodePixels[20]!!, nodePixels[22]!!, strokeWidth)
+        drawLine(boardLineColor, nodePixels[22]!!, nodePixels[16]!!, strokeWidth)
 
         // Cross central connectors
-        drawLine(boardLineColor, getPixel(1), getPixel(17), strokeWidth) // Top cross
-        drawLine(boardLineColor, getPixel(3), getPixel(19), strokeWidth) // Right cross
-        drawLine(boardLineColor, getPixel(5), getPixel(21), strokeWidth) // Bottom cross
-        drawLine(boardLineColor, getPixel(7), getPixel(23), strokeWidth) // Left cross
+        drawLine(boardLineColor, nodePixels[1]!!, nodePixels[17]!!, strokeWidth) // Top cross
+        drawLine(boardLineColor, nodePixels[3]!!, nodePixels[19]!!, strokeWidth) // Right cross
+        drawLine(boardLineColor, nodePixels[5]!!, nodePixels[21]!!, strokeWidth) // Bottom cross
+        drawLine(boardLineColor, nodePixels[7]!!, nodePixels[23]!!, strokeWidth) // Left cross
+
+        // Draw diagonal connectors for 12 Men's Morris
+        if (ruleSet == com.example.daadi.model.RuleSet.TWELVE_MENS_MORRIS) {
+            drawLine(boardLineColor, nodePixels[0]!!, nodePixels[16]!!, strokeWidth) // Top-Left diagonal
+            drawLine(boardLineColor, nodePixels[2]!!, nodePixels[18]!!, strokeWidth) // Top-Right diagonal
+            drawLine(boardLineColor, nodePixels[4]!!, nodePixels[20]!!, strokeWidth) // Bottom-Right diagonal
+            drawLine(boardLineColor, nodePixels[6]!!, nodePixels[22]!!, strokeWidth) // Bottom-Left diagonal
+        }
 
         // 2. Draw empty nodes as placeholders/receptacles
         val emptyRadius = 6.dp.toPx()
         for ((nodeId, _) in BoardDefinition.COORDINATES) {
-            val center = getPixel(nodeId)
+            val center = nodePixels[nodeId]!!
             if (board.nodes[nodeId] == null) {
                 // If it is a valid destination node, draw pulsing gold target ring!
                 if (nodeId in validDestinationNodes) {
@@ -170,54 +252,54 @@ fun GameBoard(
         val pieceRadius = 13.5.dp.toPx()
         val shadowOffset = 2.dp.toPx()
 
-        for ((nodeId, occupant) in board.nodes) {
-            if (occupant != null) {
-                val center = getPixel(nodeId)
+        for ((nodeId, animatable) in piecePositions) {
+            val occupant = board.nodes[nodeId] ?: continue
+            val currentPos = animatable.value
+            val center = Offset(currentPos.x * w, currentPos.y * h)
 
-                // Selectors/Flashing color states
-                val baseColor = if (occupant == Player.PLAYER_1) Color(0xFFCC2222) else Color(0xFF1A5276)
-                val glossColor = if (occupant == Player.PLAYER_1) Color(0xFFFF8A8A) else Color(0xFF5DADE2)
+            // Selectors/Flashing color states
+            val baseColor = if (occupant == Player.PLAYER_1) Color(0xFFCC2222) else Color(0xFF1A5276)
+            val glossColor = if (occupant == Player.PLAYER_1) Color(0xFFFF8A8A) else Color(0xFF5DADE2)
 
-                // Recent invalid move flashes red
-                val finalBaseColor = if (nodeId == recentInvalidNode) Color(0xFFE74C3C) else baseColor
+            // Recent invalid move flashes red
+            val finalBaseColor = if (nodeId == recentInvalidNode) Color(0xFFE74C3C) else baseColor
 
-                // 3a. Drop Shadow (for a beautiful 3D look!)
+            // 3a. Drop Shadow (for a beautiful 3D look!)
+            drawCircle(
+                color = Color(0x3C000000),
+                radius = pieceRadius,
+                center = center + Offset(shadowOffset, shadowOffset)
+            )
+
+            // 3b. Highlight Selection ring if active
+            if (nodeId == selectedNodeId) {
                 drawCircle(
-                    color = Color(0x3C000000),
-                    radius = pieceRadius,
-                    center = center + Offset(shadowOffset, shadowOffset)
-                )
-
-                // 3b. Highlight Selection ring if active
-                if (nodeId == selectedNodeId) {
-                    drawCircle(
-                        color = Color(0xFFE5A93B),
-                        radius = pieceRadius * scaleSelection,
-                        center = center,
-                        style = Stroke(width = 2.5.dp.toPx())
-                    )
-                }
-
-                // 3c. Draw master color bead
-                drawCircle(
-                    color = finalBaseColor,
-                    radius = pieceRadius,
-                    center = center
-                )
-
-                // 3d. Accent glint/gloss (Top Left highlight)
-                drawCircle(
-                    color = glossColor,
-                    radius = pieceRadius * 0.35f,
-                    center = center - Offset(pieceRadius * 0.3f, pieceRadius * 0.3f)
+                    color = Color(0xFFE5A93B),
+                    radius = pieceRadius * scaleSelection,
+                    center = center,
+                    style = Stroke(width = 2.5.dp.toPx())
                 )
             }
+
+            // 3c. Draw master color bead
+            drawCircle(
+                color = finalBaseColor,
+                radius = pieceRadius,
+                center = center
+            )
+
+                // 3d. Accent glint/gloss (Top Left highlight)
+            drawCircle(
+                color = glossColor,
+                radius = pieceRadius * 0.35f,
+                center = center - Offset(pieceRadius * 0.3f, pieceRadius * 0.3f)
+            )
         }
 
         // 4. Draw Neon cyan hint aura over recommended Node(s)
         if (hintMove != null) {
             // Highlight target node
-            val targetCenter = getPixel(hintMove.second)
+            val targetCenter = nodePixels[hintMove.second]!!
             drawCircle(
                 color = Color(0xFF00E5FF),
                 radius = pieceRadius * 1.6f * scaleSelection,
@@ -232,7 +314,7 @@ fun GameBoard(
 
             // Highlight source node if it's a move (not placement)
             if (hintMove.first != null) {
-                val sourceCenter = getPixel(hintMove.first!!)
+                val sourceCenter = nodePixels[hintMove.first!!]!!
                 drawCircle(
                     color = Color(0xFF00E5FF),
                     radius = pieceRadius * 1.2f,
@@ -243,8 +325,8 @@ fun GameBoard(
         }
 
         // 5. Draw Gold highlight for the most recent move
-        if (highlightLastMove && lastMoveNodeId != null) {
-            val center = getPixel(lastMoveNodeId)
+        if (highlightLastMove && lastMove?.toNode != null) {
+            val center = nodePixels[lastMove.toNode]!!
             drawCircle(
                 color = Color(0xFFD4A55A),
                 radius = pieceRadius * 1.4f,

@@ -56,8 +56,20 @@ data class GameMove(
     val toNode: Int,
     val capturedNode: Int?,
     val player: Player,
+    val notation: String = "",
     val timestamp: Long = System.currentTimeMillis()
 )
+
+enum class RuleSet {
+    NINE_MENS_MORRIS,
+    TWELVE_MENS_MORRIS
+}
+
+enum class ConnectionStatus {
+    CONNECTED,
+    RECONNECTING,
+    DISCONNECTED
+}
 
 @JsonClass(generateAdapter = true)
 data class GameState(
@@ -66,13 +78,21 @@ data class GameState(
     val phase: GamePhase = GamePhase.PLACEMENT,
     val gameMode: GameMode = GameMode.VS_AI,
     val aiDifficulty: AIDifficulty = AIDifficulty.MEDIUM,
+    val ruleSet: RuleSet = RuleSet.NINE_MENS_MORRIS,
     val player1PiecesInHand: Int = 9,
     val player2PiecesInHand: Int = 9,
     val player1PiecesOnBoard: Int = 0,
     val player2PiecesOnBoard: Int = 0,
     val isCapturePending: Boolean = false,
     val winner: Player? = null,
+    val drawReason: String? = null,
     val moveHistory: List<GameMove> = emptyList(),
+    val boardHistory: List<String> = emptyList(), // Store "player:boardEncodedString" for repetition check
+    val halfMoveClock: Int = 0, // Moves since last capture or placement for 50-move rule
+    val connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED,
+    val reconnectionCountdown: Int? = null,
+    val player1TimerChances: Int = 3,
+    val player2TimerChances: Int = 3,
     val timestampSaved: Long = System.currentTimeMillis()
 )
 
@@ -101,5 +121,6 @@ data class AppSettings(
     val fastAnimations: Boolean = false,
     val defaultDifficulty: AIDifficulty = AIDifficulty.MEDIUM,
     val selectedBoardTheme: String = "classic_wood",
-    val showRulesOnStart: Boolean = true
+    val showRulesOnStart: Boolean = true,
+    val showLatestActivity: Boolean = false
 )

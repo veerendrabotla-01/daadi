@@ -9,6 +9,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+object SharedMoshi {
+    val moshi: Moshi by lazy {
+        Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
+    }
+}
+
 interface GameRepository {
     fun saveGame(state: GameState)
     fun loadGame(): GameState?
@@ -31,8 +37,7 @@ interface SettingsRepository {
 
 class GameRepositoryImpl(context: Context) : GameRepository {
     private val prefs: SharedPreferences = context.getSharedPreferences("daadi_game_prefs", Context.MODE_PRIVATE)
-    private val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
-    private val adapter = moshi.adapter(GameState::class.java)
+    private val adapter = SharedMoshi.moshi.adapter(GameState::class.java)
 
     override fun saveGame(state: GameState) {
         try {
@@ -60,19 +65,22 @@ class GameRepositoryImpl(context: Context) : GameRepository {
 
 class StatsRepositoryImpl(context: Context) : StatsRepository {
     private val prefs: SharedPreferences = context.getSharedPreferences("daadi_stats_prefs", Context.MODE_PRIVATE)
-    private val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
-    private val adapter = moshi.adapter(PlayerStats::class.java)
+    private val adapter = SharedMoshi.moshi.adapter(PlayerStats::class.java)
 
-    private val _statsFlow = MutableStateFlow(getStats())
+    private val _statsFlow = MutableStateFlow(loadStatsFromDisk())
     override val statsFlow: StateFlow<PlayerStats> = _statsFlow.asStateFlow()
 
-    override fun getStats(): PlayerStats {
+    private fun loadStatsFromDisk(): PlayerStats {
         val json = prefs.getString("player_stats", null) ?: return PlayerStats()
         return try {
             adapter.fromJson(json) ?: PlayerStats()
         } catch (e: Exception) {
             PlayerStats()
         }
+    }
+
+    override fun getStats(): PlayerStats {
+        return _statsFlow.value
     }
 
     override fun saveStats(stats: PlayerStats) {
@@ -86,7 +94,7 @@ class StatsRepositoryImpl(context: Context) : StatsRepository {
     }
 
     override fun updateStats(winner: Player?, mode: GameMode, difficulty: AIDifficulty) {
-        val current = getStats()
+        val current = _statsFlow.value
         val isWin = winner == Player.PLAYER_1
         val isLoss = winner == Player.PLAYER_2
         val isDraw = winner == null
@@ -114,19 +122,22 @@ class StatsRepositoryImpl(context: Context) : StatsRepository {
 
 class SettingsRepositoryImpl(context: Context) : SettingsRepository {
     private val prefs: SharedPreferences = context.getSharedPreferences("daadi_settings_prefs", Context.MODE_PRIVATE)
-    private val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
-    private val adapter = moshi.adapter(AppSettings::class.java)
+    private val adapter = SharedMoshi.moshi.adapter(AppSettings::class.java)
 
-    private val _settingsFlow = MutableStateFlow(getSettings())
+    private val _settingsFlow = MutableStateFlow(loadSettingsFromDisk())
     override val settingsFlow: StateFlow<AppSettings> = _settingsFlow.asStateFlow()
 
-    override fun getSettings(): AppSettings {
+    private fun loadSettingsFromDisk(): AppSettings {
         val json = prefs.getString("app_settings", null) ?: return AppSettings()
         return try {
             adapter.fromJson(json) ?: AppSettings()
         } catch (e: Exception) {
             AppSettings()
         }
+    }
+
+    override fun getSettings(): AppSettings {
+        return _settingsFlow.value
     }
 
     override fun saveSettings(settings: AppSettings) {

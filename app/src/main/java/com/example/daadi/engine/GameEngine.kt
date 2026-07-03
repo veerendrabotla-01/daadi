@@ -46,7 +46,7 @@ object GameEngine {
                 }
             } else {
                 // Regular movement: Can slide to adjacent connected empty nodes
-                val adjacent = BoardDefinition.CONNECTIONS[from] ?: emptyList()
+                val adjacent = BoardDefinition.getConnections(from, state.ruleSet)
                 for (to in adjacent) {
                     if (state.board.nodes[to] == null) {
                         moves.add(Pair(from, to))
@@ -62,6 +62,19 @@ object GameEngine {
      * Executes piece placement at [nodeId] for the current player.
      */
     fun placePiece(state: GameState, nodeId: Int): GameState {
+        // --- ARCHITECT ASSERTIONS ---
+        val diagInfo = "PLACE FAILURE | Player: ${state.currentPlayer} | Node: $nodeId | Rule: ${state.ruleSet}"
+        if (state.board.nodes[nodeId] != null) {
+            logDiagnostic(diagInfo, "Target node already occupied.")
+            return state
+        }
+        val pezziInHand = if (state.currentPlayer == Player.PLAYER_1) state.player1PiecesInHand else state.player2PiecesInHand
+        if (pezziInHand <= 0) {
+            logDiagnostic(diagInfo, "No pieces remaining in hand for placement.")
+            return state
+        }
+        // ----------------------------
+
         val player = state.currentPlayer
         val handCount = if (player == Player.PLAYER_1) state.player1PiecesInHand else state.player2PiecesInHand
 
@@ -84,7 +97,7 @@ object GameEngine {
         val newP2OnBoard = if (player == Player.PLAYER_2) state.player2PiecesOnBoard + 1 else state.player2PiecesOnBoard
 
         // Detect mill
-        val formsMill = MillDetector.formsNewMill(newBoard, nodeId, player)
+        val formsMill = MillDetector.formsNewMill(newBoard, nodeId, player, state.ruleSet)
 
         // Check phase transitions
         val nextPhase = if (newP1Hand == 0 && newP2Hand == 0) GamePhase.MOVEMENT else GamePhase.PLACEMENT
@@ -94,12 +107,15 @@ object GameEngine {
             fromNode = null,
             toNode = nodeId,
             capturedNode = null,
-            player = player
+            player = player,
+            notation = "${if (player == Player.PLAYER_1) "Red" else "Blue"}: Placed at ${BoardDefinition.getNodeName(nodeId)}"
         )
 
         val nextPlayer = if (formsMill) player else getNextPlayer(player)
+        
+        val boardString = encodeBoard(newBoard, nextPlayer)
 
-        return state.copy(
+        val newState = state.copy(
             board = newBoard,
             player1PiecesInHand = newP1Hand,
             player2PiecesInHand = newP2Hand,
@@ -108,14 +124,42 @@ object GameEngine {
             phase = nextPhase,
             isCapturePending = formsMill,
             currentPlayer = nextPlayer,
-            moveHistory = state.moveHistory + historyItem
+            moveHistory = state.moveHistory + historyItem,
+            boardHistory = state.boardHistory + boardString,
+            halfMoveClock = 0 // Reset on placement/capture
         )
+
+        return checkDrawConditions(newState)
     }
 
     /**
      * Slides/flies a piece from [fromNode] to [toNode].
      */
     fun movePiece(state: GameState, fromNode: Int, toNode: Int): GameState {
+        // --- ARCHITECT ASSERTIONS ---
+        val diagInfo = "MOVE FAILURE | Player: ${state.currentPlayer} | From: $fromNode | To: $toNode | Rule: ${state.ruleSet}"
+        val owner = state.board.nodes[fromNode]
+        if (owner != state.currentPlayer) {
+            logDiagnostic(diagInfo, "Attempted to move piece not owned by current player.")
+            return state
+        }
+        if (state.board.nodes[toNode] != null) {
+            logDiagnostic(diagInfo, "Target node $toNode is not empty.")
+            return state
+        }
+
+        val pezziSulBoard = if (state.currentPlayer == Player.PLAYER_1) state.player1PiecesOnBoard else state.player2PiecesOnBoard
+        val canFly = pezziSulBoard == 3
+        
+        if (!canFly) {
+            val adjacent = BoardDefinition.getConnections(fromNode, state.ruleSet)
+            if (!adjacent.contains(toNode)) {
+                logDiagnostic(diagInfo, "Illegal move: Nodes are not connected under current RuleSet (${state.ruleSet})")
+                return state
+            }
+        }
+        // ----------------------------
+
         val player = state.currentPlayer
 
         // Validations
@@ -129,7 +173,7 @@ object GameEngine {
         val isFlying = totalOwnPieces == 3
 
         if (!isFlying) {
-            val adjacent = BoardDefinition.CONNECTIONS[fromNode] ?: emptyList()
+            val adjacent = BoardDefinition.getConnections(fromNode, state.ruleSet)
             if (toNode !in adjacent) return state // Must be adjacent
         }
 
@@ -140,28 +184,33 @@ object GameEngine {
         val newBoard = Board(updatedNodes)
 
         // Detect mill
-        val formsMill = MillDetector.formsNewMill(newBoard, toNode, player)
+        val formsMill = MillDetector.formsNewMill(newBoard, toNode, player, state.ruleSet)
 
         val historyItem = GameMove(
             type = MoveType.MOVE,
             fromNode = fromNode,
             toNode = toNode,
             capturedNode = null,
-            player = player
+            player = player,
+            notation = "${if (player == Player.PLAYER_1) "Red" else "Blue"}: Moved from ${BoardDefinition.getNodeName(fromNode)} to ${BoardDefinition.getNodeName(toNode)}"
         )
 
         val nextPlayer = if (formsMill) player else getNextPlayer(player)
+        val boardString = encodeBoard(newBoard, nextPlayer)
 
         val finalState = state.copy(
             board = newBoard,
             isCapturePending = formsMill,
             currentPlayer = nextPlayer,
-            moveHistory = state.moveHistory + historyItem
+            moveHistory = state.moveHistory + historyItem,
+            boardHistory = state.boardHistory + boardString,
+            halfMoveClock = state.halfMoveClock + 1
         )
 
-        // If no mill is formed, we must evaluate win conditions for the NEXT player right away
+        // If no mill is formed, we must evaluate win/draw conditions for the NEXT player right away
         return if (!formsMill) {
-            checkWinAndAdjustPhase(finalState)
+            val s = checkWinAndAdjustPhase(finalState)
+            checkDrawConditions(s)
         } else {
             finalState
         }
@@ -180,7 +229,7 @@ object GameEngine {
         if (state.board.nodes[nodeId] != opponent) return state
 
         // Standard rules: Cannot capture milled pieces unless all opponent's pieces are in mills
-        if (!MillDetector.isPieceCapturable(state.board, nodeId, opponent)) return state
+        if (!MillDetector.isPieceCapturable(state.board, nodeId, opponent, state.ruleSet)) return state
 
         // Apply capture
         val updatedNodes = state.board.nodes.toMutableMap()
@@ -192,21 +241,29 @@ object GameEngine {
         val newP2OnBoard = if (opponent == Player.PLAYER_2) state.player2PiecesOnBoard - 1 else state.player2PiecesOnBoard
 
         // Record history
+        val actorName = if (player == Player.PLAYER_1) "Red" else "Blue"
+        val captureNotation = " ($actorName Captured at ${BoardDefinition.getNodeName(nodeId)})"
+        
         val lastMove = state.moveHistory.lastOrNull()
         val updatedHistory = if (lastMove != null && lastMove.player == player && lastMove.capturedNode == null) {
             // Attach capture to the last placement/move
-            state.moveHistory.dropLast(1) + lastMove.copy(capturedNode = nodeId)
+            state.moveHistory.dropLast(1) + lastMove.copy(
+                capturedNode = nodeId,
+                notation = lastMove.notation + captureNotation
+            )
         } else {
             state.moveHistory + GameMove(
                 type = MoveType.CAPTURE,
                 fromNode = null,
                 toNode = nodeId,
                 capturedNode = nodeId,
-                player = player
+                player = player,
+                notation = "$actorName: Captured at ${BoardDefinition.getNodeName(nodeId)}"
             )
         }
 
         val nextPlayer = getNextPlayer(player)
+        val boardString = encodeBoard(newBoard, nextPlayer)
 
         val nextState = state.copy(
             board = newBoard,
@@ -214,10 +271,49 @@ object GameEngine {
             player2PiecesOnBoard = newP2OnBoard,
             isCapturePending = false,
             currentPlayer = nextPlayer,
-            moveHistory = updatedHistory
+            moveHistory = updatedHistory,
+            boardHistory = state.boardHistory + boardString,
+            halfMoveClock = 0 // Reset on capture
         )
 
-        return checkWinAndAdjustPhase(nextState)
+        val s = checkWinAndAdjustPhase(nextState)
+        return checkDrawConditions(s)
+    }
+
+    private fun logDiagnostic(header: String, reason: String) {
+        val timestamp = System.currentTimeMillis()
+        com.example.daadi.util.SecureLog.e("DAADI_ENGINE_CRITICAL", "[$timestamp] $header | REASON: $reason")
+    }
+
+    private fun encodeBoard(board: Board, player: Player): String {
+        val boardStr = (0..23).joinToString("") { board.nodes[it]?.ordinal?.toString() ?: "E" }
+        return "${player.ordinal}:$boardStr"
+    }
+
+    fun checkDrawConditions(state: GameState): GameState {
+        if (state.winner != null) return state
+
+        // 50-move rule
+        if (state.halfMoveClock >= 100) { // 50 moves per player = 100 half-moves
+            return state.copy(
+                phase = GamePhase.GAME_OVER,
+                drawReason = "Draw by 50-move rule"
+            )
+        }
+
+        // Threefold repetition: Compare layout AND the player whose turn it is
+        val lastStateEncoded = state.boardHistory.lastOrNull()
+        if (lastStateEncoded != null) {
+            val count = state.boardHistory.count { it == lastStateEncoded }
+            if (count >= 3) {
+                return state.copy(
+                    phase = GamePhase.GAME_OVER,
+                    drawReason = "Draw by Threefold Repetition"
+                )
+            }
+        }
+
+        return state
     }
 
     /**

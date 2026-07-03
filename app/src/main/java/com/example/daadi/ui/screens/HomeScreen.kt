@@ -1,8 +1,12 @@
 package com.example.daadi.ui.screens
 
+import com.example.daadi.data.supabase.SupabaseManager
+
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -21,7 +25,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.daadi.data.supabase.SupabaseManager
 import com.example.daadi.model.GameMode
 import com.example.daadi.model.GameState
 import com.example.daadi.ui.components.SimulatedAdBanner
@@ -31,9 +34,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 fun HomeScreen(
     savedGameState: GameState?,
     supabaseManager: SupabaseManager,
-    onPlayVsAi: () -> Unit,
-    onPlayLocal: () -> Unit,
-    onPlayMultiplayer: () -> Unit,
+    onPlayVsAi: (com.example.daadi.model.RuleSet) -> Unit,
+    onPlayLocal: (com.example.daadi.model.RuleSet) -> Unit,
+    onPlayMultiplayer: (com.example.daadi.model.RuleSet) -> Unit,
     onResumeGame: () -> Unit,
     onStatsClick: () -> Unit,
     onSettingsClick: () -> Unit,
@@ -44,7 +47,7 @@ fun HomeScreen(
     val systemSettings by supabaseManager.systemSettings.collectAsStateWithLifecycle()
     val isMaintenanceMode = systemSettings.find { it.key == "maintenance_mode" }?.value == "on"
     val currentUser by supabaseManager.currentUser.collectAsStateWithLifecycle()
-    val isAdmin = currentUser?.role == "admin"
+    val isAdmin = supabaseManager.hasPermission("admin_dashboard")
 
     if (isMaintenanceMode && !isAdmin) {
         MaintenanceOverlay(onSignInClick)
@@ -66,14 +69,14 @@ fun HomeScreen(
                         Icon(
                             imageVector = androidx.compose.material.icons.Icons.Default.AccountCircle,
                             contentDescription = "Profile / Sign In",
-                            tint = Color(0xFF5C2D0A)
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,
-                    navigationIconContentColor = Color(0xFF5C2D0A),
-                    actionIconContentColor = Color(0xFF5C2D0A)
+                    navigationIconContentColor = MaterialTheme.colorScheme.primary,
+                    actionIconContentColor = MaterialTheme.colorScheme.primary
                 )
             )
         },
@@ -95,7 +98,7 @@ fun HomeScreen(
                     Text(
                         "DAADI",
                         style = MaterialTheme.typography.displayLarge,
-                        color = Color(0xFF5C2D0A),
+                        color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 5.sp
                     )
@@ -138,6 +141,9 @@ fun HomeScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp, vertical = 24.dp)
             ) {
+                // RULE VARIETY TOGGLE (Standard 9-Piece vs Advanced 12-Piece)
+                var activeRuleSet by remember { mutableStateOf(com.example.daadi.model.RuleSet.NINE_MENS_MORRIS) }
+
                 // RESUME CARD (IF SAVE STATE EXISTS)
                 if (savedGameState != null && savedGameState.winner == null) {
                     Card(
@@ -179,7 +185,10 @@ fun HomeScreen(
                                 // Resume Button
                                 Button(
                                     onClick = onResumeGame,
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C2D0A)),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF5C2D0A),
+                                        contentColor = Color.White
+                                    ),
                                     modifier = Modifier
                                         .weight(1f)
                                         .height(44.dp)
@@ -260,7 +269,7 @@ fun HomeScreen(
 
                 // PRIMARY ACTION: Play vs Computer
                 Button(
-                    onClick = onPlayVsAi,
+                    onClick = { onPlayVsAi(activeRuleSet) },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C2D0A)),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
@@ -278,9 +287,46 @@ fun HomeScreen(
                     )
                 }
 
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7EA)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).border(1.dp, Color(0xFFD4A55A).copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("RULES:", fontSize = 10.sp, fontWeight = FontWeight.Black, color = Color(0xFF8B5E3C), modifier = Modifier.width(50.dp))
+                        Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (activeRuleSet == com.example.daadi.model.RuleSet.NINE_MENS_MORRIS) Color(0xFF5C2D0A) else Color(0xFFE5A93B).copy(alpha = 0.1f))
+                                    .clickable { activeRuleSet = com.example.daadi.model.RuleSet.NINE_MENS_MORRIS }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("STANDARD (9)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (activeRuleSet == com.example.daadi.model.RuleSet.NINE_MENS_MORRIS) Color.White else Color(0xFF8B5E3C))
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (activeRuleSet == com.example.daadi.model.RuleSet.TWELVE_MENS_MORRIS) Color(0xFFC75D27) else Color(0xFFE5A93B).copy(alpha = 0.1f))
+                                    .clickable { activeRuleSet = com.example.daadi.model.RuleSet.TWELVE_MENS_MORRIS }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("ADVANCED (12)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (activeRuleSet == com.example.daadi.model.RuleSet.TWELVE_MENS_MORRIS) Color.White else Color(0xFF8B5E3C))
+                            }
+                        }
+                    }
+                }
+
                 // REAL-TIME MULTIPLAYER (NEW)
                 Button(
-                    onClick = onPlayMultiplayer,
+                    onClick = { onPlayMultiplayer(activeRuleSet) },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC75D27)), // Terracotta crimson
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
@@ -300,7 +346,7 @@ fun HomeScreen(
 
                 // SECONDARY ACTION: Pass & Play
                 Button(
-                    onClick = onPlayLocal,
+                    onClick = { onPlayLocal(activeRuleSet) },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD4A55A)),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier

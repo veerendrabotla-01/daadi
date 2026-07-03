@@ -1,5 +1,8 @@
 package com.example.daadi.ui.screens
 
+import com.example.daadi.data.supabase.SupabaseManager
+
+
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -24,12 +27,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.daadi.data.supabase.SupabaseManager
 import com.example.daadi.data.supabase.SupabaseUser
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -38,12 +42,36 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 fun SupabaseAuthScreen(
     supabaseManager: SupabaseManager,
     onBack: () -> Unit,
-    onAuthSuccess: () -> Unit = {}
+    onAuthSuccess: () -> Unit = {},
+    onNavigateToAdmin: () -> Unit = {}
 ) {
     val currentUser by supabaseManager.currentUser.collectAsStateWithLifecycle()
+    val globalErrorMsg by supabaseManager.errorMessage.collectAsStateWithLifecycle()
+    val passwordResetRequired by supabaseManager.passwordResetRequired.collectAsStateWithLifecycle()
     val isConfigured = supabaseManager.isConfigured
+    val context = LocalContext.current
+
+    var showResetPasswordDialog by remember { mutableStateOf(false) }
+    var newPasswordInput by remember { mutableStateOf("") }
+    var resetErrorMsg by remember { mutableStateOf<String?>(null) }
+    var resetSuccessMsg by remember { mutableStateOf<String?>(null) }
+    var resetIsLoading by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        if (currentUser != null) {
+            supabaseManager.refreshUserProfile()
+        }
+    }
+
+    LaunchedEffect(passwordResetRequired) {
+        if (passwordResetRequired) {
+            showResetPasswordDialog = true
+        }
+    }
 
     var isSignUpMode by remember { mutableStateOf(false) }
+    var isForgotPasswordMode by remember { mutableStateOf(false) }
+    var isRefreshingProfile by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -208,7 +236,13 @@ fun SupabaseAuthScreen(
                     colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8EE)),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp),
+                        .padding(vertical = 4.dp)
+                        .clickable(enabled = !isRefreshingProfile) {
+                            isRefreshingProfile = true
+                            supabaseManager.refreshUserProfile {
+                                isRefreshingProfile = false
+                            }
+                        },
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Row(
@@ -218,19 +252,58 @@ fun SupabaseAuthScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        Icon(
-                            imageVector = if (user.role == "admin") Icons.Default.Info else Icons.Default.Check,
-                            contentDescription = null,
-                            tint = if (user.role == "admin") Color(0xFF2E7D32) else Color(0xFF1976D2),
-                            modifier = Modifier.size(16.dp)
-                        )
+                        if (isRefreshingProfile) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = Color(0xFFC75D27)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = if (user.role == "admin") Icons.Default.Info else Icons.Default.Check,
+                                contentDescription = null,
+                                tint = if (user.role == "admin") Color(0xFF2E7D32) else Color(0xFF1976D2),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Assigned Directory Role: ${user.role.uppercase()}",
+                            text = if (isRefreshingProfile) "Syncing with Server..." else "Assigned Directory Role: ${user.role.uppercase()} (Tap to Sync)",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (user.role == "admin") Color(0xFF2E7D32) else Color(0xFF1976D2)
                         )
+                        if (!isRefreshingProfile) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Sync Icon",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+                }
+
+                if (user.role == "admin") {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = onNavigateToAdmin,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .testTag("admin_portal_button"),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC75D27)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AdminPanelSettings,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Open Admin Command Center", fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
 
@@ -276,7 +349,11 @@ fun SupabaseAuthScreen(
             } else {
                 // RENDER PROFILE LOGIN & REGISTER FORM SCREENS
                 Text(
-                    text = if (isSignUpMode) "CREATE NEW PLAYER ACCOUNT" else "REGISTERED USER LOGIN",
+                    text = when {
+                        isForgotPasswordMode -> "RECOVER PLAYER ACCOUNT"
+                        isSignUpMode -> "CREATE NEW PLAYER ACCOUNT"
+                        else -> "REGISTERED USER LOGIN"
+                    },
                     fontFamily = FontFamily.Serif,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 18.sp,
@@ -292,26 +369,39 @@ fun SupabaseAuthScreen(
                     modifier = Modifier.padding(bottom = 20.dp)
                 )
 
+                val displayError = localErrorMsg ?: globalErrorMsg
+                
                 // Error and success displays
-                AnimatedVisibility(visible = localErrorMsg != null) {
+                AnimatedVisibility(visible = displayError != null) {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 16.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(Icons.Default.Warning, contentDescription = "Error Info", tint = Color(0xFFC62828))
-                            Text(
-                                text = localErrorMsg ?: "",
-                                color = Color(0xFFC62828),
-                                fontSize = 12.sp,
-                                modifier = Modifier.weight(1f)
-                            )
+                        Column {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.Warning, contentDescription = "Error Info", tint = Color(0xFFC62828))
+                                Text(
+                                    text = displayError ?: "",
+                                    color = Color(0xFFC62828),
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            
+                            if (globalErrorMsg != null && localErrorMsg == null) {
+                                TextButton(
+                                    onClick = { supabaseManager.loadInitialData() },
+                                    modifier = Modifier.align(Alignment.End).padding(end = 8.dp, bottom = 4.dp)
+                                ) {
+                                    Text("RETRY SYNC", color = Color(0xFFC62828), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
                 }
@@ -401,36 +491,59 @@ fun SupabaseAuthScreen(
                         }
 
                         // Password Field
-                        OutlinedTextField(
-                            value = password,
-                            onValueChange = {
-                                password = it
-                                localErrorMsg = null
-                            },
-                            label = { Text("Password") },
-                            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                            trailingIcon = {
-                                val image = if (passwordVisible) Icons.Default.Favorite else Icons.Default.FavoriteBorder
-                                IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                    Icon(image, contentDescription = "Toggle password visibility")
-                                }
-                            },
-                            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("auth_password_input"),
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF5C2D0A),
-                                focusedLabelColor = Color(0xFF5C2D0A),
-                                focusedTextColor = Color(0xFF5C2D0A),
-                                unfocusedTextColor = Color(0xFF5C2D0A),
-                                unfocusedLabelColor = Color(0xFF8B5E3C),
-                                focusedPlaceholderColor = Color(0xFF8B5E3C),
-                                unfocusedPlaceholderColor = Color(0xFF8B5E3C).copy(alpha = 0.6f)
+                        AnimatedVisibility(visible = !isForgotPasswordMode) {
+                            OutlinedTextField(
+                                value = password,
+                                onValueChange = {
+                                    password = it
+                                    localErrorMsg = null
+                                },
+                                label = { Text("Password") },
+                                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                                trailingIcon = {
+                                    val image = if (passwordVisible) Icons.Default.Favorite else Icons.Default.FavoriteBorder
+                                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                        Icon(image, contentDescription = "Toggle password visibility")
+                                    }
+                                },
+                                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Password,
+                                    autoCorrectEnabled = false
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("auth_password_input"),
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF5C2D0A),
+                                    focusedLabelColor = Color(0xFF5C2D0A),
+                                    focusedTextColor = Color(0xFF5C2D0A),
+                                    unfocusedTextColor = Color(0xFF5C2D0A),
+                                    unfocusedLabelColor = Color(0xFF8B5E3C),
+                                    focusedPlaceholderColor = Color(0xFF8B5E3C),
+                                    unfocusedPlaceholderColor = Color(0xFF8B5E3C).copy(alpha = 0.6f)
+                                )
                             )
-                        )
+                        }
+
+                        // Forgot Password Link
+                        AnimatedVisibility(visible = !isSignUpMode && !isForgotPasswordMode) {
+                            Text(
+                                text = "Forgot Password?",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFC75D27),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { 
+                                        isForgotPasswordMode = true 
+                                        localErrorMsg = null
+                                        localSuccessMsg = null
+                                    },
+                                textAlign = TextAlign.End
+                            )
+                        }
 
                         // Indian DPDP Act Explicit Consent Checkbox (Show for registration mode)
                         AnimatedVisibility(visible = isSignUpMode) {
@@ -485,8 +598,12 @@ fun SupabaseAuthScreen(
                         // Submit Button
                         Button(
                             onClick = {
-                                if (email.isBlank() || password.isBlank()) {
-                                    localErrorMsg = "Email and Password fields are required."
+                                if (email.isBlank()) {
+                                    localErrorMsg = "Email field is required."
+                                    return@Button
+                                }
+                                if (!isForgotPasswordMode && password.isBlank()) {
+                                    localErrorMsg = "Password field is required."
                                     return@Button
                                 }
                                 if (isSignUpMode && username.isBlank()) {
@@ -502,24 +619,40 @@ fun SupabaseAuthScreen(
                                 localErrorMsg = null
                                 localSuccessMsg = null
 
-                                if (isSignUpMode) {
-                                    supabaseManager.signUp(email, username, password) { success, msg ->
-                                        localIsLoading = false
-                                        if (success) {
-                                            localSuccessMsg = "Player profile registered successfully!"
-                                            onAuthSuccess()
-                                        } else {
-                                            localErrorMsg = msg ?: "Failed to sign up player."
+                                when {
+                                    isForgotPasswordMode -> {
+                                        supabaseManager.resetPassword(email) { success, msg ->
+                                            localIsLoading = false
+                                            if (success) {
+                                                localSuccessMsg = msg
+                                                isForgotPasswordMode = false
+                                            } else {
+                                                localErrorMsg = msg
+                                            }
                                         }
                                     }
-                                } else {
-                                    supabaseManager.login(email, password) { success, msg ->
-                                        localIsLoading = false
-                                        if (success) {
-                                            localSuccessMsg = "Access granted! Welcome to Daadi multiplay."
-                                            onAuthSuccess()
-                                        } else {
-                                            localErrorMsg = msg ?: "Failed log in attempt."
+                                    isSignUpMode -> {
+                                        supabaseManager.signUp(email, username, password) { success, msg ->
+                                            localIsLoading = false
+                                            if (success) {
+                                                localSuccessMsg = "Player profile registered successfully!"
+                                                Toast.makeText(context, "Account created successfully! Welcome to Daadi, $username! 🎉", Toast.LENGTH_LONG).show()
+                                                onAuthSuccess()
+                                            } else {
+                                                localErrorMsg = msg ?: "Failed to sign up player."
+                                            }
+                                        }
+                                    }
+                                    else -> {
+                                        supabaseManager.login(email, password) { success, msg ->
+                                            localIsLoading = false
+                                            if (success) {
+                                                localSuccessMsg = "Access granted! Welcome to Daadi multiplay."
+                                                Toast.makeText(context, "Welcome back! Access granted. 👋", Toast.LENGTH_LONG).show()
+                                                onAuthSuccess()
+                                            } else {
+                                                localErrorMsg = msg ?: "Failed log in attempt."
+                                            }
                                         }
                                     }
                                 }
@@ -528,15 +661,22 @@ fun SupabaseAuthScreen(
                                 .fillMaxWidth()
                                 .height(50.dp)
                                 .testTag("auth_submit_button"),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C2D0A)),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
                             shape = RoundedCornerShape(12.dp),
-                            enabled = !localIsLoading && (!isSignUpMode || hasAcceptedTerms)
+                            enabled = !localIsLoading && (isForgotPasswordMode || !isSignUpMode || hasAcceptedTerms)
                         ) {
                             if (localIsLoading) {
                                 CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                             } else {
                                 Text(
-                                    text = if (isSignUpMode) "Register Account" else "Log In Profile",
+                                    text = when {
+                                        isForgotPasswordMode -> "Send Recovery Link"
+                                        isSignUpMode -> "Register Account"
+                                        else -> "Log In Profile"
+                                    },
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 16.sp,
                                     color = Color.White
@@ -546,7 +686,11 @@ fun SupabaseAuthScreen(
 
                         // Mode switcher link
                         Text(
-                            text = if (isSignUpMode) "Already have a profile? Log In here" else "New player? Sign Up / Create Profile",
+                            text = when {
+                                isForgotPasswordMode -> "Return to Log In"
+                                isSignUpMode -> "Already have a profile? Log In here"
+                                else -> "New player? Sign Up / Create Profile"
+                            },
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFFC75D27),
@@ -554,13 +698,102 @@ fun SupabaseAuthScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    isSignUpMode = !isSignUpMode
+                                    if (isForgotPasswordMode) {
+                                        isForgotPasswordMode = false
+                                    } else {
+                                        isSignUpMode = !isSignUpMode
+                                    }
                                     localErrorMsg = null
                                     localSuccessMsg = null
                                 }
                                 .padding(vertical = 8.dp)
                         )
                     }
+                }
+
+                // Social login separator
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.weight(1f).height(1.dp).background(Color.LightGray.copy(alpha = 0.6f)))
+                    Text(
+                        text = "  OR CONNECT WITH  ",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Gray,
+                        letterSpacing = 1.sp
+                    )
+                    Box(modifier = Modifier.weight(1f).height(1.dp).background(Color.LightGray.copy(alpha = 0.6f)))
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Google Sign-In Button
+                val oauthContext = androidx.compose.ui.platform.LocalContext.current
+                Button(
+                    onClick = {
+                        localIsLoading = true
+                        localErrorMsg = null
+                        localSuccessMsg = null
+                        supabaseManager.signInWithOAuth("google", oauthContext) { success, msg ->
+                            localIsLoading = false
+                            if (success) {
+                                localSuccessMsg = msg
+                                onAuthSuccess()
+                            } else {
+                                localErrorMsg = msg ?: "Failed to sign in with Google."
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .testTag("oauth_google_button"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White,
+                        contentColor = Color.DarkGray
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.8f)),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                ) {
+                    GoogleLogoBadge()
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Sign In with Google",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = Color.DarkGray
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Facebook Sign-In Button
+                Button(
+                    onClick = {
+                        localErrorMsg = "Facebook Sign-In is coming soon! Please use Google Sign-In or standard Email Login."
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .testTag("oauth_facebook_button"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF1877F2).copy(alpha = 0.5f),
+                        contentColor = Color.White.copy(alpha = 0.8f)
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                ) {
+                    FacebookLogoBadge(alpha = 0.5f)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Continue with Facebook (Coming Soon)",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = Color.White.copy(alpha = 0.8f)
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
@@ -649,7 +882,10 @@ fun SupabaseAuthScreen(
                             uriHandler.openUri(legalUrl)
                             showPrivacyPolicyDialog = false 
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC75D27)),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFC75D27),
+                            contentColor = Color.White
+                        ),
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Read Online", fontSize = 11.sp, maxLines = 1)
@@ -657,7 +893,10 @@ fun SupabaseAuthScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = { showPrivacyPolicyDialog = false },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C2D0A)),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF5C2D0A),
+                            contentColor = Color.White
+                        ),
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Close", fontSize = 11.sp, maxLines = 1)
@@ -665,6 +904,149 @@ fun SupabaseAuthScreen(
                 }
             },
             containerColor = Color(0xFFFFF7EA)
+        )
+    }
+
+    if (showResetPasswordDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showResetPasswordDialog = false
+                supabaseManager.clearPasswordResetRequired()
+            },
+            title = {
+                Text(
+                    "Set New Password",
+                    fontFamily = FontFamily.Serif,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF5C2D0A)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "You have successfully verified your identity. Enter a secure new password for your account below.",
+                        fontSize = 14.sp,
+                        color = Color(0xFF8B5E3C)
+                    )
+                    OutlinedTextField(
+                        value = newPasswordInput,
+                        onValueChange = { newPasswordInput = it },
+                        label = { Text("New Password") },
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            val image = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(image, contentDescription = if (passwordVisible) "Hide password" else "Show password")
+                            }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFFC75D27),
+                            unfocusedBorderColor = Color(0xFFE5A93B),
+                            focusedLabelColor = Color(0xFFC75D27),
+                            focusedTextColor = Color(0xFF5C2D0A),
+                            unfocusedTextColor = Color(0xFF5C2D0A)
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("new_password_input")
+                    )
+                    if (resetErrorMsg != null) {
+                        Text(
+                            resetErrorMsg!!,
+                            color = Color.Red,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    if (resetSuccessMsg != null) {
+                        Text(
+                            resetSuccessMsg!!,
+                            color = Color(0xFF2E7D32),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newPasswordInput.length < 6) {
+                            resetErrorMsg = "Password must be at least 6 characters."
+                            return@Button
+                        }
+                        resetIsLoading = true
+                        resetErrorMsg = null
+                        supabaseManager.updatePassword(newPasswordInput) { success, msg ->
+                            resetIsLoading = false
+                            if (success) {
+                                resetSuccessMsg = "Password updated successfully!"
+                                Toast.makeText(context, "Your password has been changed. Welcome back! 🎉", Toast.LENGTH_LONG).show()
+                                showResetPasswordDialog = false
+                                supabaseManager.clearPasswordResetRequired()
+                                onAuthSuccess()
+                            } else {
+                                resetErrorMsg = msg ?: "Failed to update password."
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC75D27)),
+                    enabled = !resetIsLoading,
+                    modifier = Modifier.testTag("submit_new_password_button")
+                ) {
+                    Text(if (resetIsLoading) "Updating..." else "Update Password")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showResetPasswordDialog = false
+                        supabaseManager.clearPasswordResetRequired()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF5C2D0A))
+                ) {
+                    Text("Cancel")
+                }
+            },
+            containerColor = Color(0xFFFFFDF8),
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
+}
+
+@Composable
+fun GoogleLogoBadge() {
+    Box(
+        modifier = Modifier
+            .size(24.dp)
+            .background(Color.White, CircleShape)
+            .border(1.dp, Color.LightGray.copy(alpha = 0.5f), CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "G",
+            fontWeight = FontWeight.Black,
+            fontSize = 14.sp,
+            color = Color(0xFF4285F4),
+            fontFamily = FontFamily.SansSerif
+        )
+    }
+}
+
+@Composable
+fun FacebookLogoBadge(alpha: Float = 1.0f) {
+    Box(
+        modifier = Modifier
+            .size(24.dp)
+            .background(Color(0xFF1877F2).copy(alpha = alpha), CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "f",
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp,
+            color = Color.White.copy(alpha = alpha),
+            fontFamily = FontFamily.Serif,
+            modifier = Modifier.offset(x = (-1).dp, y = (-1).dp)
         )
     }
 }

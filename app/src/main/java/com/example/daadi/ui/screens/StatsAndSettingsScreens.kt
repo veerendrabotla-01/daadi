@@ -1,5 +1,8 @@
 package com.example.daadi.ui.screens
 
+import com.example.daadi.data.supabase.SupabaseManager
+
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -211,8 +214,11 @@ fun StatsBreakdownRow(title: String, wins: Int, losses: Int) {
 @Composable
 fun SettingsScreen(
     settings: AppSettings,
+    isAdmin: Boolean = false,
     onSettingsChanged: (AppSettings) -> Unit,
     onAdminClick: () -> Unit,
+    onDeleteAccount: () -> Unit,
+    onExportData: () -> Unit,
     onBack: () -> Unit
 ) {
     val uriHandler = LocalUriHandler.current
@@ -355,7 +361,7 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Blitz Mode Styles", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
+                        Text("Blitz Mode Styles", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                         Text("Reduce visual delays for faster board transitions", fontSize = 11.sp, color = Color.Gray)
                     }
                     Switch(
@@ -379,14 +385,44 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Show Rules on Match Start", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
+                        Text("Show Rules on Match Start", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                         Text("Automatically popup the How-to-Play guide before every new game", fontSize = 11.sp, color = Color.Gray)
                     }
                     Switch(
                         checked = settings.showRulesOnStart,
                         onCheckedChange = { onSettingsChanged(settings.copy(showRulesOnStart = it)) },
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF5C2D0A), checkedTrackColor = Color(0xFFD4A55A)),
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.primary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                        ),
                         modifier = Modifier.testTag("rules_toggle")
+                    )
+                }
+            }
+
+            // Show Latest Activity toggle
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBFA)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().border(1.dp, Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Show Latest Activity", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                        Text("Display a live match notation log during gameplay", fontSize = 11.sp, color = Color.Gray)
+                    }
+                    Switch(
+                        checked = settings.showLatestActivity,
+                        onCheckedChange = { onSettingsChanged(settings.copy(showLatestActivity = it)) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.primary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                        ),
+                        modifier = Modifier.testTag("activity_toggle")
                     )
                 }
             }
@@ -423,7 +459,7 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
-                        Text("Royal Sandalwood Skin", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
+                        Text("Royal Sandalwood Skin", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                         Text("Traditional yellow-gold sandalwood with dark lines", fontSize = 11.sp, color = Color.Gray)
                     }
                 }
@@ -457,51 +493,53 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
-                        Text("Dark Stone Slate Skin", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
+                        Text("Dark Stone Slate Skin", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                         Text("Steel obsidian slate board with dark graphite lines", fontSize = 11.sp, color = Color.Gray)
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            if (isAdmin) {
+                Spacer(modifier = Modifier.height(18.dp))
 
-            Text("DATABASE SERVICES & ROLES", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8B5E3C), letterSpacing = 1.sp)
+                Text("DATABASE SERVICES & ROLES", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8B5E3C), letterSpacing = 1.sp)
 
-            Card(
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBFA)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        width = 1.dp,
-                        color = Color(0xFFE5A93B).copy(alpha = 0.3f),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "Supabase Operations Portal", 
-                        style = MaterialTheme.typography.titleMedium, 
-                        color = Color(0xFF5C2D0A), 
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "Manage registered game players, historic matches, publish announcements, and adjust real-time strategic settings in Supabase.", 
-                        fontSize = 11.sp, 
-                        color = Color.Gray,
-                        lineHeight = 15.sp
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = onAdminClick,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C2D0A)),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth().height(44.dp).testTag("open_admin_portal_button")
-                    ) {
-                        Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("OPEN ADMIN PANEL", fontWeight = FontWeight.Black)
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBFA)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(
+                            width = 1.dp,
+                            color = Color(0xFFE5A93B).copy(alpha = 0.3f),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "Supabase Operations Portal", 
+                            style = MaterialTheme.typography.titleMedium, 
+                            color = Color(0xFF5C2D0A), 
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Manage registered game players, historic matches, publish announcements, and adjust real-time strategic settings in Supabase.", 
+                            fontSize = 11.sp, 
+                            color = Color.Gray,
+                            lineHeight = 15.sp
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = onAdminClick,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C2D0A)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth().height(44.dp).testTag("open_admin_portal_button")
+                        ) {
+                            Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("OPEN ADMIN PANEL", fontWeight = FontWeight.Black)
+                        }
                     }
                 }
             }
@@ -509,6 +547,84 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text("LEGAL & COMPLIANCE", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8B5E3C), letterSpacing = 1.sp)
+            
+            // GDPR Ad Consent Settings Card
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val activity = context as? android.app.Activity
+            val app = context.applicationContext as? com.example.daadi.DaadiApplication
+            if (app != null && activity != null) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBFA)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().border(1.dp, Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Ad Consent & Privacy", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
+                            Text("Manage personalized advertising preferences and GDPR choices", fontSize = 11.sp, color = Color.Gray)
+                        }
+                        TextButton(
+                            onClick = {
+                                app.adManager.showPrivacyOptionsForm(activity) { error ->
+                                    if (error != null) {
+                                        android.widget.Toast.makeText(context, "Consent form currently unavailable: $error", android.widget.Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        android.widget.Toast.makeText(context, "Preferences updated successfully.", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        ) {
+                            Text("UPDATE", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            // GDPR Data Export
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBFA)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().border(1.dp, Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Download My Data", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
+                        Text("Request a copy of your game history and profile data", fontSize = 11.sp, color = Color.Gray)
+                    }
+                    TextButton(onClick = onExportData) {
+                        Text("REQUEST", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            // GDPR Account Deletion
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBFA)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().border(1.dp, Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Delete Account", style = MaterialTheme.typography.titleMedium, color = Color(0xFFC62828), fontWeight = FontWeight.Bold)
+                        Text("Permanently remove all data and identity", fontSize = 11.sp, color = Color.Gray)
+                    }
+                    TextButton(onClick = onDeleteAccount) {
+                        Text("DELETE", color = Color(0xFFC62828), fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
 
             Card(
                 shape = RoundedCornerShape(12.dp),

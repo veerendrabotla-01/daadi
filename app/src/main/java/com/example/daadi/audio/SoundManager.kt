@@ -1,20 +1,71 @@
 package com.example.daadi.audio
 
-import android.media.AudioManager
-import android.media.ToneGenerator
+import android.content.Context
+import android.media.AudioAttributes
+import android.media.SoundPool
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import com.example.R
 import com.example.daadi.data.repository.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-class SoundManager(private val settingsRepository: SettingsRepository) {
-    private var toneGenerator: ToneGenerator? = null
+class SoundManager(private val context: Context, private val settingsRepository: SettingsRepository) {
+    private var soundPool: SoundPool? = null
+    private val soundMap = mutableMapOf<Int, Int>()
+    private var isLoaded = false
+
+    private val vibrator: Vibrator? by lazy {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+            vibratorManager?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        }
+    }
 
     init {
-        try {
-            toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 85)
-        } catch (e: Exception) {
-            e.printStackTrace()
+        initializeSoundPool()
+    }
+
+    private fun initializeSoundPool() {
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_GAME)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+
+        soundPool = SoundPool.Builder()
+            .setMaxStreams(5)
+            .setAudioAttributes(audioAttributes)
+            .build()
+
+        soundPool?.setOnLoadCompleteListener { _, _, _ ->
+            isLoaded = true
+        }
+
+        // Asynchronously load sound samples from res/raw
+        loadSounds()
+    }
+
+    private fun loadSounds() {
+        CoroutineScope(Dispatchers.IO).launch {
+            soundPool?.let { pool ->
+                soundMap[R.raw.place_piece] = pool.load(context, R.raw.place_piece, 1)
+                soundMap[R.raw.mill_formed] = pool.load(context, R.raw.mill_formed, 1)
+                soundMap[R.raw.game_over] = pool.load(context, R.raw.game_over, 1)
+            }
+        }
+    }
+
+    private fun playSound(resId: Int) {
+        if (!isSoundEnabled() || isBackgroundMuted) return
+        val soundId = soundMap[resId]
+        if (soundId != null && isLoaded) {
+            soundPool?.play(soundId, 1f, 1f, 1, 0, 1f)
         }
     }
 
@@ -22,129 +73,93 @@ class SoundManager(private val settingsRepository: SettingsRepository) {
         return settingsRepository.getSettings().soundEnabled
     }
 
+    private fun isVibrationEnabled(): Boolean {
+        return settingsRepository.getSettings().vibrationEnabled
+    }
+
     private fun isCountdownSoundEnabled(): Boolean {
         return settingsRepository.getSettings().countdownSoundEnabled
     }
 
-    fun playPlace() {
-        if (!isSoundEnabled()) return
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                // Short, warm acoustic-like tap for placement
-                toneGenerator?.startTone(ToneGenerator.TONE_DTMF_0, 60)
-            } catch (e: Exception) {
-                e.printStackTrace()
+    private fun triggerHaptic(duration: Long = 50, amplitude: Int = VibrationEffect.DEFAULT_AMPLITUDE) {
+        if (!isVibrationEnabled()) return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator?.vibrate(VibrationEffect.createOneShot(duration, amplitude))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator?.vibrate(duration)
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
+    }
+
+    private var isBackgroundMuted = false
+
+    fun setBackgroundMuted(muted: Boolean) {
+        isBackgroundMuted = muted
+    }
+
+    fun playPlace() {
+        if (isBackgroundMuted) return
+        triggerHaptic(40)
+        playSound(R.raw.place_piece)
     }
 
     fun playMove() {
-        if (!isSoundEnabled()) return
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                // Soft slide-like tone
-                toneGenerator?.startTone(ToneGenerator.TONE_DTMF_1, 70)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+        if (isBackgroundMuted) return
+        triggerHaptic(30)
+        playSound(R.raw.place_piece) // Same acoustic tap for movement
     }
 
     fun playCapture() {
-        if (!isSoundEnabled()) return
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                // Distinct downward alert
-                toneGenerator?.startTone(ToneGenerator.TONE_PROP_PROMPT, 150)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+        if (isBackgroundMuted) return
+        triggerHaptic(100, VibrationEffect.DEFAULT_AMPLITUDE)
+        playSound(R.raw.place_piece) // Fallback or distinct capture if provided
     }
 
     fun playMillFormed() {
-        if (!isSoundEnabled()) return
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                // Harmonic double beep for success
-                toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP2, 100)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+        if (isBackgroundMuted) return
+        triggerHaptic(80, 200)
+        playSound(R.raw.mill_formed)
     }
 
     fun playWin() {
-        if (!isSoundEnabled()) return
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 200)
-                Thread.sleep(150)
-                toneGenerator?.startTone(ToneGenerator.TONE_DTMF_5, 300)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+        if (isBackgroundMuted) return
+        playSound(R.raw.game_over)
     }
 
     fun playLose() {
-        if (!isSoundEnabled()) return
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                toneGenerator?.startTone(ToneGenerator.TONE_PROP_PROMPT, 400)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+        if (isBackgroundMuted) return
+        playSound(R.raw.game_over)
     }
 
     fun playHint() {
-        if (!isSoundEnabled()) return
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                toneGenerator?.startTone(ToneGenerator.TONE_DTMF_7, 80)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+        if (isBackgroundMuted) return
+        playSound(R.raw.place_piece)
     }
 
     fun playCountdownTick() {
-        if (!isSoundEnabled() || !isCountdownSoundEnabled()) return
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                // Neutral, very short tick for urgency but not annoyance
-                toneGenerator?.startTone(ToneGenerator.TONE_CDMA_PIP, 40)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+        if (isBackgroundMuted) return
+        if (!isCountdownSoundEnabled()) return
+        playSound(R.raw.place_piece)
     }
 
     fun playConnect() {
-        if (!isSoundEnabled()) return
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 150)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+        if (isBackgroundMuted) return
+        playSound(R.raw.place_piece)
     }
 
     fun playError() {
-        if (!isSoundEnabled()) return
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                toneGenerator?.startTone(ToneGenerator.TONE_CDMA_SOFT_ERROR_LITE, 100)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+        if (isBackgroundMuted) return
+        triggerHaptic(150, 255)
+        playSound(R.raw.place_piece)
     }
 
     fun release() {
-        toneGenerator?.release()
-        toneGenerator = null
+        soundPool?.release()
+        soundPool = null
+        soundMap.clear()
     }
 }

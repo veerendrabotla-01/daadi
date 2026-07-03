@@ -1,64 +1,118 @@
 package com.example.daadi.ui.screens.admin
 
+import com.example.daadi.data.supabase.SupabaseManager
+
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.daadi.data.supabase.SupabaseManager
 import com.example.daadi.data.supabase.SupabaseMatch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdminMatchArchiveScreen(
+fun AdminMatchManagementScreen(
     supabaseManager: SupabaseManager,
-    onMatchClick: (SupabaseMatch) -> Unit,
     onBack: () -> Unit
 ) {
     val matches by supabaseManager.matches.collectAsStateWithLifecycle()
-    
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Game Registry", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFFDF3E3),
-                    titleContentColor = Color(0xFF5C2D0A),
-                    navigationIconContentColor = Color(0xFF5C2D0A)
-                )
+    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+    var selectedMatch by remember { mutableStateOf<SupabaseMatch?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    BoxWithConstraints {
+        val isWide = maxWidth >= 900.dp
+        
+        if (isWide) {
+            AdminWideMatchManagement(
+                matches = matches,
+                isSyncing = isSyncing,
+                selectedMatch = selectedMatch,
+                onMatchSelect = { selectedMatch = it },
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                supabaseManager = supabaseManager,
+                onBack = onBack
             )
-        },
-        containerColor = Color(0xFFFDF3E3)
-    ) { padding ->
-        if (matches.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No match records found.", color = Color.Gray)
-            }
         } else {
-            LazyColumn(
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize().padding(padding)
-            ) {
-                items(matches) { match ->
-                    MatchArchiveItem(match, onClick = { onMatchClick(match) }, onDelete = { supabaseManager.deleteMatch(match.id) })
+            if (selectedMatch == null) {
+                AdminMatchArchiveScreen(
+                    matches = matches,
+                    isSyncing = isSyncing,
+                    onMatchClick = { selectedMatch = it },
+                    searchQuery = searchQuery,
+                    onSearchChange = { searchQuery = it },
+                    supabaseManager = supabaseManager,
+                    onBack = onBack
+                )
+            } else {
+                AdminMatchDetailScreen(
+                    match = selectedMatch!!,
+                    onBack = { selectedMatch = null }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun AdminWideMatchManagement(
+    matches: List<SupabaseMatch>,
+    isSyncing: Boolean,
+    selectedMatch: SupabaseMatch?,
+    onMatchSelect: (SupabaseMatch) -> Unit,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    supabaseManager: SupabaseManager,
+    onBack: () -> Unit
+) {
+    AdminFoundationScaffold(
+        title = "Match Archive",
+        supabaseManager = supabaseManager,
+        onBack = onBack,
+        showSearch = true,
+        searchQuery = searchQuery,
+        onSearchQueryChange = onSearchQueryChange
+    ) { padding ->
+        Row(modifier = Modifier.padding(padding).fillMaxSize()) {
+            // Left Panel: List
+            Box(modifier = Modifier.weight(0.4f).fillMaxHeight()) {
+                MatchListContent(
+                    matches = matches,
+                    isSyncing = isSyncing,
+                    searchQuery = searchQuery,
+                    onMatchClick = onMatchSelect,
+                    selectedMatchId = selectedMatch?.id,
+                    supabaseManager = supabaseManager
+                )
+            }
+            VerticalDivider(color = AdminDesign.OnSurfaceVariant.copy(alpha = 0.1f), thickness = 1.dp)
+            
+            // Right Panel: Details
+            Box(modifier = Modifier.weight(0.6f).fillMaxHeight()) {
+                if (selectedMatch != null) {
+                    MatchDetailContent(match = selectedMatch)
+                } else {
+                    AdminEmptyState(
+                        title = "No Match Selected",
+                        description = "Select a game record from the archive to view technical details and move history.",
+                        icon = { Icon(Icons.Default.ManageSearch, contentDescription = null, modifier = Modifier.size(64.dp), tint = AdminDesign.OnSurfaceVariant) }
+                    )
                 }
             }
         }
@@ -66,96 +120,218 @@ fun AdminMatchArchiveScreen(
 }
 
 @Composable
-fun MatchArchiveItem(match: SupabaseMatch, onClick: () -> Unit, onDelete: () -> Unit) {
+fun AdminMatchArchiveScreen(
+    matches: List<SupabaseMatch>,
+    isSyncing: Boolean,
+    onMatchClick: (SupabaseMatch) -> Unit,
+    searchQuery: String,
+    onSearchChange: (String) -> Unit,
+    supabaseManager: SupabaseManager,
+    onBack: () -> Unit
+) {
+    AdminFoundationScaffold(
+        title = "Match Archive",
+        supabaseManager = supabaseManager,
+        onBack = onBack,
+        showSearch = true,
+        searchQuery = searchQuery,
+        onSearchQueryChange = onSearchChange
+    ) { padding ->
+        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+            MatchListContent(
+                matches = matches,
+                isSyncing = isSyncing,
+                searchQuery = searchQuery,
+                onMatchClick = onMatchClick,
+                supabaseManager = supabaseManager
+            )
+        }
+    }
+}
+
+@Composable
+fun MatchListContent(
+    matches: List<SupabaseMatch>,
+    isSyncing: Boolean,
+    searchQuery: String,
+    onMatchClick: (SupabaseMatch) -> Unit,
+    selectedMatchId: String? = null,
+    supabaseManager: SupabaseManager
+) {
+    val filteredMatches = remember(matches, searchQuery) {
+        matches.filter { 
+            it.id.contains(searchQuery, true) || 
+            it.hostName.contains(searchQuery, true) ||
+            it.opponentName.contains(searchQuery, true)
+        }
+    }
+
+    if (isSyncing && matches.isEmpty()) {
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(AdminDesign.SpacingMedium)) {
+            items(10) { ShimmerItem(Modifier.padding(vertical = AdminDesign.SpacingSmall)) }
+        }
+    } else if (filteredMatches.isEmpty()) {
+        AdminEmptyState(title = "No Matches Found", description = "Try a different search term or check filters.")
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(AdminDesign.SpacingMedium),
+            verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)
+        ) {
+            items(filteredMatches) { match ->
+                MatchArchiveItem(
+                    match = match, 
+                    onClick = { onMatchClick(match) },
+                    onDelete = { supabaseManager.deleteMatch(match.id) },
+                    isSelected = match.id == selectedMatchId
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun MatchArchiveItem(match: SupabaseMatch, onClick: () -> Unit, onDelete: () -> Unit, isSelected: Boolean = false) {
     Card(
         onClick = onClick,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth().border(1.dp, Color.LightGray.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) AdminDesign.Primary.copy(alpha = 0.05f) else AdminDesign.Surface
+        ),
+        shape = AdminDesign.CardShape,
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else AdminDesign.CardElevation),
+        modifier = Modifier.fillMaxWidth().border(
+            width = if (isSelected) 2.dp else 0.dp,
+            color = if (isSelected) AdminDesign.Primary else Color.Transparent,
+            shape = AdminDesign.CardShape
+        )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
             Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                Text("Room: ${match.id.uppercase()}", fontWeight = FontWeight.ExtraBold, fontSize = 12.sp, color = Color(0xFF5C2D0A))
-                Text(match.status.uppercase(), fontSize = 9.sp, fontWeight = FontWeight.Black, color = if (match.status == "finished") Color(0xFF2E7D32) else Color(0xFFE65100))
+                Text("ID: ${match.id.take(8).uppercase()}", fontWeight = FontWeight.Black, fontSize = 11.sp, color = AdminDesign.Primary)
+                Badge(
+                    containerColor = when(match.status) {
+                        "finished" -> AdminDesign.Secondary
+                        "playing" -> AdminDesign.Primary
+                        else -> AdminDesign.OnSurfaceVariant
+                    }
+                ) {
+                    Text(match.status.uppercase(), fontSize = 8.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("${match.hostName} VS ${match.opponentName.ifEmpty { "..." }}", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            Text("Date: ${match.createdAt} • ${match.movesCount} Moves", fontSize = 11.sp, color = Color.Gray)
+            Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
+            Text("${match.hostName} VS ${match.opponentName.ifEmpty { "..." }}", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = AdminDesign.OnSurface)
+            Text("${match.matchType.uppercase()} • ${match.movesCount} Moves • ${match.createdAt}", fontSize = 11.sp, color = AdminDesign.OnSurfaceVariant)
             
             if (match.winner != null) {
-                Text("Winner: ${match.winner}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32), modifier = Modifier.padding(top = 4.dp))
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.EmojiEvents, contentDescription = null, modifier = Modifier.size(12.dp), tint = AdminDesign.Secondary)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Winner: ${match.winner}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminDesign.Secondary)
+                }
             }
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = null, tint = Color.LightGray, modifier = Modifier.size(18.dp))
+                IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.DeleteOutline, contentDescription = null, tint = AdminDesign.Error.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminMatchDetailScreen(
     match: SupabaseMatch,
     onBack: () -> Unit
 ) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Game Audit Log", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFFDF3E3),
-                    titleContentColor = Color(0xFF5C2D0A),
-                    navigationIconContentColor = Color(0xFF5C2D0A)
-                )
-            )
-        },
-        containerColor = Color(0xFFFDF3E3)
+    AdminFoundationScaffold(
+        title = "Match Details",
+        supabaseManager = null, // No need for refresh here
+        onBack = onBack
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7EA)),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("MATCH SUMMARY", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFF8B5E3C))
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("ID: ${match.id}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text("Players: ${match.hostName} vs ${match.opponentName}", fontSize = 14.sp)
-                    Text("Status: ${match.status.uppercase()}", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    if (match.winner != null) Text("Result: ${match.winner} WON", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
+        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+            MatchDetailContent(match = match)
+        }
+    }
+}
+
+@Composable
+fun MatchDetailContent(match: SupabaseMatch) {
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(AdminDesign.SpacingMedium), verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingMedium)) {
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface), shape = AdminDesign.CardShape) {
+                Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
+                    Text("MATCH SUMMARY", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
+                    Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+                    DetailRow("Match ID", match.id)
+                    DetailRow("Status", match.status.uppercase())
+                    DetailRow("Type", match.matchType.uppercase())
+                    DetailRow("Created At", match.createdAt)
+                    DetailRow("Moves", match.movesCount.toString())
+                    DetailRow("Latency", "${match.latencyMs}ms")
+                    if (match.abandonedBy != null) DetailRow("Abandoned By", match.abandonedBy!!)
                 }
             }
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            Text("MOVE TRANSCRIPT", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFF8B5E3C))
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.weight(1f).fillMaxWidth()
-            ) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    if (match.movesJson.isNullOrBlank()) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.Info, contentDescription = null, tint = Color.LightGray)
-                            Text("No move-by-move data for this session.", color = Color.Gray, fontSize = 12.sp)
+        }
+        
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface), shape = AdminDesign.CardShape) {
+                Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
+                    Text("PARTICIPANTS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
+                    Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        PlayerIcon(match.hostName)
+                        Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
+                        Text(match.hostName, fontWeight = FontWeight.Bold)
+                        if (match.winner == match.hostName) {
+                            Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
+                            Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = AdminDesign.Secondary, modifier = Modifier.size(16.dp))
                         }
-                    } else {
-                        // In a real app, parse AND show move history list
-                        Text(match.movesJson, modifier = Modifier.padding(16.dp), fontSize = 12.sp, color = Color.Gray)
+                    }
+                    Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        PlayerIcon(match.opponentName.ifEmpty { "Waiting..." })
+                        Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
+                        Text(match.opponentName.ifEmpty { "Waiting..." }, fontWeight = FontWeight.Bold)
+                        if (match.winner == match.opponentName) {
+                            Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
+                            Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = AdminDesign.Secondary, modifier = Modifier.size(16.dp))
+                        }
                     }
                 }
             }
+        }
+        
+        item {
+            Text("MOVE LOGS (JSON)", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
+            Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
+            Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface), shape = AdminDesign.CardShape) {
+                Box(modifier = Modifier.padding(AdminDesign.SpacingMedium).fillMaxWidth().heightIn(min = 200.dp)) {
+                    if (match.movesJson.isNullOrBlank()) {
+                        Text("No telemetry data available for this session.", color = AdminDesign.OnSurfaceVariant, fontSize = 12.sp)
+                    } else {
+                        Text(match.movesJson, fontSize = 11.sp, color = AdminDesign.OnSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, fontSize = 12.sp, color = AdminDesign.OnSurfaceVariant)
+        Text(value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AdminDesign.OnSurface)
+    }
+}
+
+@Composable
+private fun PlayerIcon(name: String) {
+    Surface(modifier = Modifier.size(24.dp), shape = CircleShape, color = AdminDesign.Primary.copy(alpha = 0.1f)) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(name.take(1).uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Black, color = AdminDesign.Primary)
         }
     }
 }

@@ -1,5 +1,8 @@
 package com.example.daadi.ui.screens.admin
 
+import com.example.daadi.data.supabase.SupabaseManager
+
+
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,6 +16,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -22,73 +26,97 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.daadi.data.supabase.SupabaseManager
 import com.example.daadi.data.supabase.SupabaseUser
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdminUserListScreen(
+fun AdminUserManagementScreen(
     supabaseManager: SupabaseManager,
-    onUserClick: (SupabaseUser) -> Unit,
     onBack: () -> Unit
 ) {
     val users by supabaseManager.users.collectAsStateWithLifecycle()
-    var searchQueries by remember { mutableStateOf("") }
+    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+    var selectedUser by remember { mutableStateOf<SupabaseUser?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
     
-    val filteredUsers = users.filter { 
-        it.username.contains(searchQueries, ignoreCase = true) || 
-        it.email.contains(searchQueries, ignoreCase = true) 
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("User Directory", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFFDF3E3),
-                    titleContentColor = Color(0xFF5C2D0A),
-                    navigationIconContentColor = Color(0xFF5C2D0A)
-                )
+    BoxWithConstraints {
+        val isWide = maxWidth >= 900.dp
+        
+        if (isWide) {
+            AdminWideUserManagement(
+                users = users,
+                isSyncing = isSyncing,
+                selectedUser = selectedUser,
+                onUserSelect = { selectedUser = it },
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                supabaseManager = supabaseManager,
+                onBack = onBack
             )
-        },
-        containerColor = Color(0xFFFDF3E3)
-    ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            OutlinedTextField(
-                value = searchQueries,
-                onValueChange = { searchQueries = it },
-                placeholder = { Text("Search by username or email...") },
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color(0xFF5C2D0A),
-                    unfocusedTextColor = Color(0xFF5C2D0A),
-                    focusedBorderColor = Color(0xFF5C2D0A),
-                    unfocusedBorderColor = Color.LightGray.copy(alpha = 0.5f),
-                    focusedLabelColor = Color(0xFF5C2D0A),
-                    unfocusedLabelColor = Color.Gray
+        } else {
+            if (selectedUser == null) {
+                AdminUserListScreen(
+                    users = users,
+                    isSyncing = isSyncing,
+                    onUserClick = { selectedUser = it },
+                    searchQuery = searchQuery,
+                    onSearchChange = { searchQuery = it },
+                    supabaseManager = supabaseManager,
+                    onBack = onBack
                 )
-            )
-
-            if (filteredUsers.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No players found matching your search.", color = Color.Gray)
-                }
             } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(filteredUsers) { user ->
-                        UserListItem(user, onClick = { onUserClick(user) })
-                    }
+                AdminUserDetailsScreen(
+                    user = selectedUser!!,
+                    supabaseManager = supabaseManager,
+                    onBack = { selectedUser = null }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun AdminWideUserManagement(
+    users: List<SupabaseUser>,
+    isSyncing: Boolean,
+    selectedUser: SupabaseUser?,
+    onUserSelect: (SupabaseUser) -> Unit,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    supabaseManager: SupabaseManager,
+    onBack: () -> Unit
+) {
+    AdminFoundationScaffold(
+        title = "User Management",
+        supabaseManager = supabaseManager,
+        onBack = onBack,
+        showSearch = true,
+        searchQuery = searchQuery,
+        onSearchQueryChange = onSearchQueryChange
+    ) { padding ->
+        Row(modifier = Modifier.padding(padding).fillMaxSize()) {
+            // Left Panel: List
+            Box(modifier = Modifier.weight(0.4f).fillMaxHeight()) {
+                UserListContent(
+                    users = users,
+                    isSyncing = isSyncing,
+                    searchQuery = searchQuery,
+                    onUserClick = onUserSelect,
+                    selectedUserId = selectedUser?.id
+                )
+            }
+            VerticalDivider(color = AdminDesign.OnSurfaceVariant.copy(alpha = 0.1f), thickness = 1.dp)
+            
+            // Right Panel: Details
+            Box(modifier = Modifier.weight(0.6f).fillMaxHeight()) {
+                if (selectedUser != null) {
+                    UserDetailsContent(user = selectedUser, supabaseManager = supabaseManager)
+                } else {
+                    AdminEmptyState(
+                        title = "No User Selected",
+                        description = "Select a player from the directory to view detailed profile and moderation tools.",
+                        icon = { Icon(Icons.Default.PersonSearch, contentDescription = null, modifier = Modifier.size(64.dp), tint = AdminDesign.OnSurfaceVariant) }
+                    )
                 }
             }
         }
@@ -96,211 +124,407 @@ fun AdminUserListScreen(
 }
 
 @Composable
-fun UserListItem(user: SupabaseUser, onClick: () -> Unit) {
-    Card(
-        onClick = onClick,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth().border(1.dp, Color.LightGray.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier.size(40.dp).background(Color(0xFF5C2D0A).copy(alpha = 0.1f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(user.username.take(1).uppercase(), fontWeight = FontWeight.Bold, color = Color(0xFF5C2D0A))
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(user.username, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text(user.email, fontSize = 11.sp, color = Color.Gray)
-            }
-            if (user.role == "admin") {
-                Text(
-                    "ADMIN", 
-                    fontSize = 9.sp, 
-                    fontWeight = FontWeight.Black, 
-                    color = Color.White,
-                    modifier = Modifier.background(Color(0xFF2E7D32), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)
-                )
-            }
-            Icon(Icons.Default.KeyboardArrowRight, contentDescription = null, tint = Color.LightGray)
+fun AdminUserListScreen(
+    users: List<SupabaseUser>,
+    isSyncing: Boolean,
+    onUserClick: (SupabaseUser) -> Unit,
+    searchQuery: String,
+    onSearchChange: (String) -> Unit,
+    supabaseManager: SupabaseManager,
+    onBack: () -> Unit
+) {
+    AdminFoundationScaffold(
+        title = "User Directory",
+        supabaseManager = supabaseManager,
+        onBack = onBack,
+        showSearch = true,
+        searchQuery = searchQuery,
+        onSearchQueryChange = onSearchChange
+    ) { padding ->
+        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+            UserListContent(
+                users = users,
+                isSyncing = isSyncing,
+                searchQuery = searchQuery,
+                onUserClick = onUserClick
+            )
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun UserListContent(
+    users: List<SupabaseUser>,
+    isSyncing: Boolean,
+    searchQuery: String,
+    onUserClick: (SupabaseUser) -> Unit,
+    selectedUserId: String? = null
+) {
+    var isBulkMode by remember { mutableStateOf(false) }
+    var bulkSelectedIds by remember { mutableStateOf(setOf<String>()) }
+    
+    val filteredUsers = remember(users, searchQuery) {
+        users.filter { 
+            it.username.contains(searchQuery, true) || 
+            it.email.contains(searchQuery, true) ||
+            it.id.contains(searchQuery, true)
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (filteredUsers.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = AdminDesign.SpacingMedium, vertical = AdminDesign.SpacingSmall),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isBulkMode) {
+                    Text("${bulkSelectedIds.size} Selected", fontWeight = FontWeight.Bold, color = AdminDesign.Primary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { bulkSelectedIds = filteredUsers.map { it.id }.toSet() }) { Text("Select All") }
+                        Button(
+                            onClick = { /* Handle Bulk Ban/Action */ isBulkMode = false; bulkSelectedIds = emptySet() },
+                            shape = AdminDesign.ButtonShape
+                        ) { Text("Apply Action") }
+                    }
+                } else {
+                    Text("${filteredUsers.size} Users", fontWeight = FontWeight.Bold, color = AdminDesign.OnSurfaceVariant)
+                    TextButton(onClick = { isBulkMode = true }) { Text("Bulk Edit") }
+                }
+            }
+        }
+
+        if (isSyncing && users.isEmpty()) {
+            LazyColumn(modifier = Modifier.fillMaxSize().padding(AdminDesign.SpacingMedium)) {
+                items(10) { ShimmerItem(Modifier.padding(vertical = AdminDesign.SpacingSmall)) }
+            }
+        } else if (filteredUsers.isEmpty()) {
+            AdminEmptyState(title = "No Players Found", description = "Try a different search term or check filters.")
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(AdminDesign.SpacingMedium),
+                verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)
+            ) {
+                items(filteredUsers) { user ->
+                    val isChecked = bulkSelectedIds.contains(user.id)
+                    UserListItem(
+                        user = user, 
+                        onClick = { 
+                            if (isBulkMode) {
+                                bulkSelectedIds = if (isChecked) bulkSelectedIds - user.id else bulkSelectedIds + user.id
+                            } else {
+                                onUserClick(user)
+                            }
+                        },
+                        isSelected = if (isBulkMode) isChecked else user.id == selectedUserId,
+                        showCheckbox = isBulkMode,
+                        isChecked = isChecked
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun UserListItem(user: SupabaseUser, onClick: () -> Unit, isSelected: Boolean = false, showCheckbox: Boolean = false, isChecked: Boolean = false) {
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) AdminDesign.Primary.copy(alpha = 0.05f) else AdminDesign.Surface
+        ),
+        shape = AdminDesign.CardShape,
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else AdminDesign.CardElevation),
+        modifier = Modifier.fillMaxWidth().border(
+            width = if (isSelected) 2.dp else 0.dp,
+            color = if (isSelected) AdminDesign.Primary else Color.Transparent,
+            shape = AdminDesign.CardShape
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(AdminDesign.SpacingMedium).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (showCheckbox) {
+                Checkbox(checked = isChecked, onCheckedChange = null)
+                Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
+            }
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = CircleShape,
+                color = AdminDesign.Primary.copy(alpha = 0.1f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = user.username.take(1).uppercase(),
+                        fontWeight = FontWeight.Black,
+                        color = AdminDesign.Primary,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(AdminDesign.SpacingMedium))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(user.username, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, color = AdminDesign.OnSurface)
+                Text(user.email, fontSize = 11.sp, color = AdminDesign.OnSurfaceVariant)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                user.roles.take(1).forEach { role ->
+                    Badge(
+                        containerColor = when(role) {
+                            "admin" -> AdminDesign.Secondary
+                            "moderator" -> AdminDesign.Primary
+                            else -> AdminDesign.OnSurfaceVariant
+                        }
+                    ) {
+                        Text(role.uppercase(), fontSize = 8.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+                if (user.isBanned) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Badge(containerColor = AdminDesign.Error) { Text("BANNED", fontSize = 8.sp, color = Color.White) }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun AdminUserDetailsScreen(
     user: SupabaseUser,
     supabaseManager: SupabaseManager,
     onBack: () -> Unit
 ) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Player Profile Audit", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFFDF3E3),
-                    titleContentColor = Color(0xFF5C2D0A),
-                    navigationIconContentColor = Color(0xFF5C2D0A)
-                )
-            )
-        },
-        containerColor = Color(0xFFFDF3E3)
+    AdminFoundationScaffold(
+        title = "Player Profile",
+        supabaseManager = supabaseManager,
+        onBack = onBack
     ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+            UserDetailsContent(user = user, supabaseManager = supabaseManager)
+        }
+    }
+}
+
+@Composable
+fun UserDetailsContent(user: SupabaseUser, supabaseManager: SupabaseManager) {
+    var selectedTab by remember { mutableStateOf(0) }
+    val tabs = listOf("Overview", "Moderation", "Activity", "Economics")
+
+    Column(modifier = Modifier.fillMaxSize().padding(AdminDesign.SpacingMedium)) {
+        // Header
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Surface(modifier = Modifier.size(64.dp), shape = CircleShape, color = AdminDesign.Primary.copy(alpha = 0.1f)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(user.username.take(1).uppercase(), fontSize = 28.sp, fontWeight = FontWeight.Black, color = AdminDesign.Primary)
+                }
+            }
+            Spacer(modifier = Modifier.width(AdminDesign.SpacingMedium))
+            Column {
+                Text(user.username, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold, color = AdminDesign.OnSurface)
+                Text(user.id, style = MaterialTheme.typography.labelSmall, color = AdminDesign.OnSurfaceVariant)
+                Text(user.email, style = MaterialTheme.typography.bodySmall, color = AdminDesign.OnSurfaceVariant)
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(AdminDesign.SpacingLarge))
+        
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = Color.Transparent,
+            contentColor = AdminDesign.Primary,
+            divider = {}
         ) {
-            Box(
-                modifier = Modifier.size(80.dp).background(Color(0xFF5C2D0A).copy(alpha = 0.1f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(user.username.take(1).uppercase(), fontSize = 32.sp, fontWeight = FontWeight.Black, color = Color(0xFF5C2D0A))
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = { selectedTab = index },
+                    text = { Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                )
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(user.username, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, color = Color(0xFF5C2D0A))
-            Text(user.email, color = Color.Gray, fontSize = 14.sp)
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DetailStatBox("GAMES", "${user.totalGames}", Modifier.weight(1f))
-                DetailStatBox("WINS", "${user.wins}", Modifier.weight(1f))
-                DetailStatBox("LOSSES", "${user.losses}", Modifier.weight(1f))
-            }
-            
-            Spacer(modifier = Modifier.height(24.dp))
-
-            var selectedTab by remember { mutableStateOf(0) }
-            val tabs = listOf("Actions", "Match History", "Login Logs")
-            
-            TabRow(
-                selectedTabIndex = selectedTab,
-                containerColor = Color.Transparent,
-                contentColor = Color(0xFF5C2D0A),
-                indicator = { tabPositions ->
-                    TabRowDefaults.SecondaryIndicator(
-                        Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                        color = Color(0xFF5C2D0A)
-                    )
-                }
-            ) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        text = { Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            AnimatedContent(targetState = selectedTab, label = "tab_content") { tabIndex ->
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    when (tabIndex) {
-                        0 -> {
-                            Text("ACCOUNT MANAGEMENT", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFF8B5E3C))
-                            Spacer(modifier = Modifier.height(8.dp))
-                            ActionTile(
-                                title = if (user.isBanned) "Revoke Ban" else "Ban Account",
-                                subtitle = if (user.isBanned) "Allow player to access game again" else "Restrict all app functionality",
-                                icon = Icons.Default.Block,
-                                color = if (user.isBanned) Color(0xFF2E7D32) else Color(0xFFC62828),
-                                onClick = { supabaseManager.toggleUserBan(user.id) }
-                            )
-                            ActionTile(
-                                title = if (user.role == "admin") "Demote to User" else "Promote to Admin",
-                                subtitle = "Modify system-wide permissions",
-                                icon = Icons.Default.Star,
-                                color = Color(0xFF1976D2),
-                                onClick = { 
-                                    val next = if (user.role == "admin") "user" else "admin"
-                                    supabaseManager.changeUserRole(user.id, next)
-                                }
-                            )
-                            ActionTile(
-                                title = "Clear reports (${user.reportsCount})",
-                                subtitle = "Dismiss all community flags",
-                                icon = Icons.Default.Check,
-                                color = Color(0xFF8B5E3C),
-                                onClick = { supabaseManager.dismissUserReports(user.id) }
-                            )
-                        }
-                        1 -> {
-                            Text("PAST 5 MATCHES", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFF8B5E3C))
-                            Spacer(modifier = Modifier.height(8.dp))
-                            // Simulated match history
-                            listOf("Victory vs Bot (Medium)", "Defeat vs Player_88", "Victory vs Bot (Hard)", "Defeat vs Player_21", "Victory vs Bot (Easy)").forEach { match ->
-                                Card(
-                                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).border(1.dp, Color.LightGray.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                                ) {
-                                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(if (match.startsWith("Victory")) Icons.Default.EmojiEvents else Icons.Default.Close, contentDescription = null, tint = if (match.startsWith("Victory")) Color(0xFF2E7D32) else Color(0xFFC62828), modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        Text(match, fontSize = 13.sp, color = Color(0xFF5C2D0A))
-                                    }
-                                }
-                            }
-                        }
-                        2 -> {
-                            Text("RECENT ACTIVITY", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFF8B5E3C))
-                            Spacer(modifier = Modifier.height(8.dp))
-                            // Simulated login logs
-                            listOf("Login from Android 14 (Jaipur, IN)", "Login from Android 13 (Delhi, IN)", "Password Change (Security)", "Email Verified (System)").forEach { log ->
-                                Row(modifier = Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Box(modifier = Modifier.size(6.dp).background(Color(0xFF5C2D0A), CircleShape))
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column {
-                                        Text(log, fontSize = 12.sp, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Medium)
-                                        Text("Today at 10:4${log.length} AM", fontSize = 10.sp, color = Color.Gray)
-                                    }
-                                }
-                            }
+        }
+        
+        Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+        
+        LazyColumn(modifier = Modifier.weight(1f)) {
+            item {
+                AnimatedContent(targetState = selectedTab, label = "user_details_tabs") { index ->
+                    Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingMedium)) {
+                        when(index) {
+                            0 -> OverviewTab(user)
+                            1 -> ModerationTab(user, supabaseManager)
+                            2 -> ActivityTab(user, supabaseManager)
+                            3 -> EconomicsTab(user, supabaseManager)
                         }
                     }
                 }
             }
             
-            Spacer(modifier = Modifier.weight(1f))
-            
-            Button(
-                onClick = { supabaseManager.deleteUser(user.id); onBack() },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828).copy(alpha = 0.1f), contentColor = Color(0xFFC62828)),
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(Icons.Default.Delete, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("PERMANENTLY DELETE ACCOUNT")
+            item {
+                Spacer(modifier = Modifier.height(AdminDesign.SpacingLarge))
+                Button(
+                    onClick = { supabaseManager.deleteUser(user.id) },
+                    colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Error.copy(alpha = 0.1f), contentColor = AdminDesign.Error),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = AdminDesign.ButtonShape
+                ) {
+                    Icon(Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
+                    Text("PERMANENTLY PURGE USER DATA", fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
 }
 
 @Composable
-fun DetailStatBox(label: String, value: String, modifier: Modifier = Modifier) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = RoundedCornerShape(12.dp),
-        modifier = modifier.border(1.dp, Color.LightGray.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
-    ) {
-        Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(label, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-            Text(value, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Color(0xFF5C2D0A))
+fun OverviewTab(user: SupabaseUser) {
+    Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingMedium)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
+            QuickStatCard("Games", user.totalGames.toString(), Modifier.weight(1f))
+            QuickStatCard("Wins", user.wins.toString(), Modifier.weight(1f))
+            QuickStatCard("Rating", user.rating.toString(), Modifier.weight(1f))
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
+            QuickStatCard("Coins", user.coins.toString(), Modifier.weight(1f))
+            QuickStatCard("XP", user.xp.toString(), Modifier.weight(1f))
+            QuickStatCard("Reports", user.reportsCount.toString(), Modifier.weight(1f), isAlert = user.reportsCount > 0)
+        }
+        
+        Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface), shape = AdminDesign.CardShape) {
+            Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
+                Text("ACCOUNT METADATA", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
+                Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
+                MetadataRow("Registered", user.createdAt)
+                MetadataRow("Last Login", user.lastLogin ?: "N/A")
+                MetadataRow("Country", user.country ?: "Unknown")
+                MetadataRow("Device ID", user.deviceId ?: "N/A")
+                MetadataRow("App Version", user.appVersion ?: "Unknown")
+            }
+        }
+    }
+}
+
+@Composable
+fun ModerationTab(user: SupabaseUser, supabaseManager: SupabaseManager) {
+    Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
+        ActionTile(
+            title = if (user.isBanned) "Unban Account" else "Ban Account",
+            subtitle = if (user.isBanned) "Restore full access for this player" else "Prevents all game access and authentication",
+            icon = Icons.Default.Block,
+            color = if (user.isBanned) AdminDesign.Secondary else AdminDesign.Error,
+            onClick = { supabaseManager.toggleUserBan(user.id) }
+        )
+        ActionTile(
+            title = if (user.shadowBanned) "Remove Shadow Ban" else "Apply Shadow Ban",
+            subtitle = "Player can still play but only with other toxic users",
+            icon = Icons.Default.VisibilityOff,
+            color = Color.Gray,
+            onClick = { supabaseManager.setShadowBan(user.id, !user.shadowBanned) }
+        )
+        ActionTile(
+            title = if (user.isVerified) "Remove Verification" else "Verify Identity",
+            subtitle = "Grants the blue verification badge in profiles",
+            icon = Icons.Default.Verified,
+            color = AdminDesign.Primary,
+            onClick = { supabaseManager.updateUserVerification(user.id, !user.isVerified) }
+        )
+        ActionTile(
+            title = "Invalidate Sessions",
+            subtitle = "Force logout from all devices immediately",
+            icon = Icons.Default.Logout,
+            color = AdminDesign.Warning,
+            onClick = { supabaseManager.forceLogout(user.id) }
+        )
+        
+        Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+        Text("ADMINISTRATIVE NOTES", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
+        var notes by remember { mutableStateOf(user.internalNotes ?: "") }
+        OutlinedTextField(
+            value = notes,
+            onValueChange = { notes = it },
+            modifier = Modifier.fillMaxWidth().height(120.dp),
+            placeholder = { Text("Add confidential staff notes here...") },
+            shape = AdminDesign.InputShape
+        )
+        Button(
+            onClick = { supabaseManager.updateInternalNotes(user.id, notes) },
+            modifier = Modifier.align(Alignment.End).padding(top = AdminDesign.SpacingSmall),
+            shape = AdminDesign.ButtonShape,
+            colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Primary)
+        ) {
+            Text("SAVE NOTES")
+        }
+    }
+}
+
+@Composable
+fun ActivityTab(user: SupabaseUser, supabaseManager: SupabaseManager) {
+    val loginHistory by supabaseManager.userLoginHistory.collectAsStateWithLifecycle()
+    LaunchedEffect(user.id) { supabaseManager.fetchLoginHistory(user.id) }
+
+    if (loginHistory.isEmpty()) {
+        AdminEmptyState(title = "No Recent Activity", description = "User hasn't logged in recently or history was purged.")
+    } else {
+        Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
+            loginHistory.forEach { log ->
+                Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface), shape = AdminDesign.CardShape) {
+                    Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Login, contentDescription = null, modifier = Modifier.size(16.dp), tint = AdminDesign.Primary)
+                            Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
+                            Text("Session Started", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text(log.createdAt.take(10), fontSize = 11.sp, color = AdminDesign.OnSurfaceVariant)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Location: ${log.location ?: "Unknown"}", fontSize = 12.sp)
+                        Text("IP: ${log.ipAddress} | Device: ${log.deviceId?.take(8)}", fontSize = 11.sp, color = AdminDesign.OnSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EconomicsTab(user: SupabaseUser, supabaseManager: SupabaseManager) {
+    Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingMedium)) {
+        Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface), shape = AdminDesign.CardShape) {
+            Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
+                Text("CURRENCY ADJUSTMENTS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
+                Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+                Row(horizontalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
+                    Button(onClick = { supabaseManager.adjustUserEconomy(user.id, 500, 0) }, modifier = Modifier.weight(1f), shape = AdminDesign.ButtonShape) { Text("+500 C", fontSize = 10.sp) }
+                    Button(onClick = { supabaseManager.adjustUserEconomy(user.id, 0, 1000) }, modifier = Modifier.weight(1f), shape = AdminDesign.ButtonShape) { Text("+1k XP", fontSize = 10.sp) }
+                }
+                Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
+                Row(horizontalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
+                    OutlinedButton(onClick = { supabaseManager.adjustUserEconomy(user.id, -500, 0) }, modifier = Modifier.weight(1f), shape = AdminDesign.ButtonShape) { Text("-500 C", fontSize = 10.sp) }
+                    OutlinedButton(onClick = { supabaseManager.adjustUserEconomy(user.id, 0, -1000) }, modifier = Modifier.weight(1f), shape = AdminDesign.ButtonShape) { Text("-1k XP", fontSize = 10.sp) }
+                }
+            }
+        }
+        
+        Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface), shape = AdminDesign.CardShape) {
+            Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
+                Text("RATING OVERRIDES", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
+                Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+                Row(horizontalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
+                    Button(onClick = { supabaseManager.adjustUserStats(user.id, 1, 0, 50) }, modifier = Modifier.weight(1f), shape = AdminDesign.ButtonShape) { Text("+1 Win (+50 E)", fontSize = 10.sp) }
+                    Button(onClick = { supabaseManager.adjustUserStats(user.id, 0, 1, -50) }, modifier = Modifier.weight(1f), shape = AdminDesign.ButtonShape) { Text("+1 Loss (-50 E)", fontSize = 10.sp) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MetadataRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, fontSize = 12.sp, color = AdminDesign.OnSurfaceVariant)
+        Text(value, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AdminDesign.OnSurface)
     }
 }
 
@@ -308,16 +532,21 @@ fun DetailStatBox(label: String, value: String, modifier: Modifier = Modifier) {
 fun ActionTile(title: String, subtitle: String, icon: ImageVector, color: Color, onClick: () -> Unit) {
     Card(
         onClick = onClick,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).border(1.dp, Color.LightGray.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+        colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface),
+        shape = AdminDesign.CardShape,
+        elevation = CardDefaults.cardElevation(defaultElevation = AdminDesign.CardElevation),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = color)
-            Spacer(modifier = Modifier.width(16.dp))
+        Row(modifier = Modifier.padding(AdminDesign.SpacingMedium), verticalAlignment = Alignment.CenterVertically) {
+            Surface(modifier = Modifier.size(36.dp), shape = RoundedCornerShape(8.dp), color = color.copy(alpha = 0.1f)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+                }
+            }
+            Spacer(modifier = Modifier.width(AdminDesign.SpacingMedium))
             Column {
-                Text(title, fontWeight = FontWeight.Bold, color = color, fontSize = 14.sp)
-                Text(subtitle, fontSize = 11.sp, color = Color.Gray)
+                Text(title, fontWeight = FontWeight.ExtraBold, color = color, fontSize = 14.sp)
+                Text(subtitle, fontSize = 11.sp, color = AdminDesign.OnSurfaceVariant)
             }
         }
     }

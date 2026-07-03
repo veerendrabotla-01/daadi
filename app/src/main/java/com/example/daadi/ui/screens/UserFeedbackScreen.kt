@@ -1,5 +1,8 @@
 package com.example.daadi.ui.screens
 
+import com.example.daadi.data.supabase.SupabaseManager
+
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,7 +20,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.daadi.data.supabase.SupabaseManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,6 +27,7 @@ fun UserFeedbackScreen(
     supabaseManager: SupabaseManager,
     onBack: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var content by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("suggest") }
     var isSubmitting by remember { mutableStateOf(false) }
@@ -132,11 +135,15 @@ fun UserFeedbackScreen(
                 onClick = {
                     if (content.isNotBlank()) {
                         isSubmitting = true
-                        supabaseManager.submitFeedback(content, category) { success ->
+                        supabaseManager.submitFeedback(content, category) { success, errMsg ->
                             isSubmitting = false
                             if (success) {
                                 content = ""
                                 showSuccess = true
+                                android.widget.Toast.makeText(context, "Feedback submitted successfully!", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                val displayError = if (!errMsg.isNullOrBlank()) "Error: $errMsg" else "Failed to submit feedback. Please try again."
+                                android.widget.Toast.makeText(context, displayError, android.widget.Toast.LENGTH_LONG).show()
                             }
                         }
                     }
@@ -144,7 +151,10 @@ fun UserFeedbackScreen(
                 modifier = Modifier.fillMaxWidth().height(54.dp),
                 enabled = content.isNotBlank() && !isSubmitting,
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C2D0A))
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF5C2D0A),
+                    contentColor = Color.White
+                )
             ) {
                 if (isSubmitting) {
                     CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
