@@ -15,9 +15,21 @@ android {
     applicationId = "com.veerustudio.daadi"
     minSdk = 24
     targetSdk = 36
-    versionCode = 2
-    versionName = "1.0.1"
-    manifestPlaceholders["ADMOB_APP_ID"] = "ca-app-pub-3940256099942544~3347511713" // Test app ID
+    versionCode = 3
+    versionName = "1.0.2"
+    
+    // Dynamically load ADMOB_APP_ID from system env or .env file with standard test ID fallback
+    val envFile = file("${rootDir}/.env")
+    var envAppId: String? = System.getenv("ADMOB_APP_ID")
+    if (envAppId == null && envFile.exists()) {
+      envFile.forEachLine { line ->
+        val parts = line.split("=", limit = 2)
+        if (parts.size == 2 && parts[0].trim() == "ADMOB_APP_ID") {
+          envAppId = parts[1].trim()
+        }
+      }
+    }
+    manifestPlaceholders["ADMOB_APP_ID"] = envAppId ?: "ca-app-pub-3940256099942544~3347511713"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -26,9 +38,9 @@ android {
     create("release") {
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
       storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
+      storePassword = System.getenv("STORE_PASSWORD") ?: "daadi123"
       keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      keyPassword = System.getenv("KEY_PASSWORD") ?: "daadi123"
     }
     create("debugConfig") {
       storeFile = file("${rootDir}/debug.keystore")

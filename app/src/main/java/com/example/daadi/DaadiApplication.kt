@@ -99,10 +99,18 @@ class DaadiApplication : Application() {
         // Launch a background coroutine to continuously ensure they exist during the entire application session.
         // Checking for file existence is extremely fast (< 1 microsecond) and has zero noticeable CPU/battery impact,
         // but guarantees that any runtime cache cleanups/re-creations by Chromium are immediately handled so opendir never fails.
+        // During the first 10 seconds (startup & WebView initialization), we check very frequently (every 50ms) to win
+        // the race against Chromium's startup cache wipe/recreation. After 10 seconds, we check every 1000ms.
         applicationScope.launch {
+            val startTime = System.currentTimeMillis()
             while (true) {
                 ensureWebViewCacheDirs()
-                delay(1000)
+                val elapsed = System.currentTimeMillis() - startTime
+                if (elapsed < 10000) {
+                    delay(50)
+                } else {
+                    delay(1000)
+                }
             }
         }
     }

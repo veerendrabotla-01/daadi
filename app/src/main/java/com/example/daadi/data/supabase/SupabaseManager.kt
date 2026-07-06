@@ -2216,7 +2216,35 @@ fun deleteUserRemote(userId: String) {
                 _users.value = emptyList()
             }
         } else {
-            _users.value = emptyList()
+            val dateStr = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+            _users.value = listOf(
+                SupabaseUser(
+                    id = "u_sim_tester",
+                    username = "DaadiPlayer",
+                    email = "player@daadi.com",
+                    role = "publicuser",
+                    createdAt = dateStr,
+                    totalGames = 10,
+                    wins = 6,
+                    losses = 4,
+                    coins = 500,
+                    xp = 1500,
+                    rating = 1120
+                ),
+                SupabaseUser(
+                    id = "u_sim_admin",
+                    username = "DaadiAdmin",
+                    email = "admin@daadi.com",
+                    role = "admin",
+                    createdAt = dateStr,
+                    totalGames = 25,
+                    wins = 18,
+                    losses = 7,
+                    coins = 10000,
+                    xp = 5000,
+                    rating = 1500
+                )
+            )
             saveSimulatorUsers()
         }
 

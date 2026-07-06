@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.daadi.DaadiApplication
+import com.example.BuildConfig
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -94,7 +95,12 @@ fun AdaptiveAdBanner(modifier: Modifier = Modifier) {
     val isAdsEnabledByLauncher = systemSettings.find { it.key == "ads_launcher" }?.value == "on"
     
     if (adConfig.isMonetizationGlobalOverride || isAdsEnabledByLauncher) {
-        BannerAdView(modifier = modifier, adUnitId = adConfig.bannerAdUnitId)
+        val finalAdUnitId = if (adConfig.bannerAdUnitId.isBlank() || adConfig.bannerAdUnitId.contains("3940256099942544")) {
+            BuildConfig.ADMOB_BANNER_UNIT_ID
+        } else {
+            adConfig.bannerAdUnitId
+        }
+        BannerAdView(modifier = modifier, adUnitId = finalAdUnitId)
     }
 }
 
