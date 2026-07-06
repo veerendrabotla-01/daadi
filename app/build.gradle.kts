@@ -15,8 +15,8 @@ android {
     applicationId = "com.veerustudio.daadi"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = 2
+    versionName = "1.0.1"
     manifestPlaceholders["ADMOB_APP_ID"] = "ca-app-pub-3940256099942544~3347511713" // Test app ID
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

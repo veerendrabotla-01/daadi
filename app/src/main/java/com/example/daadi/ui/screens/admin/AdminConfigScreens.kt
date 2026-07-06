@@ -102,6 +102,14 @@ fun AdminSystemConfigScreen(
 
     if (editingItem != null) {
         var newVal by remember { mutableStateOf(editingItem!!.value) }
+        val isSensitive = remember(editingItem!!.key) {
+            val lower = editingItem!!.key.lowercase()
+            lower.contains("key") || lower.contains("secret") || lower.contains("token") || 
+            lower.contains("password") || lower.contains("credential") || lower.contains("auth") ||
+            lower.contains("url")
+        }
+        var passwordVisible by remember { mutableStateOf(!isSensitive) }
+
         AlertDialog(
             onDismissRequest = { editingItem = null },
             title = { Text("Overwrite Variable", fontWeight = FontWeight.Black) },
@@ -114,7 +122,16 @@ fun AdminSystemConfigScreen(
                         onValueChange = { newVal = it },
                         label = { Text("New Value") },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = AdminDesign.InputShape
+                        shape = AdminDesign.InputShape,
+                        visualTransformation = if (passwordVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        trailingIcon = {
+                            if (isSensitive) {
+                                val image = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility
+                                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                    Icon(imageVector = image, contentDescription = "Toggle Visibility")
+                                }
+                            }
+                        }
                     )
                 }
             },
@@ -136,6 +153,13 @@ fun AdminSystemConfigScreen(
 @Composable
 fun ConfigItemCard(item: SupabaseSystemSetting, onEdit: (SupabaseSystemSetting) -> Unit, onToggle: (String, String) -> Unit) {
     val isToggleable = item.value == "on" || item.value == "off" || item.value == "true" || item.value == "false"
+    val isSensitive = remember(item.key) {
+        val lower = item.key.lowercase()
+        lower.contains("key") || lower.contains("secret") || lower.contains("token") || 
+        lower.contains("password") || lower.contains("credential") || lower.contains("auth") ||
+        lower.contains("url")
+    }
+    var isRevealed by remember { mutableStateOf(false) }
     
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -149,14 +173,30 @@ fun ConfigItemCard(item: SupabaseSystemSetting, onEdit: (SupabaseSystemSetting) 
                 Text(item.description, fontSize = 11.sp, color = AdminDesign.OnSurfaceVariant)
                 if (!isToggleable) {
                     Spacer(modifier = Modifier.height(4.dp))
-                    Surface(color = AdminDesign.Background, shape = RoundedCornerShape(4.dp)) {
-                        Text(
-                            text = item.value, 
-                            fontWeight = FontWeight.ExtraBold, 
-                            fontSize = 14.sp, 
-                            color = AdminDesign.OnSurface,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(color = AdminDesign.Background, shape = RoundedCornerShape(4.dp)) {
+                            Text(
+                                text = if (isSensitive && !isRevealed) "••••••••" else item.value, 
+                                fontWeight = FontWeight.ExtraBold, 
+                                fontSize = 14.sp, 
+                                color = AdminDesign.OnSurface,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                        if (isSensitive) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            IconButton(
+                                onClick = { isRevealed = !isRevealed },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isRevealed) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = "Toggle Visibility",
+                                    tint = AdminDesign.Primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }

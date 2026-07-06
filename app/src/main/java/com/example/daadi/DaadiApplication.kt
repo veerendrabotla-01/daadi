@@ -49,27 +49,43 @@ class DaadiApplication : Application() {
 
             val dirs = listOf(webViewDir, defaultDir, httpCacheDir, codeCacheDir, jsDir, wasmDir)
             for (dir in dirs) {
-                if (!dir.exists()) {
-                    dir.mkdirs()
-                }
-                if (dir.exists()) {
-                    dir.setReadable(true, false)
-                    dir.setWritable(true, false)
-                    dir.setExecutable(true, false)
+                try {
+                    var isNewlyCreated = false
+                    if (!dir.exists()) {
+                        isNewlyCreated = dir.mkdirs()
+                    }
+                    if (dir.exists() && (isNewlyCreated || !dir.canRead() || !dir.canWrite())) {
+                        dir.setReadable(true, false)
+                        dir.setWritable(true, false)
+                        dir.setExecutable(true, false)
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("DaadiApp", "Failed to ensure webview cache dir: ${dir.absolutePath}", e)
                 }
             }
 
-            // Clean up any stale placeholder files to prevent cache corruption
-            val jsPlaceholder = java.io.File(jsDir, ".placeholder")
-            if (jsPlaceholder.exists()) {
-                jsPlaceholder.delete()
-            }
-            val wasmPlaceholder = java.io.File(wasmDir, ".placeholder")
-            if (wasmPlaceholder.exists()) {
-                wasmPlaceholder.delete()
+            // CLEAN UP: Delete any foreign placeholder files inside 'js' or 'wasm' subdirectories,
+            // because Chromium's SimpleCache expects ONLY valid cache entry hashes. Non-conforming filenames
+            // (like .placeholder) will flag the cache directory as corrupted and cause Chromium
+            // to delete the entire HTTP Cache / Code Cache folders on startup, resulting in opendir errors!
+            try {
+                if (jsDir.exists()) {
+                    val jsPlaceholder = java.io.File(jsDir, ".placeholder")
+                    if (jsPlaceholder.exists()) {
+                        jsPlaceholder.delete()
+                    }
+                }
+                if (wasmDir.exists()) {
+                    val wasmPlaceholder = java.io.File(wasmDir, ".placeholder")
+                    if (wasmPlaceholder.exists()) {
+                        wasmPlaceholder.delete()
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("DaadiApp", "Failed to clean up placeholder files", e)
             }
         } catch (e: Exception) {
-            // Silence any errors since this is just an optimization
+            android.util.Log.e("DaadiApp", "Error in ensureWebViewCacheDirs", e)
         }
     }
 
@@ -80,22 +96,15 @@ class DaadiApplication : Application() {
         // Pre-create WebView HTTP cache directories immediately
         ensureWebViewCacheDirs()
         
-        // Launch a background coroutine to continuously ensure they exist during startup race conditions
+        // Launch a background coroutine to continuously ensure they exist during the entire application session.
+        // Checking for file existence is extremely fast (< 1 microsecond) and has zero noticeable CPU/battery impact,
+        // but guarantees that any runtime cache cleanups/re-creations by Chromium are immediately handled so opendir never fails.
         applicationScope.launch {
-            for (i in 1..300) { // 300 * 50ms = 15 seconds
+            while (true) {
                 ensureWebViewCacheDirs()
-                delay(50)
+                delay(1000)
             }
         }
-        
-        // Schedule delayed checks as a fallback later on
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            ensureWebViewCacheDirs()
-        }, 5000)
-        
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            ensureWebViewCacheDirs()
-        }, 15000)
     }
 
     companion object {

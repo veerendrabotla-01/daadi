@@ -4107,6 +4107,13 @@ suspend fun askAiAssistant(prompt: String): String = withContext(Dispatchers.IO)
         sb.append("=========================================\n\n")
 
         when {
+            q.contains("key") || q.contains("secret") || q.contains("token") || q.contains("password") || q.contains("credential") || q.contains("private") -> {
+                sb.append("⚠️ **SECURITY COMPLIANCE ENFORCEMENT**\n\n")
+                sb.append("• Access status: **PROHIBITED**\n")
+                sb.append("• Security level: **CRITICAL COMPLIANCE SAFEGUARD**\n")
+                sb.append("• Details: Direct inspection or recovery of sensitive system credentials (such as API keys, service tokens, private encryption salts, database passwords) is strictly prohibited through the AI Diagnostic terminal to prevent data breaches.\n")
+                sb.append("• Asset Protection: **OPERATIONAL (All private environment variables remain encrypted & concealed)**\n")
+            }
             q.contains("health") || q.contains("metric") || q.contains("status") -> {
                 sb.append("🩺 **SYSTEM HEALTH & LATENCY ANALYSIS**\n\n")
                 val healthList = _biHealthMetrics.value
