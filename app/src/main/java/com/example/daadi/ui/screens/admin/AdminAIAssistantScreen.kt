@@ -30,11 +30,12 @@ fun AdminAIAssistantScreen(adminViewModel: com.example.daadi.viewmodel.AdminView
     val scope = rememberCoroutineScope()
 
     val suggestions = listOf(
-        "Summarize today's DAU/MAU trends",
-        "Detect suspicious revenue anomalies",
-        "Recommend bans based on fraud alerts",
-        "Summarize recent high-severity crashes",
-        "Suggest LiveOps for next weekend"
+        "Check overall system health & latency",
+        "Audit active user registration & login trends",
+        "Inspect anti-cheat & security logs",
+        "Review fraud alerts & transaction compliance",
+        "Analyze AdMob fill rate & ad telemetry",
+        "Summarize live match & multiplayer stats"
     )
 
     AdminFoundationScaffold("Insight Engine", supabaseManager, onBack) { padding ->
@@ -52,20 +53,20 @@ fun AdminAIAssistantScreen(adminViewModel: com.example.daadi.viewmodel.AdminView
                             color = AdminDesign.Primary.copy(alpha = 0.1f)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = AdminDesign.Primary, modifier = Modifier.size(32.dp))
+                                Icon(Icons.Default.Analytics, contentDescription = null, tint = AdminDesign.Primary, modifier = Modifier.size(32.dp))
                             }
                         }
                         Spacer(modifier = Modifier.height(AdminDesign.SpacingLarge))
-                        Text("DAADI INTELLIGENCE HUB", fontWeight = FontWeight.Black, fontSize = 20.sp, color = AdminDesign.OnSurface)
+                        Text("DAADI LOCAL INTEL ENGINE", fontWeight = FontWeight.Black, fontSize = 20.sp, color = AdminDesign.OnSurface)
                         Text(
-                            text = "Orchestrating game data into actionable insights.", 
+                            text = "Instant, secure diagnostics from active data bounds.", 
                             fontSize = 14.sp, 
                             color = AdminDesign.OnSurfaceVariant,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(AdminDesign.SpacingExtraLarge))
                         
-                        Text("HEURISTIC PROMPTS", fontWeight = FontWeight.Black, fontSize = 10.sp, color = AdminDesign.OnSurfaceVariant)
+                        Text("DIAGNOSTIC PROBES", fontWeight = FontWeight.Black, fontSize = 10.sp, color = AdminDesign.OnSurfaceVariant)
                         Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
                         Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall), horizontalAlignment = Alignment.CenterHorizontally) {
                             suggestions.forEach { suggestion ->
@@ -83,9 +84,9 @@ fun AdminAIAssistantScreen(adminViewModel: com.example.daadi.viewmodel.AdminView
                         LazyColumn(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
                             item {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = AdminDesign.Primary, modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.Analytics, contentDescription = null, tint = AdminDesign.Primary, modifier = Modifier.size(20.dp))
                                     Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
-                                    Text("SYNTHETIC ANALYTICAL RESPONSE", fontWeight = FontWeight.Black, color = AdminDesign.Primary, fontSize = 12.sp)
+                                    Text("LOCAL DIAGNOSTIC ENGINE REPORT", fontWeight = FontWeight.Black, color = AdminDesign.Primary, fontSize = 12.sp)
                                 }
                                 Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
                                 Text(

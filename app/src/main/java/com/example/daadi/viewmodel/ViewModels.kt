@@ -1057,47 +1057,7 @@ class GameViewModel(
     }
 
     private fun generateGeminiCommentary(event: String, state: GameState) {
-        val apiKey = BuildConfig.GEMINI_API_KEY
-        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
-            // Fallback to static commentary if no API key
-            _aiCommentary.value = getFallbackCommentary(event, state)
-            return
-        }
-
-        viewModelScope.launch {
-            try {
-                val prompt = """
-                    You are Chanakya, the legendary ancient Indian strategist. 
-                    You are playing a game of Daadi (Nine Men's Morris) against a human.
-                    Current Game State:
-                    - Event: $event
-                    - Phase: ${state.phase}
-                    - Board: ${state.board.nodes.values.filterNotNull().size} pieces total
-                    - Human Pieces: ${state.board.nodes.values.count { it == Player.PLAYER_1 }}
-                    - Your Pieces: ${state.board.nodes.values.count { it == Player.PLAYER_2 }}
-                    
-                    Task: Provide a short (max 15 words), witty, and period-appropriate commentary in Chanakya's voice. 
-                    Use terms like "beads", "shastra", "strategy", "dharma".
-                    Do not use modern slang.
-                """.trimIndent()
-
-                val request = GeminiGenerateRequest(
-                    contents = listOf(
-                        GeminiContent(parts = listOf(GeminiPart(text = prompt)))
-                    )
-                )
-
-                val response = DaadiApplication.instance.supabaseManager.geminiService.generateContent(apiKey, request)
-                val text = response?.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
-                if (!text.isNullOrBlank()) {
-                    _aiCommentary.value = "Chanakya: ${text.trim()}"
-                } else {
-                    _aiCommentary.value = getFallbackCommentary(event, state)
-                }
-            } catch (e: Exception) {
-                _aiCommentary.value = getFallbackCommentary(event, state)
-            }
-        }
+        _aiCommentary.value = getFallbackCommentary(event, state)
     }
 
     private fun getFallbackCommentary(event: String, state: GameState): String {
