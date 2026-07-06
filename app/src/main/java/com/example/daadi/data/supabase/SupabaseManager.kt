@@ -55,11 +55,13 @@ class SupabaseManager(internal val context: Context) {
     }
 
     val prefs: SharedPreferences = try {
-        val masterKeyAlias = androidx.security.crypto.MasterKeys.getOrCreate(androidx.security.crypto.MasterKeys.AES256_GCM_SPEC)
+        val masterKey = androidx.security.crypto.MasterKey.Builder(context)
+            .setKeyScheme(androidx.security.crypto.MasterKey.KeyScheme.AES256_GCM)
+            .build()
         androidx.security.crypto.EncryptedSharedPreferences.create(
-            "daadi_secure_prefs",
-            masterKeyAlias,
             context,
+            "daadi_secure_prefs",
+            masterKey,
             androidx.security.crypto.EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             androidx.security.crypto.EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )

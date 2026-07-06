@@ -40,24 +40,33 @@ class DaadiApplication : Application() {
 
     fun ensureWebViewCacheDirs() {
         try {
-            val webViewCacheDir = java.io.File(cacheDir, "WebView/Default/HTTP Cache/Code Cache")
-            val jsDir = java.io.File(webViewCacheDir, "js")
-            val wasmDir = java.io.File(webViewCacheDir, "wasm")
-            
-            if (!jsDir.exists()) {
-                jsDir.mkdirs()
-            }
-            val jsPlaceholder = java.io.File(jsDir, ".placeholder")
-            if (!jsPlaceholder.exists()) {
-                jsPlaceholder.createNewFile()
+            val webViewDir = java.io.File(cacheDir, "WebView")
+            val defaultDir = java.io.File(webViewDir, "Default")
+            val httpCacheDir = java.io.File(defaultDir, "HTTP Cache")
+            val codeCacheDir = java.io.File(httpCacheDir, "Code Cache")
+            val jsDir = java.io.File(codeCacheDir, "js")
+            val wasmDir = java.io.File(codeCacheDir, "wasm")
+
+            val dirs = listOf(webViewDir, defaultDir, httpCacheDir, codeCacheDir, jsDir, wasmDir)
+            for (dir in dirs) {
+                if (!dir.exists()) {
+                    dir.mkdirs()
+                }
+                if (dir.exists()) {
+                    dir.setReadable(true, false)
+                    dir.setWritable(true, false)
+                    dir.setExecutable(true, false)
+                }
             }
 
-            if (!wasmDir.exists()) {
-                wasmDir.mkdirs()
+            // Clean up any stale placeholder files to prevent cache corruption
+            val jsPlaceholder = java.io.File(jsDir, ".placeholder")
+            if (jsPlaceholder.exists()) {
+                jsPlaceholder.delete()
             }
             val wasmPlaceholder = java.io.File(wasmDir, ".placeholder")
-            if (!wasmPlaceholder.exists()) {
-                wasmPlaceholder.createNewFile()
+            if (wasmPlaceholder.exists()) {
+                wasmPlaceholder.delete()
             }
         } catch (e: Exception) {
             // Silence any errors since this is just an optimization
