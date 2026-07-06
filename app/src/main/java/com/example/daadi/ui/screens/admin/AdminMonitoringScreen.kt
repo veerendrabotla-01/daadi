@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.foundation.background
@@ -23,10 +22,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
-fun AdminMonitoringScreen(supabaseManager: SupabaseManager, onBack: () -> Unit) {
-    val healthMetrics by supabaseManager.biHealthMetrics.collectAsStateWithLifecycle()
-    val queueMetrics by supabaseManager.queueMetrics.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+fun AdminMonitoringScreen(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onBack: () -> Unit) {
+    val healthMetrics by adminViewModel.analyticsRepository.biHealthMetrics.collectAsStateWithLifecycle()
+    val queueMetrics by adminViewModel.analyticsRepository.queueMetrics.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
 
     AdminFoundationScaffold("Infrastructure Grid", supabaseManager, onBack) { padding ->
         if (isSyncing && healthMetrics.isEmpty()) {

@@ -14,34 +14,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.daadi.data.supabase.SupabaseManager
-
-data class ScheduledTask(
-    val id: String,
-    val name: String,
-    val schedule: String, // e.g. "0 0 * * 0"
-    val nextRun: String,
-    val isEnabled: Boolean,
-    val lastStatus: String
-)
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.daadi.data.supabase.SupabaseScheduledTask
 
 @Composable
 fun AdminTaskSchedulerScreen(
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onBack: () -> Unit
 ) {
-    val tasks = remember {
-        mutableStateListOf(
-            ScheduledTask("T1", "Weekly Leaderboard Reset", "0 0 * * 0", "Next Sunday, 00:00 UTC", true, "Success"),
-            ScheduledTask("T2", "Daily Daily-Reward Distribution", "0 0 * * *", "Tomorrow, 00:00 UTC", true, "Success"),
-            ScheduledTask("T3", "Monthly Inactive User Pruning", "0 0 1 * *", "Aug 1st, 00:00 UTC", false, "Skipped"),
-            ScheduledTask("T4", "Hourly DB Snapshot", "0 * * * *", "In 15 mins", true, "Failed")
-        )
+    val tasks by adminViewModel.adminRepository.scheduledTasks.collectAsStateWithLifecycle()
+    
+    LaunchedEffect(Unit) {
+        adminViewModel.adminRepository.fetchScheduledTasks()
     }
 
     AdminFoundationScaffold(
         title = "Task Scheduler",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack,
         actions = {
             IconButton(onClick = { /* Handle Add */ }) {
@@ -62,10 +51,7 @@ fun AdminTaskSchedulerScreen(
                 TaskSchedulerCard(
                     task = task,
                     onToggle = { isEnabled ->
-                        val idx = tasks.indexOf(task)
-                        if(idx != -1) {
-                            tasks[idx] = task.copy(isEnabled = isEnabled)
-                        }
+                        // Make an API call to toggle the task
                     },
                     onRunNow = { /* Run task */ }
                 )
@@ -75,7 +61,7 @@ fun AdminTaskSchedulerScreen(
 }
 
 @Composable
-fun TaskSchedulerCard(task: ScheduledTask, onToggle: (Boolean) -> Unit, onRunNow: () -> Unit) {
+fun TaskSchedulerCard(task: SupabaseScheduledTask, onToggle: (Boolean) -> Unit, onRunNow: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = AdminDesign.CardShape,

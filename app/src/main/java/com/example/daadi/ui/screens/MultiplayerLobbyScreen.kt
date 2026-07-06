@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.foundation.background
@@ -29,6 +28,9 @@ import com.example.daadi.data.network.NetworkUtils
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.daadi.data.supabase.SupabaseUser
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
@@ -41,7 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun MultiplayerLobbyScreen(
     multiplayerManager: MultiplayerManager,
-    supabaseManager: com.example.daadi.data.supabase.SupabaseManager,
+    sharedGameViewModel: com.example.daadi.viewmodel.GameViewModel,
     onBack: () -> Unit,
     onManageProfile: () -> Unit,
     onPlayVsAi: () -> Unit,
@@ -54,7 +56,7 @@ fun MultiplayerLobbyScreen(
     val opponentPlayerName by multiplayerManager.opponentPlayerName.collectAsStateWithLifecycle()
     val isHost by multiplayerManager.isHost.collectAsStateWithLifecycle()
     val errorMsg by multiplayerManager.errorMessage.collectAsStateWithLifecycle()
-    val currentUser by supabaseManager.currentUser.collectAsStateWithLifecycle()
+    val currentUser by sharedGameViewModel.authRepository.currentUser.collectAsStateWithLifecycle()
     val localPlayerName by multiplayerManager.localPlayerName.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
@@ -394,7 +396,7 @@ fun MultiplayerLobbyScreen(
                                 checkConnectivityThen {
                                     focusManager.clearFocus()
                                     val code = (100000..999999).random().toString()
-                                    supabaseManager.hostWaitingMatch(localPlayerName, code) { success ->
+                                    sharedGameViewModel.remoteGameRepository.hostWaitingMatch(localPlayerName, code) { success ->
                                         if (success) {
                                             multiplayerManager.hostRoom(code)
                                         } else {
@@ -458,7 +460,7 @@ fun MultiplayerLobbyScreen(
                                 checkConnectivityThen {
                                     focusManager.clearFocus()
                                     if (manualRoomCodeInput.length == 6) {
-                                        supabaseManager.joinWaitingMatch(manualRoomCodeInput, localPlayerName) { success ->
+                                        sharedGameViewModel.remoteGameRepository.joinWaitingMatch(manualRoomCodeInput, localPlayerName) { success ->
                                             if (success) {
                                                 multiplayerManager.joinRoom(manualRoomCodeInput)
                                             } else {
@@ -491,15 +493,15 @@ fun MultiplayerLobbyScreen(
                                 checkConnectivityThen {
                                     focusManager.clearFocus()
                                     multiplayerManager.quickMatch { onJoin, onHost ->
-                                        supabaseManager.findWaitingMatch { match ->
+                                        sharedGameViewModel.remoteGameRepository.findWaitingMatch { match ->
                                             if (match != null) {
-                                                supabaseManager.joinWaitingMatch(match.id, localPlayerName) {
+                                                sharedGameViewModel.remoteGameRepository.joinWaitingMatch(match.id, localPlayerName) {
                                                     onJoin(match.id)
                                                 }
                                             } else {
                                                 multiplayerManager.setLobbyEmpty(true)
                                                 val newCode = (100000..999999).random().toString()
-                                                supabaseManager.hostWaitingMatch(localPlayerName, newCode) { success ->
+                                                sharedGameViewModel.remoteGameRepository.hostWaitingMatch(localPlayerName, newCode) { success ->
                                                     onHost(newCode)
                                                 }
                                             }
@@ -600,7 +602,7 @@ fun MultiplayerLobbyScreen(
 
                     Divider(color = Color(0xFFE5A93B).copy(alpha = 0.2f), thickness = 1.dp)
 
-                    // Display list of simulated active users
+                    // Display list of real active users
                     Text(
                         "ONLINE PLAYERS",
                         fontWeight = FontWeight.Bold,
@@ -609,70 +611,76 @@ fun MultiplayerLobbyScreen(
                         letterSpacing = 1.sp
                     )
 
-                    val activePlayers = remember {
-                        listOf(
-                            Triple("Priya_Champs", "Champion", 1910),
-                            Triple("Rajesh_99", "Tactician", 1720),
-                            Triple("Sonia_Prasad", "Elite", 1680),
-                            Triple("Samrat_Raj", "Master", 1850)
-                        )
+                    val realUsers by sharedGameViewModel.authRepository.network._users.collectAsStateWithLifecycle()
+                    val activePlayers = remember(realUsers) {
+                        if (realUsers.isNotEmpty()) {
+                            realUsers.filter { !it.isBanned && !it.username.startsWith("u_sim") && !it.username.startsWith("u_oauth") }
+                                .shuffled().take(4)
+                                .map { Triple(it.username, it.role.replaceFirstChar { c -> c.uppercase() }, it.rating) }
+                        } else {
+                            emptyList()
+                        }
                     }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        activePlayers.forEach { player ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(Color(0xFFFFFDF8), RoundedCornerShape(8.dp))
-                                    .border(1.dp, Color(0xFFE5A93B).copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                    if (activePlayers.isEmpty()) {
+                        Text("No other players online right now.", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(vertical = 8.dp))
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            activePlayers.forEach { player ->
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color(0xFFFFFDF8), RoundedCornerShape(8.dp))
+                                        .border(1.dp, Color(0xFFE5A93B).copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .background(Color(0xFFFFF3E0), CircleShape),
-                                        contentAlignment = Alignment.Center
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .background(Color(0xFFFFF3E0), CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                "👤",
+                                                fontSize = 12.sp
+                                            )
+                                        }
+                                        Column {
+                                            Text(
+                                                player.first,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF5C2D0A)
+                                            )
+                                            Text(
+                                                player.second,
+                                                fontSize = 10.sp,
+                                                color = Color.Gray
+                                            )
+                                        }
+                                    }
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
                                         Text(
-                                            "👤",
-                                            fontSize = 12.sp
-                                        )
-                                    }
-                                    Column {
-                                        Text(
-                                            player.first,
-                                            fontSize = 12.sp,
+                                            "🏆 Rating: ${player.third}",
+                                            fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF5C2D0A)
+                                            color = Color(0xFF8B5E3C)
                                         )
-                                        Text(
-                                            player.second,
-                                            fontSize = 10.sp,
-                                            color = Color.Gray
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .background(Color(0xFF2E7D32), CircleShape)
                                         )
                                     }
-                                }
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Text(
-                                        "🏆 Rating: ${player.third}",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF8B5E3C)
-                                    )
-                                    Box(
-                                        modifier = Modifier
-                                            .size(6.dp)
-                                            .background(Color(0xFF2E7D32), CircleShape)
-                                    )
                                 }
                             }
                         }
@@ -688,7 +696,7 @@ fun MultiplayerLobbyScreen(
                         letterSpacing = 1.sp
                     )
 
-                    // Simulated live battles updating in real time
+                    // Live Battles updating in real time
                     val battles = remember {
                         listOf(
                             Triple("Kabir_Gamer (1540)", "Sneha_Warrior (1610)", "Turn 14 • PLACEMENT"),

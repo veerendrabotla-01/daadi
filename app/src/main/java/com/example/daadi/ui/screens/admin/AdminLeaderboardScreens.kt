@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.foundation.background
@@ -27,27 +26,29 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun AdminLeaderboardManagerScreen(
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onBack: () -> Unit
 ) {
-    val users by supabaseManager.users.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+    val users by adminViewModel.userRepository.users.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
     var selectedScope by remember { mutableStateOf("Global") }
     val scopes = listOf("Global", "Weekly", "Monthly", "Season")
     
     val sortedUsers = remember(users, selectedScope) {
         users.sortedByDescending { 
             when (selectedScope) {
-                "Global" -> it.rating
-                "Weekly" -> it.wins // Simulated weekly data
-                else -> it.rating
+                "Global" -> it.rating.toFloat()
+                "Weekly" -> it.wins.toFloat()
+                "Monthly" -> it.xp.toFloat()
+                "Season" -> (it.wins * 10 + it.xp).toFloat()
+                else -> it.rating.toFloat()
             }
         }.take(50)
     }
 
     AdminFoundationScaffold(
         title = "Elo Rankings",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack,
         actions = {
             IconButton(onClick = { /* Recalculate Logic */ }) {

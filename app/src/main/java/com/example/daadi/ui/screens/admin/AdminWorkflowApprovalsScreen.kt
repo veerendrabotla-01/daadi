@@ -13,39 +13,30 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.daadi.data.supabase.SupabaseManager
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.daadi.data.supabase.SupabaseApprovalRequest
 import java.text.SimpleDateFormat
 import java.util.*
 
-data class ApprovalRequest(
-    val id: String,
-    val requester: String,
-    val type: String,
-    val description: String,
-    val timestamp: String,
-    val severity: String // "High", "Medium", "Low"
-)
-
 @Composable
 fun AdminWorkflowApprovalsScreen(
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onBack: () -> Unit
 ) {
-    val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-    val mockRequests = remember {
-        mutableStateListOf(
-            ApprovalRequest("REQ-001", "admin_jane", "Remote Config", "Enable Global 2x XP Multiplier", sdf.format(Date(System.currentTimeMillis() - 3600000)), "High"),
-            ApprovalRequest("REQ-002", "mod_bob", "Mass Ban", "Ban 150 identified bot accounts", sdf.format(Date(System.currentTimeMillis() - 7200000)), "High"),
-            ApprovalRequest("REQ-003", "admin_jane", "Economy", "Gift 1000 Coins to top 10 players", sdf.format(Date()), "Medium")
-        )
+    val requests by adminViewModel.adminRepository.approvalRequests.collectAsStateWithLifecycle()
+    
+    LaunchedEffect(Unit) {
+        adminViewModel.adminRepository.fetchWorkflowApprovals()
     }
     
+    val pendingRequests = requests.filter { it.status == "pending" }
+
     AdminFoundationScaffold(
         title = "Workflow Approvals",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack
     ) { padding ->
-        if (mockRequests.isEmpty()) {
+        if (pendingRequests.isEmpty()) {
             Box(modifier = Modifier.padding(padding).fillMaxSize()) {
                 AdminEmptyState(title = "No Pending Approvals", description = "All maker-checker workflows are cleared.")
             }
@@ -56,14 +47,14 @@ fun AdminWorkflowApprovalsScreen(
                 verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)
             ) {
                 item {
-                    Text("PENDING REQUESTS (${mockRequests.size})", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.Primary)
+                    Text("PENDING REQUESTS (${pendingRequests.size})", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.Primary)
                     Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
                 }
-                items(mockRequests) { req ->
+                items(pendingRequests) { req ->
                     ApprovalRequestCard(
                         request = req,
-                        onApprove = { mockRequests.remove(req) },
-                        onReject = { mockRequests.remove(req) }
+                        onApprove = { adminViewModel.adminRepository.approveRequest(req.id) },
+                        onReject = { adminViewModel.adminRepository.rejectRequest(req.id) }
                     )
                 }
             }
@@ -72,7 +63,7 @@ fun AdminWorkflowApprovalsScreen(
 }
 
 @Composable
-fun ApprovalRequestCard(request: ApprovalRequest, onApprove: () -> Unit, onReject: () -> Unit) {
+fun ApprovalRequestCard(request: SupabaseApprovalRequest, onApprove: () -> Unit, onReject: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = AdminDesign.CardShape,
@@ -97,7 +88,7 @@ fun ApprovalRequestCard(request: ApprovalRequest, onApprove: () -> Unit, onRejec
             Text("Requested by: ${request.requester}", fontSize = 11.sp, color = AdminDesign.OnSurfaceVariant)
             
             Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
-            Divider(color = AdminDesign.OnSurfaceVariant.copy(alpha = 0.1f))
+            HorizontalDivider(color = AdminDesign.OnSurfaceVariant.copy(alpha = 0.1f))
             Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
             
             Row(horizontalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall), modifier = Modifier.fillMaxWidth()) {

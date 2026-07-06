@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.activity.compose.BackHandler
@@ -94,7 +93,7 @@ fun GameScreen(
                 // Delay slightly to let the win animation finish
                 kotlinx.coroutines.delay(1200)
                 adManager.showInterstitial(activity) {
-                    app.supabaseManager.incrementAdImpressions()
+                    app.analyticsRepository.incrementAdImpressions()
                 }
             }
         }
@@ -228,6 +227,7 @@ fun GameScreen(
                                 state.currentPlayer == localRole
                             }
                             GameMode.PASS_AND_PLAY -> true
+                            GameMode.AI_VS_AI -> false
                         }
                         if (isTimerActive) {
                             val currentChances = if (state.currentPlayer == Player.PLAYER_1) state.player1TimerChances else state.player2TimerChances

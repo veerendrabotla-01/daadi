@@ -36,52 +36,25 @@ import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-// Supabase Data Entities - MOVED TO SupabaseModels.kt
+class SupabaseManager(internal val context: Context) {
+    val tag = "SupabaseManager"
 
+    val scope = CoroutineScope(Dispatchers.IO)
 
+    val _profiles = MutableStateFlow<List<SupabaseProfile>>(emptyList())
+    val profiles: StateFlow<List<SupabaseProfile>> = _profiles.asStateFlow()
 
+    val _healthMetrics = MutableStateFlow(DbHealthMetrics())
+    val healthMetrics: StateFlow<DbHealthMetrics> = _healthMetrics.asStateFlow()
 
+    private val _isOnline = MutableStateFlow(true)
+    val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
 
+    fun updateConnectivity(online: Boolean) {
+        _isOnline.value = online
+    }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-class SupabaseManager(private val context: Context) {
-private val tag = "SupabaseManager"
-
-private val scope = CoroutineScope(Dispatchers.IO)
-
-private val prefs: SharedPreferences = try {
+    val prefs: SharedPreferences = try {
         val masterKeyAlias = androidx.security.crypto.MasterKeys.getOrCreate(androidx.security.crypto.MasterKeys.AES256_GCM_SPEC)
         androidx.security.crypto.EncryptedSharedPreferences.create(
             "daadi_secure_prefs",
@@ -96,67 +69,67 @@ catch (e: Exception) {
         context.getSharedPreferences("daadi_supabase_sim_prefs", Context.MODE_PRIVATE)
     }
 
-private var sessionToken: String? = null
+internal var sessionToken: String? = null
 
 // Moshi Setup
 
-private val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
+    val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
 
-private val userListAdapter = moshi.adapter<List<SupabaseUser>>(Types.newParameterizedType(List::class.java, SupabaseUser::class.java))
+internal val userListAdapter = moshi.adapter<List<SupabaseUser>>(Types.newParameterizedType(List::class.java, SupabaseUser::class.java))
 
-private val userAdapter = moshi.adapter(SupabaseUser::class.java)
+internal val userAdapter = moshi.adapter(SupabaseUser::class.java)
 
-private val matchListAdapter = moshi.adapter<List<SupabaseMatch>>(Types.newParameterizedType(List::class.java, SupabaseMatch::class.java))
+internal val matchListAdapter = moshi.adapter<List<SupabaseMatch>>(Types.newParameterizedType(List::class.java, SupabaseMatch::class.java))
 
-private val matchAdapter = moshi.adapter(SupabaseMatch::class.java)
+internal val matchAdapter = moshi.adapter(SupabaseMatch::class.java)
 
-private val announcementsAdapter = moshi.adapter<List<SupabaseAnnouncement>>(Types.newParameterizedType(List::class.java, SupabaseAnnouncement::class.java))
+internal val announcementsAdapter = moshi.adapter<List<SupabaseAnnouncement>>(Types.newParameterizedType(List::class.java, SupabaseAnnouncement::class.java))
 
-private val announcementAdapter = moshi.adapter(SupabaseAnnouncement::class.java)
+internal val announcementAdapter = moshi.adapter(SupabaseAnnouncement::class.java)
 
-private val settingsAdapter = moshi.adapter<List<SupabaseSystemSetting>>(Types.newParameterizedType(List::class.java, SupabaseSystemSetting::class.java))
+internal val settingsAdapter = moshi.adapter<List<SupabaseSystemSetting>>(Types.newParameterizedType(List::class.java, SupabaseSystemSetting::class.java))
 
-private val settingAdapter = moshi.adapter(SupabaseSystemSetting::class.java)
+internal val settingAdapter = moshi.adapter(SupabaseSystemSetting::class.java)
 
-private val feedbackListAdapter = moshi.adapter<List<SupabaseFeedback>>(Types.newParameterizedType(List::class.java, SupabaseFeedback::class.java))
+internal val feedbackListAdapter = moshi.adapter<List<SupabaseFeedback>>(Types.newParameterizedType(List::class.java, SupabaseFeedback::class.java))
 
-private val feedbackV2ListAdapter = moshi.adapter<List<SupabaseFeedbackV2>>(Types.newParameterizedType(List::class.java, SupabaseFeedbackV2::class.java))
+internal val feedbackV2ListAdapter = moshi.adapter<List<SupabaseFeedbackV2>>(Types.newParameterizedType(List::class.java, SupabaseFeedbackV2::class.java))
 
-private val ticketListAdapter = moshi.adapter<List<SupabaseSupportTicket>>(Types.newParameterizedType(List::class.java, SupabaseSupportTicket::class.java))
+internal val ticketListAdapter = moshi.adapter<List<SupabaseSupportTicket>>(Types.newParameterizedType(List::class.java, SupabaseSupportTicket::class.java))
 
-private val loginHistoryListAdapter = moshi.adapter<List<SupabaseLoginHistory>>(Types.newParameterizedType(List::class.java, SupabaseLoginHistory::class.java))
+internal val loginHistoryListAdapter = moshi.adapter<List<SupabaseLoginHistory>>(Types.newParameterizedType(List::class.java, SupabaseLoginHistory::class.java))
 
-private val banListAdapter = moshi.adapter<List<SupabaseBan>>(Types.newParameterizedType(List::class.java, SupabaseBan::class.java))
+internal val banListAdapter = moshi.adapter<List<SupabaseBan>>(Types.newParameterizedType(List::class.java, SupabaseBan::class.java))
 
-private val reportListAdapter = moshi.adapter<List<SupabaseReport>>(Types.newParameterizedType(List::class.java, SupabaseReport::class.java))
+internal val reportListAdapter = moshi.adapter<List<SupabaseReport>>(Types.newParameterizedType(List::class.java, SupabaseReport::class.java))
 
-private val invitationListAdapter = moshi.adapter<List<SupabaseAdminInvitation>>(Types.newParameterizedType(List::class.java, SupabaseAdminInvitation::class.java))
+internal val invitationListAdapter = moshi.adapter<List<SupabaseAdminInvitation>>(Types.newParameterizedType(List::class.java, SupabaseAdminInvitation::class.java))
 
-private val activityListAdapter = moshi.adapter<List<SupabaseAdminActivity>>(Types.newParameterizedType(List::class.java, SupabaseAdminActivity::class.java))
+internal val activityListAdapter = moshi.adapter<List<SupabaseAdminActivity>>(Types.newParameterizedType(List::class.java, SupabaseAdminActivity::class.java))
 
-private val auditListAdapter = moshi.adapter<List<SupabaseAuditLog>>(Types.newParameterizedType(List::class.java, SupabaseAuditLog::class.java))
+internal val auditListAdapter = moshi.adapter<List<SupabaseAuditLog>>(Types.newParameterizedType(List::class.java, SupabaseAuditLog::class.java))
 
-private val sessionListAdapter = moshi.adapter<List<SupabaseAdminSession>>(Types.newParameterizedType(List::class.java, SupabaseAdminSession::class.java))
+internal val sessionListAdapter = moshi.adapter<List<SupabaseAdminSession>>(Types.newParameterizedType(List::class.java, SupabaseAdminSession::class.java))
 
-private val economyTransactionListAdapter = moshi.adapter<List<SupabaseEconomyTransaction>>(Types.newParameterizedType(List::class.java, SupabaseEconomyTransaction::class.java))
+internal val economyTransactionListAdapter = moshi.adapter<List<SupabaseEconomyTransaction>>(Types.newParameterizedType(List::class.java, SupabaseEconomyTransaction::class.java))
 
-private val storeItemListAdapter = moshi.adapter<List<SupabaseStoreItem>>(Types.newParameterizedType(List::class.java, SupabaseStoreItem::class.java))
+internal val storeItemListAdapter = moshi.adapter<List<SupabaseStoreItem>>(Types.newParameterizedType(List::class.java, SupabaseStoreItem::class.java))
 
-private val couponListAdapter = moshi.adapter<List<SupabaseCoupon>>(Types.newParameterizedType(List::class.java, SupabaseCoupon::class.java))
+internal val couponListAdapter = moshi.adapter<List<SupabaseCoupon>>(Types.newParameterizedType(List::class.java, SupabaseCoupon::class.java))
 
-private val dailyRewardListAdapter = moshi.adapter<List<SupabaseDailyReward>>(Types.newParameterizedType(List::class.java, SupabaseDailyReward::class.java))
+internal val dailyRewardListAdapter = moshi.adapter<List<SupabaseDailyReward>>(Types.newParameterizedType(List::class.java, SupabaseDailyReward::class.java))
 
-private val spinWheelRewardListAdapter = moshi.adapter<List<SupabaseSpinWheelReward>>(Types.newParameterizedType(List::class.java, SupabaseSpinWheelReward::class.java))
+internal val spinWheelRewardListAdapter = moshi.adapter<List<SupabaseSpinWheelReward>>(Types.newParameterizedType(List::class.java, SupabaseSpinWheelReward::class.java))
 
-private val liveOpsEventListAdapter = moshi.adapter<List<SupabaseLiveOpsEvent>>(Types.newParameterizedType(List::class.java, SupabaseLiveOpsEvent::class.java))
+internal val liveOpsEventListAdapter = moshi.adapter<List<SupabaseLiveOpsEvent>>(Types.newParameterizedType(List::class.java, SupabaseLiveOpsEvent::class.java))
 
-private val seasonPassListAdapter = moshi.adapter<List<SupabaseSeasonPass>>(Types.newParameterizedType(List::class.java, SupabaseSeasonPass::class.java))
+internal val seasonPassListAdapter = moshi.adapter<List<SupabaseSeasonPass>>(Types.newParameterizedType(List::class.java, SupabaseSeasonPass::class.java))
 
-private val seasonPassTierListAdapter = moshi.adapter<List<SupabaseSeasonPassTier>>(Types.newParameterizedType(List::class.java, SupabaseSeasonPassTier::class.java))
+internal val seasonPassTierListAdapter = moshi.adapter<List<SupabaseSeasonPassTier>>(Types.newParameterizedType(List::class.java, SupabaseSeasonPassTier::class.java))
 
-private val cmsContentListAdapter = moshi.adapter<List<SupabaseCMSContent>>(Types.newParameterizedType(List::class.java, SupabaseCMSContent::class.java))
+internal val cmsContentListAdapter = moshi.adapter<List<SupabaseCMSContent>>(Types.newParameterizedType(List::class.java, SupabaseCMSContent::class.java))
 
-private val geminiService: GeminiApiService by lazy {
+internal val geminiService: GeminiApiService by lazy {
         val serializationJson = SerializationJson { ignoreUnknownKeys = true }
         Retrofit.Builder()
             .baseUrl("https://generativelanguage.googleapis.com/")
@@ -166,96 +139,96 @@ private val geminiService: GeminiApiService by lazy {
             .create(GeminiApiService::class.java)
     }
 
-private val biMetricsListAdapter = moshi.adapter<List<SupabaseBIMetrics>>(Types.newParameterizedType(List::class.java, SupabaseBIMetrics::class.java))
+internal val biMetricsListAdapter = moshi.adapter<List<SupabaseBIMetrics>>(Types.newParameterizedType(List::class.java, SupabaseBIMetrics::class.java))
 
-private val crashLogListAdapter = moshi.adapter<List<SupabaseCrashLog>>(Types.newParameterizedType(List::class.java, SupabaseCrashLog::class.java))
+internal val crashLogListAdapter = moshi.adapter<List<SupabaseCrashLog>>(Types.newParameterizedType(List::class.java, SupabaseCrashLog::class.java))
 
-private val fraudAlertListAdapter = moshi.adapter<List<SupabaseFraudAlert>>(Types.newParameterizedType(List::class.java, SupabaseFraudAlert::class.java))
+internal val fraudAlertListAdapter = moshi.adapter<List<SupabaseFraudAlert>>(Types.newParameterizedType(List::class.java, SupabaseFraudAlert::class.java))
 
-private val financeReportListAdapter = moshi.adapter<List<SupabaseFinanceReport>>(Types.newParameterizedType(List::class.java, SupabaseFinanceReport::class.java))
+internal val financeReportListAdapter = moshi.adapter<List<SupabaseFinanceReport>>(Types.newParameterizedType(List::class.java, SupabaseFinanceReport::class.java))
 
-private val queueMetricListAdapter = moshi.adapter<List<SupabaseQueueMetric>>(Types.newParameterizedType(List::class.java, SupabaseQueueMetric::class.java))
+internal val queueMetricListAdapter = moshi.adapter<List<SupabaseQueueMetric>>(Types.newParameterizedType(List::class.java, SupabaseQueueMetric::class.java))
 
-private val deviceRecordListAdapter = moshi.adapter<List<SupabaseDeviceRecord>>(Types.newParameterizedType(List::class.java, SupabaseDeviceRecord::class.java))
+internal val deviceRecordListAdapter = moshi.adapter<List<SupabaseDeviceRecord>>(Types.newParameterizedType(List::class.java, SupabaseDeviceRecord::class.java))
 
-private val healthMetricListAdapter = moshi.adapter<List<SupabaseBIHealthMetric>>(Types.newParameterizedType(List::class.java, SupabaseBIHealthMetric::class.java))
+internal val healthMetricListAdapter = moshi.adapter<List<SupabaseBIHealthMetric>>(Types.newParameterizedType(List::class.java, SupabaseBIHealthMetric::class.java))
 
-private val _adminInvitations = MutableStateFlow<List<SupabaseAdminInvitation>>(emptyList())
+internal val _adminInvitations = MutableStateFlow<List<SupabaseAdminInvitation>>(emptyList())
 
 val adminInvitations: StateFlow<List<SupabaseAdminInvitation>> = _adminInvitations
 
-private val _adminActivities = MutableStateFlow<List<SupabaseAdminActivity>>(emptyList())
+internal val _adminActivities = MutableStateFlow<List<SupabaseAdminActivity>>(emptyList())
 
 val adminActivities: StateFlow<List<SupabaseAdminActivity>> = _adminActivities
 
-private val _auditLogsV2 = MutableStateFlow<List<SupabaseAuditLog>>(emptyList())
+internal val _auditLogsV2 = MutableStateFlow<List<SupabaseAuditLog>>(emptyList())
 
 val auditLogsV2: StateFlow<List<SupabaseAuditLog>> = _auditLogsV2
 
-private val _adminSessions = MutableStateFlow<List<SupabaseAdminSession>>(emptyList())
+internal val _adminSessions = MutableStateFlow<List<SupabaseAdminSession>>(emptyList())
 
 val adminSessions: StateFlow<List<SupabaseAdminSession>> = _adminSessions
 
-private val _economyTransactions = MutableStateFlow<List<SupabaseEconomyTransaction>>(emptyList())
+internal val _economyTransactions = MutableStateFlow<List<SupabaseEconomyTransaction>>(emptyList())
 
 val economyTransactions: StateFlow<List<SupabaseEconomyTransaction>> = _economyTransactions
 
-private val _storeItems = MutableStateFlow<List<SupabaseStoreItem>>(emptyList())
+internal val _storeItems = MutableStateFlow<List<SupabaseStoreItem>>(emptyList())
 
 val storeItems: StateFlow<List<SupabaseStoreItem>> = _storeItems
 
-private val _coupons = MutableStateFlow<List<SupabaseCoupon>>(emptyList())
+internal val _coupons = MutableStateFlow<List<SupabaseCoupon>>(emptyList())
 
 val coupons: StateFlow<List<SupabaseCoupon>> = _coupons
 
-private val _dailyRewards = MutableStateFlow<List<SupabaseDailyReward>>(emptyList())
+internal val _dailyRewards = MutableStateFlow<List<SupabaseDailyReward>>(emptyList())
 
 val dailyRewards: StateFlow<List<SupabaseDailyReward>> = _dailyRewards
 
-private val _spinWheelRewards = MutableStateFlow<List<SupabaseSpinWheelReward>>(emptyList())
+internal val _spinWheelRewards = MutableStateFlow<List<SupabaseSpinWheelReward>>(emptyList())
 
 val spinWheelRewards: StateFlow<List<SupabaseSpinWheelReward>> = _spinWheelRewards
 
-private val _liveOpsEvents = MutableStateFlow<List<SupabaseLiveOpsEvent>>(emptyList())
+internal val _liveOpsEvents = MutableStateFlow<List<SupabaseLiveOpsEvent>>(emptyList())
 
 val liveOpsEvents: StateFlow<List<SupabaseLiveOpsEvent>> = _liveOpsEvents
 
-private val _seasonPasses = MutableStateFlow<List<SupabaseSeasonPass>>(emptyList())
+internal val _seasonPasses = MutableStateFlow<List<SupabaseSeasonPass>>(emptyList())
 
 val seasonPasses: StateFlow<List<SupabaseSeasonPass>> = _seasonPasses
 
-private val _cmsContent = MutableStateFlow<List<SupabaseCMSContent>>(emptyList())
+internal val _cmsContent = MutableStateFlow<List<SupabaseCMSContent>>(emptyList())
 
 val cmsContent: StateFlow<List<SupabaseCMSContent>> = _cmsContent
 
-private val _biMetrics = MutableStateFlow<List<SupabaseBIMetrics>>(emptyList())
+internal val _biMetrics = MutableStateFlow<List<SupabaseBIMetrics>>(emptyList())
 
 val biMetrics: StateFlow<List<SupabaseBIMetrics>> = _biMetrics
 
-private val _crashLogs = MutableStateFlow<List<SupabaseCrashLog>>(emptyList())
+internal val _crashLogs = MutableStateFlow<List<SupabaseCrashLog>>(emptyList())
 
 val crashLogs: StateFlow<List<SupabaseCrashLog>> = _crashLogs
 
-private val _fraudAlerts = MutableStateFlow<List<SupabaseFraudAlert>>(emptyList())
+internal val _fraudAlerts = MutableStateFlow<List<SupabaseFraudAlert>>(emptyList())
 
 val fraudAlerts: StateFlow<List<SupabaseFraudAlert>> = _fraudAlerts
 
-private val _financeReports = MutableStateFlow<List<SupabaseFinanceReport>>(emptyList())
+internal val _financeReports = MutableStateFlow<List<SupabaseFinanceReport>>(emptyList())
 
 val financeReports: StateFlow<List<SupabaseFinanceReport>> = _financeReports
 
-private val _queueMetrics = MutableStateFlow<List<SupabaseQueueMetric>>(emptyList())
+internal val _queueMetrics = MutableStateFlow<List<SupabaseQueueMetric>>(emptyList())
 
 val queueMetrics: StateFlow<List<SupabaseQueueMetric>> = _queueMetrics
 
-private val _deviceRecords = MutableStateFlow<List<SupabaseDeviceRecord>>(emptyList())
+internal val _deviceRecords = MutableStateFlow<List<SupabaseDeviceRecord>>(emptyList())
 
 val deviceRecords: StateFlow<List<SupabaseDeviceRecord>> = _deviceRecords
 
 // Super Admin Management Functions
 
 fun promoteUserToRole(userId: String, role: String, permissions: List<String>) {
-        if (!hasPermission("assign_roles")) return
+        if (!userHasPermission("assign_roles")) return
         scope.launch {
             val update = mapOf("role" to role, "permissions" to permissions)
             val json = moshi.adapter(Map::class.java).toJson(update)
@@ -283,7 +256,7 @@ fun demoteAdmin(userId: String) {
     }
 
 fun terminateAdminSession(sessionId: String) {
-        if (!hasPermission("manage_admins")) return
+        if (!userHasPermission("manage_admins")) return
         scope.launch {
             val update = mapOf("terminated_at" to java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.getDefault()).format(java.util.Date()))
             val json = moshi.adapter(Map::class.java).toJson(update)
@@ -307,7 +280,7 @@ fun terminateAdminSession(sessionId: String) {
     }
 
 fun fetchAdminSessions() {
-        if (!hasPermission("view_logs")) return
+        if (!userHasPermission("view_logs")) return
         scope.launch {
             val request = Request.Builder()
                 .url("$supabaseUrl/rest/v1/admin_sessions?select=*&order=created_at.desc")
@@ -329,71 +302,66 @@ fun fetchAdminSessions() {
 
 // --- RBAC & Permissions ---
 
-private val roleHierarchy = mapOf(
-        "owner" to 100,
-        "super_admin" to 90,
-        "admin" to 80,
-        "moderator" to 70,
-        "support" to 60,
-        "community_manager" to 50,
-        "analytics" to 40,
-        "finance" to 40,
-        "read_only" to 30,
-        "player" to 10
+internal val roleHierarchy = mapOf(
+        "super_admin" to 100,
+        "superadmin" to 100,
+        "admin" to 100,
+        "player" to 50,
+        "publicuser" to 10,
+        "user" to 10
     )
 
-fun hasPermission(permission: String): Boolean {
+fun userHasPermission(permission: String): Boolean {
         val user = _currentUser.value ?: return false
         val role = user.role.lowercase()
         
-        // Owner and Super Admin have full access
-        if (role == "owner" || role == "super_admin") return true
+        // Admin and Super Admin roles get full system access to everything
+        if (role == "admin" || role == "superadmin" || role == "super_admin" || role == "owner") return true
 
-        // Basic permission check against list in user object
-        // In production, this would be validated via RLS on every DB call
         return user.permissions.contains(permission) || checkRolePermissions(role, permission)
     }
 
-private fun checkRolePermissions(role: String, permission: String): Boolean {
-        // Simplified local check; production uses Supabase role_permissions table
+    internal fun checkRolePermissions(role: String, permission: String): Boolean {
         return when (role) {
-            "admin" -> !permission.startsWith("delete_") && permission != "assign_roles"
-            "moderator" -> permission in listOf("view_users", "ban_users", "manage_events", "view_reports")
-            "support" -> permission in listOf("view_users", "view_reports", "edit_users")
-            "analytics" -> permission == "view_analytics"
-            "read_only" -> permission.startsWith("view_")
+            "admin", "superadmin", "super_admin" -> true
             else -> false
         }
     }
 
 fun isAtLeast(minRole: String): Boolean {
-        val currentRole = _currentUser.value?.role?.lowercase() ?: "player"
+        val currentRole = _currentUser.value?.role?.lowercase() ?: "publicuser"
         val currentWeight = roleHierarchy[currentRole] ?: 0
         val minWeight = roleHierarchy[minRole.lowercase()] ?: 100
         return currentWeight >= minWeight
     }
 
-private val appVersionListAdapter = moshi.adapter<List<SupabaseAppVersion>>(Types.newParameterizedType(List::class.java, SupabaseAppVersion::class.java))
+internal val appVersionListAdapter = moshi.adapter<List<SupabaseAppVersion>>(Types.newParameterizedType(List::class.java, SupabaseAppVersion::class.java))
 
-private val maintenanceListAdapter = moshi.adapter<List<SupabaseMaintenanceSchedule>>(Types.newParameterizedType(List::class.java, SupabaseMaintenanceSchedule::class.java))
+internal val maintenanceListAdapter = moshi.adapter<List<SupabaseMaintenanceSchedule>>(Types.newParameterizedType(List::class.java, SupabaseMaintenanceSchedule::class.java))
 
-private val tournamentListAdapter = moshi.adapter<List<SupabaseTournament>>(Types.newParameterizedType(List::class.java, SupabaseTournament::class.java))
+internal val tournamentListAdapter = moshi.adapter<List<SupabaseTournament>>(Types.newParameterizedType(List::class.java, SupabaseTournament::class.java))
 
-private val eventListAdapter = moshi.adapter<List<SupabaseGameEvent>>(Types.newParameterizedType(List::class.java, SupabaseGameEvent::class.java))
+internal val eventListAdapter = moshi.adapter<List<SupabaseGameEvent>>(Types.newParameterizedType(List::class.java, SupabaseGameEvent::class.java))
 
-private val antiCheatListAdapter = moshi.adapter<List<SupabaseAntiCheatLog>>(Types.newParameterizedType(List::class.java, SupabaseAntiCheatLog::class.java))
+internal val roleListAdapter = moshi.adapter<List<SupabaseRole>>(Types.newParameterizedType(List::class.java, SupabaseRole::class.java))
 
-private val leaderboardSnapshotListAdapter = moshi.adapter<List<SupabaseLeaderboardSnapshot>>(Types.newParameterizedType(List::class.java, SupabaseLeaderboardSnapshot::class.java))
+internal val permissionListAdapter = moshi.adapter<List<SupabasePermission>>(Types.newParameterizedType(List::class.java, SupabasePermission::class.java))
 
-private val dataExportListAdapter = moshi.adapter<List<SupabaseDataExportRequest>>(Types.newParameterizedType(List::class.java, SupabaseDataExportRequest::class.java))
+internal val rolePermissionListAdapter = moshi.adapter<List<SupabaseRolePermission>>(Types.newParameterizedType(List::class.java, SupabaseRolePermission::class.java))
 
-private val biDailyMetricListAdapter = moshi.adapter<List<SupabaseBIDailyMetric>>(Types.newParameterizedType(List::class.java, SupabaseBIDailyMetric::class.java))
+internal val antiCheatListAdapter = moshi.adapter<List<SupabaseAntiCheatLog>>(Types.newParameterizedType(List::class.java, SupabaseAntiCheatLog::class.java))
 
-private val biNotificationListAdapter = moshi.adapter<List<SupabaseBINotification>>(Types.newParameterizedType(List::class.java, SupabaseBINotification::class.java))
+internal val leaderboardSnapshotListAdapter = moshi.adapter<List<SupabaseLeaderboardSnapshot>>(Types.newParameterizedType(List::class.java, SupabaseLeaderboardSnapshot::class.java))
 
-private val biAppLogListAdapter = moshi.adapter<List<SupabaseBIAppLog>>(Types.newParameterizedType(List::class.java, SupabaseBIAppLog::class.java))
+internal val dataExportListAdapter = moshi.adapter<List<SupabaseDataExportRequest>>(Types.newParameterizedType(List::class.java, SupabaseDataExportRequest::class.java))
 
-private val biHealthMetricListAdapter = moshi.adapter<List<SupabaseBIHealthMetric>>(Types.newParameterizedType(List::class.java, SupabaseBIHealthMetric::class.java))
+internal val biDailyMetricListAdapter = moshi.adapter<List<SupabaseBIDailyMetric>>(Types.newParameterizedType(List::class.java, SupabaseBIDailyMetric::class.java))
+
+internal val biNotificationListAdapter = moshi.adapter<List<SupabaseBINotification>>(Types.newParameterizedType(List::class.java, SupabaseBINotification::class.java))
+
+internal val biAppLogListAdapter = moshi.adapter<List<SupabaseBIAppLog>>(Types.newParameterizedType(List::class.java, SupabaseBIAppLog::class.java))
+
+internal val biHealthMetricListAdapter = moshi.adapter<List<SupabaseBIHealthMetric>>(Types.newParameterizedType(List::class.java, SupabaseBIHealthMetric::class.java))
 
 // Fetch actual variables from BuildConfig injected via .env
 
@@ -422,7 +390,7 @@ val isConfigured: Boolean
                 supabaseAnonKey.isNotBlank() && 
                 supabaseAnonKey != "SUPABASE_ANON_KEY_PLACEHOLDER"
 
-private val client: OkHttpClient = try {
+    val client: OkHttpClient = try {
         val parsedHost = if (supabaseUrl.isNotBlank()) {
             val cleanedUrl = if (!supabaseUrl.startsWith("http")) "https://$supabaseUrl" else supabaseUrl
             java.net.URI(cleanedUrl).host
@@ -468,21 +436,21 @@ catch (e: Exception) {
 
 // TTL Cache variables for semi-static queries
 
-private var lastAnnouncementsFetchTime = 0L
+internal var lastAnnouncementsFetchTime = 0L
 
-private var lastSettingsFetchTime = 0L
+internal var lastSettingsFetchTime = 0L
 
-private var lastAdConfigFetchTime = 0L
+internal var lastAdConfigFetchTime = 0L
 
-private var lastAppVersionsFetchTime = 0L
+internal var lastAppVersionsFetchTime = 0L
 
-private var lastMaintenanceFetchTime = 0L
+internal var lastMaintenanceFetchTime = 0L
 
-private val CACHE_TTL_MS = 5 * 60 * 1000L // 5 minutes TTL
+internal val CACHE_TTL_MS = 5 * 60 * 1000L // 5 minutes TTL
 
 // Robust Retry with Jitter & Exponential Backoff
 
-private fun Call.enqueueWithRetry(
+internal fun Call.enqueueWithRetry(
         maxRetries: Int = 3,
         initialDelayMs: Long = 1000,
         factor: Double = 2.0,
@@ -525,61 +493,70 @@ private fun Call.enqueueWithRetry(
 
 // Reactive UI States
 
-private val _isSyncing = MutableStateFlow(false)
+internal val _isSyncing = MutableStateFlow(false)
 
 val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
-private val _users = MutableStateFlow<List<SupabaseUser>>(emptyList())
+internal val _users = MutableStateFlow<List<SupabaseUser>>(emptyList())
 
 val users: StateFlow<List<SupabaseUser>> = _users.asStateFlow()
 
-private val _matches = MutableStateFlow<List<SupabaseMatch>>(emptyList())
+internal val _matches = MutableStateFlow<List<SupabaseMatch>>(emptyList())
 
 val matches: StateFlow<List<SupabaseMatch>> = _matches.asStateFlow()
 
-private val _announcements = MutableStateFlow<List<SupabaseAnnouncement>>(emptyList())
+internal val _announcements = MutableStateFlow<List<SupabaseAnnouncement>>(emptyList())
 
 val announcements: StateFlow<List<SupabaseAnnouncement>> = _announcements.asStateFlow()
 
-private val _systemSettings = MutableStateFlow<List<SupabaseSystemSetting>>(emptyList())
+internal val _systemSettings = MutableStateFlow<List<SupabaseSystemSetting>>(emptyList())
 
 val systemSettings: StateFlow<List<SupabaseSystemSetting>> = _systemSettings.asStateFlow()
 
-private val _feedback = MutableStateFlow<List<SupabaseFeedback>>(emptyList())
+internal val _feedback = MutableStateFlow<List<SupabaseFeedback>>(emptyList())
 
 val feedback: StateFlow<List<SupabaseFeedback>> = _feedback.asStateFlow()
 
-private val _feedbackV2 = MutableStateFlow<List<SupabaseFeedbackV2>>(emptyList())
+internal val _feedbackV2 = MutableStateFlow<List<SupabaseFeedbackV2>>(emptyList())
 
 val feedbackV2: StateFlow<List<SupabaseFeedbackV2>> = _feedbackV2.asStateFlow()
 
-private val _tickets = MutableStateFlow<List<SupabaseSupportTicket>>(emptyList())
+internal val _tickets = MutableStateFlow<List<SupabaseSupportTicket>>(emptyList())
 
 val tickets: StateFlow<List<SupabaseSupportTicket>> = _tickets.asStateFlow()
 
-private val _userLoginHistory = MutableStateFlow<List<SupabaseLoginHistory>>(emptyList())
+internal val _userLoginHistory = MutableStateFlow<List<SupabaseLoginHistory>>(emptyList())
 
 val userLoginHistory: StateFlow<List<SupabaseLoginHistory>> = _userLoginHistory.asStateFlow()
 
-private val _auditLogs = MutableStateFlow<List<SupabaseAuditLog>>(emptyList())
+internal val _auditLogs = MutableStateFlow<List<SupabaseAuditLog>>(emptyList())
 
 val auditLogs: StateFlow<List<SupabaseAuditLog>> = _auditLogs.asStateFlow()
 
-private val _tournaments = MutableStateFlow<List<SupabaseTournament>>(emptyList())
+internal val _tournaments = MutableStateFlow<List<SupabaseTournament>>(emptyList())
 
 val tournaments: StateFlow<List<SupabaseTournament>> = _tournaments.asStateFlow()
 
-private val _gameEvents = MutableStateFlow<List<SupabaseGameEvent>>(emptyList())
+internal val _gameEvents = MutableStateFlow<List<SupabaseGameEvent>>(emptyList())
 
 val gameEvents: StateFlow<List<SupabaseGameEvent>> = _gameEvents.asStateFlow()
 
-private val _antiCheatLogs = MutableStateFlow<List<SupabaseAntiCheatLog>>(emptyList())
+internal val _roles = MutableStateFlow<List<SupabaseRole>>(emptyList())
+val roles: StateFlow<List<SupabaseRole>> = _roles.asStateFlow()
+
+internal val _permissions = MutableStateFlow<List<SupabasePermission>>(emptyList())
+val permissions: StateFlow<List<SupabasePermission>> = _permissions.asStateFlow()
+
+internal val _rolePermissions = MutableStateFlow<List<SupabaseRolePermission>>(emptyList())
+val rolePermissions: StateFlow<List<SupabaseRolePermission>> = _rolePermissions.asStateFlow()
+
+internal val _antiCheatLogs = MutableStateFlow<List<SupabaseAntiCheatLog>>(emptyList())
 
 val antiCheatLogs: StateFlow<List<SupabaseAntiCheatLog>> = _antiCheatLogs.asStateFlow()
 
 // Active Admin ID & profile settings (For testing roles easily in APK)
 
-private val _currentAdminRole = MutableStateFlow("user") // Default to user for security
+internal val _currentAdminRole = MutableStateFlow("user") // Default to user for security
 
 val currentAdminRole: StateFlow<String> = _currentAdminRole.asStateFlow()
 
@@ -596,129 +573,72 @@ val isBanned: Boolean = false,
 val createdAt: String = ""
     )
 
-data class DbHealthMetrics(
 
-val latencyMs: Long = 0,
-
-val roomCount: Int = 0,
-
-val profileCount: Int = 0,
-
-val lastRefresh: Long = System.currentTimeMillis()
-    )
-
-private val _profiles = MutableStateFlow<List<SupabaseProfile>>(emptyList())
-
-val profiles: StateFlow<List<SupabaseProfile>> = _profiles.asStateFlow()
-
-private val _healthMetrics = MutableStateFlow(DbHealthMetrics())
-
-val healthMetrics: StateFlow<DbHealthMetrics> = _healthMetrics.asStateFlow()
-
-data class AdminAuditLog(
-
-val timestamp: Long = System.currentTimeMillis(),
-
-val adminId: String,
-
-val action: String,
-
-val target: String
-    )
-
-data class AdConfiguration(
-
-val activeProvider: String = "ADMOB",
-
-val bannerAdUnitId: String = "ca-app-pub-3940256099942544/6300978111",
-
-val interstitialAdUnitId: String = "ca-app-pub-3940256099942544/1033173712",
-
-val rewardedAdUnitId: String = "ca-app-pub-3940256099942544/5224354917",
-
-val interstitialFrequencyCap: Int = 3,
-
-val isMonetizationGlobalOverride: Boolean = true
-    )
-
-data class AdTelemetry(
-
-val totalRequests: Int = 0,
-
-val filledImpressions: Int = 0,
-
-val fillRate: Float = 0f,
-
-val estimatedEcpm: Float = 0f,
-
-val lastFlushTimestamp: Long = System.currentTimeMillis()
-    )
-
-private val _adConfig = MutableStateFlow(AdConfiguration())
+internal val _adConfig = MutableStateFlow(AdConfiguration())
 
 val adConfig: StateFlow<AdConfiguration> = _adConfig.asStateFlow()
 
-private val _adTelemetry = MutableStateFlow(AdTelemetry())
+internal val _adTelemetry = MutableStateFlow(AdTelemetry())
 
 val adTelemetry: StateFlow<AdTelemetry> = _adTelemetry.asStateFlow()
 
-private val _maintenanceMode = MutableStateFlow(false)
+internal val _maintenanceMode = MutableStateFlow(false)
 
 val maintenanceMode: StateFlow<Boolean> = _maintenanceMode.asStateFlow()
 
-private val _multiplayerEnabled = MutableStateFlow(true)
+internal val _multiplayerEnabled = MutableStateFlow(true)
 
 val multiplayerEnabled: StateFlow<Boolean> = _multiplayerEnabled.asStateFlow()
 
-private val _globalBroadcast = MutableStateFlow<String?>(null)
+internal val _globalBroadcast = MutableStateFlow<String?>(null)
 
 val globalBroadcast: StateFlow<String?> = _globalBroadcast.asStateFlow()
 
-private val _biDailyMetrics = MutableStateFlow<List<SupabaseBIDailyMetric>>(emptyList())
+internal val _biDailyMetrics = MutableStateFlow<List<SupabaseBIDailyMetric>>(emptyList())
 
 val biDailyMetrics: StateFlow<List<SupabaseBIDailyMetric>> = _biDailyMetrics.asStateFlow()
 
-private val _biNotifications = MutableStateFlow<List<SupabaseBINotification>>(emptyList())
+internal val _biNotifications = MutableStateFlow<List<SupabaseBINotification>>(emptyList())
 
 val biNotifications: StateFlow<List<SupabaseBINotification>> = _biNotifications.asStateFlow()
 
-private val _biAppLogs = MutableStateFlow<List<SupabaseBIAppLog>>(emptyList())
+internal val _biAppLogs = MutableStateFlow<List<SupabaseBIAppLog>>(emptyList())
 
 val biAppLogs: StateFlow<List<SupabaseBIAppLog>> = _biAppLogs.asStateFlow()
 
-private val _biHealthMetrics = MutableStateFlow<List<SupabaseBIHealthMetric>>(emptyList())
+internal val _biHealthMetrics = MutableStateFlow<List<SupabaseBIHealthMetric>>(emptyList())
 
 val biHealthMetrics: StateFlow<List<SupabaseBIHealthMetric>> = _biHealthMetrics.asStateFlow()
 
-private val _adminAuditLogs = MutableStateFlow<List<AdminAuditLog>>(emptyList())
+internal val _adminAuditLogs = MutableStateFlow<List<AdminAuditLog>>(emptyList())
 
 val adminAuditLogs: StateFlow<List<AdminAuditLog>> = _adminAuditLogs.asStateFlow()
 
-private val _bans = MutableStateFlow<List<SupabaseBan>>(emptyList())
+internal val _bans = MutableStateFlow<List<SupabaseBan>>(emptyList())
 
 val bans: StateFlow<List<SupabaseBan>> = _bans.asStateFlow()
 
-private val _reports = MutableStateFlow<List<SupabaseReport>>(emptyList())
+internal val _reports = MutableStateFlow<List<SupabaseReport>>(emptyList())
 
 val reports: StateFlow<List<SupabaseReport>> = _reports.asStateFlow()
 
-private val _appVersions = MutableStateFlow<List<SupabaseAppVersion>>(emptyList())
+internal val _appVersions = MutableStateFlow<List<SupabaseAppVersion>>(emptyList())
 
 val appVersions: StateFlow<List<SupabaseAppVersion>> = _appVersions.asStateFlow()
 
-private val _maintenanceSchedules = MutableStateFlow<List<SupabaseMaintenanceSchedule>>(emptyList())
+internal val _maintenanceSchedules = MutableStateFlow<List<SupabaseMaintenanceSchedule>>(emptyList())
 
 val maintenanceSchedules: StateFlow<List<SupabaseMaintenanceSchedule>> = _maintenanceSchedules.asStateFlow()
 
-private val _dataExportRequests = MutableStateFlow<List<SupabaseDataExportRequest>>(emptyList())
+internal val _dataExportRequests = MutableStateFlow<List<SupabaseDataExportRequest>>(emptyList())
 
 val dataExportRequests: StateFlow<List<SupabaseDataExportRequest>> = _dataExportRequests.asStateFlow()
 
-private val _currentUserPermissions = MutableStateFlow<Set<String>>(emptySet())
+    val _currentUserPermissions = MutableStateFlow<Set<String>>(emptySet())
 
 val currentUserPermissions: StateFlow<Set<String>> = _currentUserPermissions.asStateFlow()
 
-private val _currentUserRoles = MutableStateFlow<Set<String>>(emptySet())
+    val _currentUserRoles = MutableStateFlow<Set<String>>(emptySet())
 
 val currentUserRoles: StateFlow<Set<String>> = _currentUserRoles.asStateFlow()
 
@@ -961,7 +881,7 @@ fun fetchMaintenanceSchedules() {
 
 fun applyBan(userId: String, reason: String, expiresAt: String? = null) {
         if (isConfigured) {
-            if (!hasPermission("moderate_users")) return
+            if (!userHasPermission("moderate_users")) return
             scope.launch {
                 val ban = mapOf(
                     "user_id" to userId,
@@ -1014,7 +934,7 @@ fun applyBan(userId: String, reason: String, expiresAt: String? = null) {
 
 fun resolveReport(reportId: String, status: String) {
         if (isConfigured) {
-            if (!hasPermission("moderate_users")) return
+            if (!userHasPermission("moderate_users")) return
             scope.launch {
                 val update = mapOf(
                     "status" to status,
@@ -1207,11 +1127,11 @@ fun forceTerminateRoom(roomCode: String, onResult: (Boolean) -> Unit) {
         }
     }
 
-private val _isLoading = MutableStateFlow(false)
+internal val _isLoading = MutableStateFlow(false)
 
 val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-private val _errorMessage = MutableStateFlow<String?>(null)
+internal val _errorMessage = MutableStateFlow<String?>(null)
 
 val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
@@ -1222,11 +1142,11 @@ init {
 
 // Current User Session
 
-private val _currentUser = MutableStateFlow<SupabaseUser?>(null)
+    val _currentUser = MutableStateFlow<SupabaseUser?>(null)
 
 val currentUser: StateFlow<SupabaseUser?> = _currentUser.asStateFlow()
 
-private val _passwordResetRequired = MutableStateFlow(false)
+    val _passwordResetRequired = MutableStateFlow(false)
 val passwordResetRequired: StateFlow<Boolean> = _passwordResetRequired.asStateFlow()
 
 fun clearPasswordResetRequired() {
@@ -1239,9 +1159,9 @@ fun processUserAndPromoteIfAdmin(user: SupabaseUser): SupabaseUser {
         return user
     }
 
-private fun loadCurrentUserSession() {
-        val saved = prefs.getString("current_user_session", null)
+    internal fun loadCurrentUserSession() {
         sessionToken = prefs.getString("supabase_session_token", null)
+        val saved = prefs.getString("current_user_session", null)
         Log.d(tag, "loadCurrentUserSession called. saved_session: ${saved != null}, token_present: ${sessionToken != null}")
         if (saved != null) {
             try {
@@ -1265,7 +1185,7 @@ private fun loadCurrentUserSession() {
         }
     }
 
-private fun fetchCurrentPermissions() {
+    internal fun fetchCurrentPermissions() {
         val user = _currentUser.value ?: return
         if (!isConfigured) return
         
@@ -1310,12 +1230,23 @@ private fun fetchCurrentPermissions() {
 
                             val legacyRole = when {
                                 finalRoles.contains("admin") -> "admin"
-                                finalRoles.contains("moderator") -> "moderator"
-                                else -> "user"
+                                finalRoles.contains("player") -> "player"
+                                finalRoles.contains("publicuser") -> "publicuser"
+                                else -> _currentUser.value?.role ?: "publicuser"
                             }
                             _currentAdminRole.value = legacyRole
 
-                            _currentUser.update { it?.copy(roles = finalRoles.toList(), permissions = perms.toList(), role = legacyRole) }
+                            _currentUser.update { current ->
+                                val actualRole = when {
+                                    finalRoles.contains("admin") -> "admin"
+                                    finalRoles.contains("player") -> "player"
+                                    finalRoles.contains("publicuser") -> "publicuser"
+                                    else -> current?.role ?: "publicuser"
+                                }
+                                current?.copy(roles = finalRoles.toList(), permissions = perms.toList(), role = actualRole)?.also { updated ->
+                                    prefs.edit().putString("current_user_session", userAdapter.toJson(updated)).apply()
+                                }
+                            }
                         } catch (e: Exception) {
                             Log.e(tag, "Failed to parse permissions", e)
                         }
@@ -1325,7 +1256,7 @@ private fun fetchCurrentPermissions() {
         }
     }
 
-private fun runOnMain(block: () -> Unit) {
+    fun runOnMain(block: () -> Unit) {
         Handler(Looper.getMainLooper()).post(block)
     }
 
@@ -1377,7 +1308,7 @@ fun signUp(email: String, username: String, pass: String, onResult: (Boolean, St
                                 id = authId,
                                 username = trimmedUsername,
                                 email = trimmedEmail,
-                                role = "user",
+                                role = "publicuser",
                                 createdAt = dateStr,
                                 totalGames = 0,
                                 wins = 0,
@@ -1429,7 +1360,7 @@ fun signUp(email: String, username: String, pass: String, onResult: (Boolean, St
                 id = "u_sim_" + (1000..9999).random(),
                 username = username,
                 email = email,
-                role = "user",
+                role = "publicuser",
                 createdAt = dateStr,
                 totalGames = 0,
                 wins = 0,
@@ -1527,7 +1458,7 @@ fun login(email: String, pass: String, onResult: (Boolean, String?) -> Unit) {
                                                         id = authId,
                                                         username = extractedUsername,
                                                         email = trimmedEmail,
-                                                        role = "user",
+                                                        role = "publicuser",
                                                         createdAt = dateStr,
                                                         totalGames = 0,
                                                         wins = 0,
@@ -1619,7 +1550,7 @@ fun signInWithOAuth(provider: String, context: android.content.Context, onResult
                 id = "u_sim_oauth_$randomSuffix",
                 username = simulatedName,
                 email = simulatedEmail,
-                role = "user",
+                role = "publicuser",
                 createdAt = dateStr,
                 totalGames = 0,
                 wins = 0,
@@ -1731,7 +1662,7 @@ fun fetchUserProfileWithToken(token: String, onResult: (Boolean, String?) -> Uni
                                                     id = authId,
                                                     username = username,
                                                     email = email,
-                                                    role = "user",
+                                                    role = "publicuser",
                                                     createdAt = dateStr,
                                                     totalGames = 0,
                                                     wins = 0,
@@ -2022,7 +1953,7 @@ fun loadInitialData() {
             } else {
                 // Fallback to local storage simulator (fully functional so buttons are active!)
                 Log.d(tag, "Supabase Credentials Missing. Loading robust local database simulation...")
-                loadSimulatedData()
+                loadSimulatorData()
                 fetchAdConfiguration() // Simulated load
             }
             _isLoading.value = false
@@ -2031,7 +1962,7 @@ fun loadInitialData() {
 
 // --- REAL SUPABASE NETWORK INTEGRATION (REST Client via OkHttp) ---
 
-private fun getHeaders(): Headers {
+    fun getHeaders(): Headers {
         val authHeader = if (sessionToken != null) "Bearer $sessionToken" else "Bearer $supabaseAnonKey"
         return Headers.Builder()
             .add("apikey", supabaseAnonKey)
@@ -2041,7 +1972,7 @@ private fun getHeaders(): Headers {
             .build()
     }
 
-private fun getFeedbackHeaders(useSessionToken: Boolean): Headers {
+    internal fun getFeedbackHeaders(useSessionToken: Boolean): Headers {
         val authHeader = if (useSessionToken && sessionToken != null) "Bearer $sessionToken" else "Bearer $supabaseAnonKey"
         return Headers.Builder()
             .add("apikey", supabaseAnonKey)
@@ -2051,7 +1982,7 @@ private fun getFeedbackHeaders(useSessionToken: Boolean): Headers {
             .build()
     }
 
-private suspend fun fetchRemoteUsers() = withContext(Dispatchers.IO) {
+    internal suspend fun fetchRemoteUsers() = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url("$supabaseUrl/rest/v1/users?select=*&order=createdAt.desc&limit=100")
             .headers(getHeaders())
@@ -2076,7 +2007,7 @@ private suspend fun fetchRemoteUsers() = withContext(Dispatchers.IO) {
         )
     }
 
-private suspend fun fetchRemoteMatches() = withContext(Dispatchers.IO) {
+    internal suspend fun fetchRemoteMatches() = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url("$supabaseUrl/rest/v1/matches?select=*&order=createdAt.desc&limit=100")
             .headers(getHeaders())
@@ -2099,7 +2030,7 @@ private suspend fun fetchRemoteMatches() = withContext(Dispatchers.IO) {
         )
     }
 
-private suspend fun fetchRemoteAnnouncements() = withContext(Dispatchers.IO) {
+    internal suspend fun fetchRemoteAnnouncements() = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
         if (now - lastAnnouncementsFetchTime < CACHE_TTL_MS && _announcements.value.isNotEmpty()) {
             Log.d(tag, "Returning cached announcements (TTL valid)")
@@ -2129,7 +2060,7 @@ private suspend fun fetchRemoteAnnouncements() = withContext(Dispatchers.IO) {
         )
     }
 
-private suspend fun fetchRemoteSettings() = withContext(Dispatchers.IO) {
+    internal suspend fun fetchRemoteSettings() = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
         if (now - lastSettingsFetchTime < CACHE_TTL_MS && _systemSettings.value.isNotEmpty()) {
             Log.d(tag, "Returning cached system settings (TTL valid)")
@@ -2274,8 +2205,7 @@ fun deleteUserRemote(userId: String) {
 
 // --- ROBUST IN-APP DATABASE SIMULATOR (No-Crash fallback) ---
 
-private fun loadSimulatedData() {
-        // Users
+    internal fun loadSimulatorData() {
         val usersSaved = prefs.getString("sim_users", null)
         if (usersSaved != null) {
             try {
@@ -2375,47 +2305,47 @@ private fun loadSimulatedData() {
         }
     }
 
-private fun saveSimulatorUsers() {
+    internal fun saveSimulatorUsers() {
         prefs.edit().putString("sim_users", userListAdapter.toJson(_users.value)).apply()
     }
 
-private fun saveSimulatorMatches() {
+    internal fun saveSimulatorMatches() {
         prefs.edit().putString("sim_matches", matchListAdapter.toJson(_matches.value)).apply()
     }
 
-private fun saveSimulatorAnnouncements() {
+    internal fun saveSimulatorAnnouncements() {
         prefs.edit().putString("sim_announcements", announcementsAdapter.toJson(_announcements.value)).apply()
     }
 
-private fun saveSimulatorSettings() {
+    internal fun saveSimulatorSettings() {
         prefs.edit().putString("sim_settings", settingsAdapter.toJson(_systemSettings.value)).apply()
     }
 
-private fun saveSimulatorFeedback() {
+    internal fun saveSimulatorFeedback() {
         prefs.edit().putString("sim_feedback", feedbackListAdapter.toJson(_feedback.value)).apply()
     }
 
-private fun saveSimulatorReports() {
+    internal fun saveSimulatorReports() {
         prefs.edit().putString("sim_reports", reportListAdapter.toJson(_reports.value)).apply()
     }
 
-private fun saveSimulatorBans() {
+    internal fun saveSimulatorBans() {
         prefs.edit().putString("sim_bans", banListAdapter.toJson(_bans.value)).apply()
     }
 
-private fun getMockUsersList(): List<SupabaseUser> {
+    internal fun getSimulatorUsers(): List<SupabaseUser> {
         return emptyList()
     }
 
-private fun getMockMatchesList(): List<SupabaseMatch> {
+    internal fun getSimulatorMatches(): List<SupabaseMatch> {
         return emptyList()
     }
 
-private fun getMockAnnouncementsList(): List<SupabaseAnnouncement> {
+    internal fun getSimulatorAnnouncements(): List<SupabaseAnnouncement> {
         return emptyList()
     }
 
-private fun getMockSettingsList(): List<SupabaseSystemSetting> {
+    internal fun getSimulatorSettings(): List<SupabaseSystemSetting> {
         return emptyList()
     }
 
@@ -2847,7 +2777,7 @@ fun submitFeedback(content: String, category: String, onResult: (Boolean, String
             )
             _feedbackV2.value = _feedbackV2.value + newFbV2
             
-            // Also submit a simulated report
+            // Also submit a mock report
             val reporterId = currentUser.value?.id ?: "sim_reporter_id"
             val reportId = java.util.UUID.randomUUID().toString()
             val dateStr2 = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault()).format(Date())
@@ -2869,7 +2799,7 @@ fun submitFeedback(content: String, category: String, onResult: (Boolean, String
         }
     }
 
-    private fun submitLegacyFeedback(
+    internal fun submitLegacyFeedback(
         content: String,
         category: String,
         dateStr: String,
@@ -2953,7 +2883,7 @@ fun submitFeedback(content: String, category: String, onResult: (Boolean, String
         trySubmitV1(true)
     }
 
-    private fun submitLegacyFeedbackSilently(
+    internal fun submitLegacyFeedbackSilently(
         content: String,
         category: String,
         dateStr: String,
@@ -3126,7 +3056,7 @@ fun reportUser(
                 }
                 saveSimulatorUsers()
                 
-                // Add simulated report
+                // Add mock report
                 val reporterId = currentUser.value?.id ?: "sim_reporter_id"
                 val reportId = java.util.UUID.randomUUID().toString()
                 val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.getDefault()).format(java.util.Date())
@@ -3343,7 +3273,7 @@ fun registerMatchResult(roomCode: String, hostName: String, opponentName: String
         }
     }
 
-private fun updateRemoteUserRankStats(username: String, isWin: Boolean, isLoss: Boolean) {
+    internal fun updateRemoteUserRankStats(username: String, isWin: Boolean, isLoss: Boolean) {
         scope.launch {
             val url = "$supabaseUrl/rest/v1/users?username=eq.$username"
             val request = Request.Builder().url(url).headers(getHeaders()).get().build()
@@ -3505,7 +3435,7 @@ fun fetchMatchDetails(matchId: String, onResult: (SupabaseMatch?) -> Unit) {
     }
 
 fun adjustUserEconomy(userId: String, coinsDelta: Int, xpDelta: Int) {
-        if (!hasPermission("manage_users")) return
+        if (!userHasPermission("manage_users")) return
         scope.launch {
             try {
                 val user = _users.value.find { it.id == userId } ?: return@launch
@@ -3527,7 +3457,7 @@ fun adjustUserEconomy(userId: String, coinsDelta: Int, xpDelta: Int) {
     }
 
 fun adjustUserStats(userId: String, winsDelta: Int, lossesDelta: Int, ratingDelta: Int) {
-        if (!hasPermission("manage_users")) return
+        if (!userHasPermission("manage_users")) return
         scope.launch {
             try {
                 val user = _users.value.find { it.id == userId } ?: return@launch
@@ -3553,7 +3483,7 @@ fun adjustUserStats(userId: String, winsDelta: Int, lossesDelta: Int, ratingDelt
     }
 
 fun updateUserVerification(userId: String, isVerified: Boolean) {
-        if (!hasPermission("manage_users")) return
+        if (!userHasPermission("manage_users")) return
         scope.launch {
             try {
                 val body = "{\"is_verified\": $isVerified}".toRequestBody("application/json".toMediaType())
@@ -3573,7 +3503,7 @@ fun updateUserVerification(userId: String, isVerified: Boolean) {
     }
 
 fun setShadowBan(userId: String, enabled: Boolean) {
-        if (!hasPermission("moderate_users")) return
+        if (!userHasPermission("moderate_users")) return
         scope.launch {
             try {
                 val body = "{\"shadow_banned\": $enabled}".toRequestBody("application/json".toMediaType())
@@ -3593,7 +3523,7 @@ fun setShadowBan(userId: String, enabled: Boolean) {
     }
 
 fun updateInternalNotes(userId: String, notes: String) {
-        if (!hasPermission("moderate_users")) return
+        if (!userHasPermission("moderate_users")) return
         scope.launch {
             try {
                 val updateMap = mapOf("internal_notes" to notes)
@@ -3614,7 +3544,7 @@ fun updateInternalNotes(userId: String, notes: String) {
     }
 
 fun resetUsername(userId: String, newName: String) {
-        if (!hasPermission("manage_users")) return
+        if (!userHasPermission("manage_users")) return
         scope.launch {
             try {
                 val body = "{\"username\": \"$newName\"}".toRequestBody("application/json".toMediaType())
@@ -3634,7 +3564,7 @@ fun resetUsername(userId: String, newName: String) {
     }
 
 fun resetAvatar(userId: String, newAvatarUrl: String) {
-        if (!hasPermission("manage_users")) return
+        if (!userHasPermission("manage_users")) return
         scope.launch {
             try {
                 val body = "{\"avatar_url\": \"$newAvatarUrl\"}".toRequestBody("application/json".toMediaType())
@@ -3654,7 +3584,7 @@ fun resetAvatar(userId: String, newAvatarUrl: String) {
     }
 
 fun forceLogout(userId: String) {
-        if (!hasPermission("manage_users")) return
+        if (!userHasPermission("manage_users")) return
         scope.launch {
             try {
                 val body = "{\"metadata\": {\"force_logout_at\": \"${System.currentTimeMillis()}\"}}".toRequestBody("application/json".toMediaType())
@@ -3753,7 +3683,7 @@ fun fetchTournaments() {
     }
 
 fun createTournament(title: String, description: String, entryFee: Int, prize: Int) {
-        if (!hasPermission("manage_tournaments")) return
+        if (!userHasPermission("manage_tournaments")) return
         scope.launch {
             try {
                 val bodyMap = mapOf(
@@ -3844,6 +3774,105 @@ fun toggleGameEvent(eventId: String, isActive: Boolean) {
         }
     }
 
+    fun deleteGameEvent(eventId: String) {
+        if (!isConfigured) return
+        scope.launch {
+            val request = Request.Builder()
+                .url("$supabaseUrl/rest/v1/game_events?id=eq.$eventId")
+                .headers(getHeaders())
+                .delete()
+                .build()
+            client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {}
+                override fun onResponse(call: Call, response: Response) {
+                    if (response.isSuccessful) fetchGameEvents()
+                }
+            } )
+        }
+    }
+
+    fun fetchRolesAndPermissions() {
+        if (!isConfigured) return
+        scope.launch {
+            try {
+                // Fetch Roles
+                val rolesRequest = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/roles?select=*")
+                    .headers(getHeaders())
+                    .get()
+                    .build()
+                client.newCall(rolesRequest).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val json = response.body?.string() ?: ""
+                        _roles.value = roleListAdapter.fromJson(json) ?: emptyList()
+                    }
+                }
+
+                // Fetch Permissions
+                val permsRequest = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/permissions?select=*")
+                    .headers(getHeaders())
+                    .get()
+                    .build()
+                client.newCall(permsRequest).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val json = response.body?.string() ?: ""
+                        _permissions.value = permissionListAdapter.fromJson(json) ?: emptyList()
+                    }
+                }
+
+                // Fetch Role-Permissions map
+                val rpRequest = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/role_permissions?select=*")
+                    .headers(getHeaders())
+                    .get()
+                    .build()
+                client.newCall(rpRequest).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val json = response.body?.string() ?: ""
+                        _rolePermissions.value = rolePermissionListAdapter.fromJson(json) ?: emptyList()
+                    }
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun addRolePermission(roleId: String, permissionId: String) {
+        if (!isConfigured) return
+        scope.launch {
+            val payload = mapOf("role_id" to roleId, "permission_id" to permissionId)
+            val json = moshi.adapter(Map::class.java).toJson(payload)
+            val request = Request.Builder()
+                .url("$supabaseUrl/rest/v1/role_permissions")
+                .headers(getHeaders())
+                .post(json.toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {}
+                override fun onResponse(call: Call, response: Response) {
+                    if (response.isSuccessful) fetchRolesAndPermissions()
+                }
+            })
+        }
+    }
+
+    fun removeRolePermission(roleId: String, permissionId: String) {
+        if (!isConfigured) return
+        scope.launch {
+            val request = Request.Builder()
+                .url("$supabaseUrl/rest/v1/role_permissions?role_id=eq.$roleId&permission_id=eq.$permissionId")
+                .headers(getHeaders())
+                .delete()
+                .build()
+            client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {}
+                override fun onResponse(call: Call, response: Response) {
+                    if (response.isSuccessful) fetchRolesAndPermissions()
+                }
+            })
+        }
+    }
+
 fun fetchAntiCheatLogs() {
         if (!isConfigured) return
         scope.launch {
@@ -3864,7 +3893,7 @@ fun fetchAntiCheatLogs() {
     }
 
 fun updateMatchStatus(matchId: String, newStatus: String) {
-        if (!hasPermission("manage_matches")) return
+        if (!userHasPermission("manage_matches")) return
         scope.launch {
             try {
                 val body = "{\"status\": \"$newStatus\"}".toRequestBody("application/json".toMediaType())
@@ -3922,7 +3951,7 @@ fun fetchBINotifications() {
     }
 
 fun scheduleNotification(title: String, body: String, segment: String) {
-        if (!hasPermission("manage_notifications")) return
+        if (!userHasPermission("manage_notifications")) return
         scope.launch {
             try {
                 val bodyMap = mapOf(
@@ -4082,7 +4111,7 @@ suspend fun askAiAssistant(prompt: String): String = withContext(Dispatchers.IO)
         }
     }
 
-private fun <T> fetchList(endpoint: String, adapter: com.squareup.moshi.JsonAdapter<List<T>>, onResult: (List<T>) -> Unit) {
+    internal fun <T> fetchList(endpoint: String, adapter: com.squareup.moshi.JsonAdapter<List<T>>, onResult: (List<T>) -> Unit) {
         scope.launch {
             try {
                 val request = Request.Builder()
@@ -4155,6 +4184,329 @@ fun adjustUserEconomy(userId: String, amount: Int, currency: String, reason: Str
                     response.close()
                 }
             })
+        }
+    }
+
+    fun deleteTournament(id: String) {
+        if (!isConfigured) return
+        scope.launch {
+            try {
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/tournaments?id=eq.$id")
+                    .headers(getHeaders())
+                    .delete()
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        fetchTournaments()
+                        logAdminAction("DELETE_TOURNAMENT", id)
+                    }
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun updateTournamentStatus(id: String, status: String) {
+        if (!isConfigured) return
+        scope.launch {
+            try {
+                val bodyMap = mapOf("status" to status)
+                val body = moshi.adapter(Map::class.java).toJson(bodyMap).toRequestBody("application/json".toMediaType())
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/tournaments?id=eq.$id")
+                    .headers(getHeaders())
+                    .patch(body)
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        fetchTournaments()
+                        logAdminAction("UPDATE_TOURNAMENT_STATUS", "ID: $id, Status: $status")
+                    }
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun createLiveOpsEvent(title: String, description: String, type: String, xpMultiplier: Double, coinMultiplier: Double, startTime: String, endTime: String, isActive: Boolean) {
+        if (!isConfigured) return
+        scope.launch {
+            try {
+                val bodyMap = mapOf(
+                    "title" to title,
+                    "description" to description,
+                    "type" to type,
+                    "xp_multiplier" to xpMultiplier,
+                    "coin_multiplier" to coinMultiplier,
+                    "start_time" to startTime,
+                    "end_time" to endTime,
+                    "is_active" to isActive
+                )
+                val body = moshi.adapter(Map::class.java).toJson(bodyMap).toRequestBody("application/json".toMediaType())
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/liveops_events")
+                    .headers(getHeaders())
+                    .post(body)
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        fetchLiveOpsEvents()
+                        logAdminAction("CREATE_LIVEOPS_EVENT", title)
+                    }
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun deleteLiveOpsEvent(id: String) {
+        if (!isConfigured) return
+        scope.launch {
+            try {
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/liveops_events?id=eq.$id")
+                    .headers(getHeaders())
+                    .delete()
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        fetchLiveOpsEvents()
+                        logAdminAction("DELETE_LIVEOPS_EVENT", id)
+                    }
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun toggleLiveOpsEventActive(id: String, isActive: Boolean) {
+        if (!isConfigured) return
+        scope.launch {
+            try {
+                val bodyMap = mapOf("is_active" to isActive)
+                val body = moshi.adapter(Map::class.java).toJson(bodyMap).toRequestBody("application/json".toMediaType())
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/liveops_events?id=eq.$id")
+                    .headers(getHeaders())
+                    .patch(body)
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        fetchLiveOpsEvents()
+                        logAdminAction("TOGGLE_LIVEOPS_EVENT", "ID: $id, Active: $isActive")
+                    }
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun createStoreItem(name: String, description: String, type: String, priceCoins: Int?, priceUsd: Double?, isFeatured: Boolean, discountPercentage: Int) {
+        if (!isConfigured) return
+        scope.launch {
+            try {
+                val bodyMap = mutableMapOf<String, Any>(
+                    "name" to name,
+                    "description" to description,
+                    "type" to type,
+                    "is_featured" to isFeatured,
+                    "discount_percentage" to discountPercentage,
+                    "content" to emptyMap<String, Any>()
+                )
+                if (priceCoins != null) bodyMap["price_coins"] = priceCoins
+                if (priceUsd != null) bodyMap["price_usd"] = priceUsd
+                val body = moshi.adapter(Map::class.java).toJson(bodyMap).toRequestBody("application/json".toMediaType())
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/store_items")
+                    .headers(getHeaders())
+                    .post(body)
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        fetchStoreItems()
+                        logAdminAction("CREATE_STORE_ITEM", name)
+                    }
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun deleteStoreItem(id: String) {
+        if (!isConfigured) return
+        scope.launch {
+            try {
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/store_items?id=eq.$id")
+                    .headers(getHeaders())
+                    .delete()
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        fetchStoreItems()
+                        logAdminAction("DELETE_STORE_ITEM", id)
+                    }
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun createCoupon(code: String, discountType: String, value: Double, maxUses: Int?) {
+        if (!isConfigured) return
+        scope.launch {
+            try {
+                val bodyMap = mutableMapOf<String, Any>(
+                    "code" to code,
+                    "discount_type" to discountType,
+                    "value" to value,
+                    "used_count" to 0,
+                    "is_active" to true
+                )
+                if (maxUses != null) bodyMap["max_uses"] = maxUses
+                val body = moshi.adapter(Map::class.java).toJson(bodyMap).toRequestBody("application/json".toMediaType())
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/coupons")
+                    .headers(getHeaders())
+                    .post(body)
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        fetchCoupons()
+                        logAdminAction("CREATE_COUPON", code)
+                    }
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun deleteCoupon(id: String) {
+        if (!isConfigured) return
+        scope.launch {
+            try {
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/coupons?id=eq.$id")
+                    .headers(getHeaders())
+                    .delete()
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        fetchCoupons()
+                        logAdminAction("DELETE_COUPON", id)
+                    }
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun saveDailyReward(day: Int, type: String, amount: Int) {
+        if (!isConfigured) return
+        scope.launch {
+            try {
+                val bodyMap = mapOf(
+                    "day" to day,
+                    "type" to type,
+                    "amount" to amount
+                )
+                val body = moshi.adapter(Map::class.java).toJson(bodyMap).toRequestBody("application/json".toMediaType())
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/daily_rewards")
+                    .headers(getHeaders())
+                    .header("Prefer", "resolution=merge-duplicates")
+                    .post(body)
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        fetchDailyRewards()
+                        logAdminAction("SAVE_DAILY_REWARD", "Day: $day, Type: $type, Amount: $amount")
+                    }
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun saveSpinWheelReward(id: String, type: String, amount: Int, weight: Int) {
+        if (!isConfigured) return
+        scope.launch {
+            try {
+                val bodyMap = mapOf(
+                    "type" to type,
+                    "amount" to amount,
+                    "weight" to weight
+                )
+                val body = moshi.adapter(Map::class.java).toJson(bodyMap).toRequestBody("application/json".toMediaType())
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/spin_wheel_rewards?id=eq.$id")
+                    .headers(getHeaders())
+                    .patch(body)
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        fetchSpinWheelRewards()
+                        logAdminAction("SAVE_SPIN_WHEEL_REWARD", "ID: $id, Type: $type, Amount: $amount, Weight: $weight")
+                    }
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun createSeasonPass(title: String, startTime: String, endTime: String, isActive: Boolean) {
+        if (!isConfigured) return
+        scope.launch {
+            try {
+                val bodyMap = mapOf(
+                    "title" to title,
+                    "start_time" to startTime,
+                    "end_time" to endTime,
+                    "is_active" to isActive
+                )
+                val body = moshi.adapter(Map::class.java).toJson(bodyMap).toRequestBody("application/json".toMediaType())
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/season_passes")
+                    .headers(getHeaders())
+                    .post(body)
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        fetchSeasonPasses()
+                        logAdminAction("CREATE_SEASON_PASS", title)
+                    }
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun deleteSeasonPass(id: String) {
+        if (!isConfigured) return
+        scope.launch {
+            try {
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/season_passes?id=eq.$id")
+                    .headers(getHeaders())
+                    .delete()
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        fetchSeasonPasses()
+                        logAdminAction("DELETE_SEASON_PASS", id)
+                    }
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun toggleSeasonPassActive(id: String, isActive: Boolean) {
+        if (!isConfigured) return
+        scope.launch {
+            try {
+                val bodyMap = mapOf("is_active" to isActive)
+                val body = moshi.adapter(Map::class.java).toJson(bodyMap).toRequestBody("application/json".toMediaType())
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/season_passes?id=eq.$id")
+                    .headers(getHeaders())
+                    .patch(body)
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        fetchSeasonPasses()
+                        logAdminAction("TOGGLE_SEASON_PASS", "ID: $id, Active: $isActive")
+                    }
+                }
+            } catch (e: Exception) {}
         }
     }
 

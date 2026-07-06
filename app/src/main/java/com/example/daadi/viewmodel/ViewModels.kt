@@ -7,6 +7,7 @@ import com.example.daadi.DaadiApplication
 import com.example.daadi.audio.SoundManager
 import com.example.daadi.data.multiplayer.MultiplayerManager
 import com.example.daadi.data.repository.*
+import com.example.daadi.data.supabase.*
 import com.example.daadi.engine.GameEngine
 import com.example.daadi.engine.MillDetector
 import com.example.daadi.engine.ai.AIEngine
@@ -14,12 +15,10 @@ import com.example.daadi.engine.ai.AiConfig
 import com.example.daadi.model.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.example.BuildConfig
 
 enum class HapticPattern {
     TICK, MILL, LOSS
@@ -35,7 +34,11 @@ class GameViewModel(
     private val settingsRepository: SettingsRepository,
     private val soundManager: SoundManager,
     val multiplayerManager: MultiplayerManager,
-    val supabaseManager: com.example.daadi.data.supabase.SupabaseManager
+    val authRepository: com.example.daadi.data.repository.supabase.AuthRepository,
+    val analyticsRepository: com.example.daadi.data.repository.supabase.AnalyticsRepository,
+    val remoteConfigRepository: com.example.daadi.data.repository.supabase.RemoteConfigRepository,
+    val remoteGameRepository: com.example.daadi.data.repository.supabase.RemoteGameRepository,
+    val supportRepository: com.example.daadi.data.repository.supabase.SupportRepository
 ) : ViewModel() {
 
     companion object {
@@ -75,8 +78,8 @@ class GameViewModel(
     private val _matchesPlayedSinceLastAd = MutableStateFlow(0)
     val matchesPlayedSinceLastAd: StateFlow<Int> = _matchesPlayedSinceLastAd.asStateFlow()
 
-    val adConfig = supabaseManager.adConfig
-    val adTelemetry = supabaseManager.adTelemetry
+    val adConfig = remoteConfigRepository.adConfig
+    val adTelemetry = analyticsRepository.adTelemetry
 
     fun incrementMatchAdCounter() {
         _matchesPlayedSinceLastAd.update { it + 1 }
@@ -92,34 +95,34 @@ class GameViewModel(
         return _matchesPlayedSinceLastAd.value >= config.interstitialFrequencyCap
     }
 
-    fun updateAdConfiguration(config: com.example.daadi.data.supabase.SupabaseManager.AdConfiguration) {
-        supabaseManager.updateAdConfigurationRemote(config)
+    fun updateAdConfiguration(config: com.example.daadi.data.supabase.AdConfiguration) {
+        remoteConfigRepository.updateAdConfigurationRemote(config)
     }
 
     fun flushAdAnalytics() {
-        supabaseManager.resetAdTelemetryRemote()
+        analyticsRepository.resetAdTelemetryRemote()
     }
 
-    fun simulateAdRequest() {
+    fun requestAdPlacement() {
         viewModelScope.launch {
-            supabaseManager.incrementAdRequests()
+            analyticsRepository.incrementAdRequests()
             delay(SIMULATED_AD_LOAD_DELAY_MS) // Simulation of SDK load time
             if ((0..100).random() > SIMULATED_FILL_RATE_THRESHOLD) { // 85% fill rate simulation
-                supabaseManager.incrementAdImpressions()
+                analyticsRepository.incrementAdImpressions()
             }
         }
     }
 
-    val maintenanceMode = supabaseManager.maintenanceMode
-    val multiplayerEnabled = supabaseManager.multiplayerEnabled
-    val globalBroadcast = supabaseManager.globalBroadcast
+    val maintenanceMode = remoteConfigRepository.maintenanceMode
+    val multiplayerEnabled = remoteConfigRepository.multiplayerEnabled
+    val globalBroadcast = remoteConfigRepository.globalBroadcast
 
     fun dispatchGlobalBroadcast(message: String) {
-        supabaseManager.dispatchBroadcast(message)
+        remoteConfigRepository.dispatchBroadcast(message)
     }
 
     fun clearGlobalBroadcast() {
-        supabaseManager.clearBroadcast()
+        remoteConfigRepository.clearBroadcast()
     }
 
     private val _aiConfig = MutableStateFlow(AIEngine.currentConfig)
@@ -136,20 +139,20 @@ class GameViewModel(
         val config = _stagedAiConfig.value
         _aiConfig.value = config
         AIEngine.currentConfig = config
-        supabaseManager.logAdminAction("APPLY_AI_PERSONALITY", "Depth: ${config.maxDepth}, Pincer: ${config.pincerTwoOfThreeWeight}")
+        authRepository.logAdminAction("APPLY_AI_PERSONALITY", "Depth: ${config.maxDepth}, Pincer: ${config.pincerTwoOfThreeWeight}")
     }
 
     fun updateAiConfig(config: AiConfig) {
         _stagedAiConfig.value = config
         _aiConfig.value = config
         AIEngine.currentConfig = config
-        supabaseManager.logAdminAction("UPDATE_AI_CONFIG", "Depth: ${config.maxDepth}")
+        authRepository.logAdminAction("UPDATE_AI_CONFIG", "Depth: ${config.maxDepth}")
     }
 
     fun resetAiTelemetry() {
         AIEngine.resetTelemetry()
         _telemetryState.value = emptyMap()
-        supabaseManager.logAdminAction("WIPE_TELEMETRY", "local")
+        authRepository.logAdminAction("WIPE_TELEMETRY", "local")
     }
 
     enum class AlertSeverity { CRITICAL, WARNING, INFO }
@@ -241,7 +244,7 @@ class GameViewModel(
             // Real Scenario: Sync state from DB if joining an ongoing or interrupted match
             val code = multiplayerManager.roomCode.value
             if (code.isNotEmpty()) {
-                supabaseManager.fetchMatchDetails(code) { match ->
+                remoteGameRepository.fetchMatchDetails(code) { match ->
                     if (match != null && !match.movesJson.isNullOrBlank()) {
                         try {
                             val remoteState = gameStateAdapter.fromJson(match.movesJson)
@@ -297,7 +300,7 @@ class GameViewModel(
         }
 
         viewModelScope.launch {
-            supabaseManager.systemSettings.collect { settings ->
+            remoteConfigRepository.systemSettings.collect { settings ->
                 val adSetting = settings.find { it.key == "ads_launcher" }
                 _adsEnabled.value = adSetting?.value == "on"
             }
@@ -405,9 +408,14 @@ class GameViewModel(
             GameMode.VS_AI -> "Chanakya Bot: I have prepared my strategy. Good luck!"
             GameMode.PASS_AND_PLAY -> "Match Started: Pass & Play Mode"
             GameMode.ONLINE_MULTIPLAYER -> "Battlefield Ready! Syncing gears..."
+            GameMode.AI_VS_AI -> "Self-Play Mode: Watching the masters clash..."
         }
         gameRepository.clearSavedGame()
         startTurnTimer()
+        
+        if (mode == GameMode.AI_VS_AI) {
+            triggerAiVsAiTurn()
+        }
     }
 
     fun togglePauseMenu() {
@@ -560,7 +568,7 @@ class GameViewModel(
             val code = multiplayerManager.roomCode.value
             if (code.isNotEmpty()) {
                 val movesJson = gameStateAdapter.toJson(nextState)
-                supabaseManager.updateMatchMoves(code, movesJson)
+                remoteGameRepository.updateMatchMoves(code, movesJson)
             }
         }
 
@@ -581,12 +589,19 @@ class GameViewModel(
             if (nextState.gameMode == GameMode.ONLINE_MULTIPLAYER) {
                 checkAndRecordOnlineMatchFinished(nextState)
             }
+            
+            if (nextState.gameMode == GameMode.VS_AI || nextState.gameMode == GameMode.AI_VS_AI) {
+                triggerPostGameAnalysis(nextState)
+            }
+            
             gameRepository.clearSavedGame()
             return
         }
 
         if (nextState.gameMode == GameMode.VS_AI && nextState.currentPlayer == Player.PLAYER_2) {
             triggerAiTurn()
+        } else if (nextState.gameMode == GameMode.AI_VS_AI) {
+            triggerAiVsAiTurn()
         }
     }
 
@@ -655,6 +670,56 @@ class GameViewModel(
             _isAiThinking.value = false
             updateStateAndTriggerAI(nextState)
         }
+    }
+
+    private fun triggerAiVsAiTurn() {
+        if (_isAiThinking.value || _showPauseMenu.value || _isAppPaused.value) return
+        _isAiThinking.value = true
+
+        aiJob = viewModelScope.launch {
+            delay(if (currentSettings.fastAnimations) 200L else 800L)
+            val currentState = _gameState.value
+            if (currentState.winner != null) {
+                _isAiThinking.value = false
+                return@launch
+            }
+
+            var nextState = currentState
+            if (currentState.isCapturePending) {
+                val captureTarget = withContext(Dispatchers.Default) {
+                    AIEngine.selectCapture(currentState, if (currentState.currentPlayer == Player.PLAYER_1) Player.PLAYER_2 else Player.PLAYER_1)
+                }
+                if (captureTarget != null) {
+                    nextState = GameEngine.capturePiece(currentState, captureTarget)
+                }
+            } else {
+                val aiMove = withContext(Dispatchers.Default) {
+                    AIEngine.selectMove(currentState, currentState.aiDifficulty)
+                }
+                if (aiMove != null) {
+                    nextState = if (aiMove.first == null) {
+                        GameEngine.placePiece(currentState, aiMove.second)
+                    } else {
+                        GameEngine.movePiece(currentState, aiMove.first!!, aiMove.second)
+                    }
+                    if (nextState.isCapturePending) {
+                        val captureTarget = withContext(Dispatchers.Default) {
+                            AIEngine.selectCapture(nextState, if (nextState.currentPlayer == Player.PLAYER_1) Player.PLAYER_2 else Player.PLAYER_1)
+                        }
+                        if (captureTarget != null) {
+                            delay(300)
+                            nextState = GameEngine.capturePiece(nextState, captureTarget)
+                        }
+                    }
+                }
+            }
+            _isAiThinking.value = false
+            updateStateAndTriggerAI(nextState)
+        }
+    }
+
+    private fun triggerPostGameAnalysis(finalState: GameState) {
+        generateGeminiCommentary("POST_GAME_ANALYSIS", finalState)
     }
 
     private fun triggerSimulatedOpponentTurn() {
@@ -783,7 +848,7 @@ class GameViewModel(
                     AlertSeverity.WARNING,
                     "Security: Intercepted out-of-turn play attempt from opponent (${multiplayerManager.opponentPlayerName.value}). Packet discarded."
                 )
-                supabaseManager.logAntiCheatViolation(
+                remoteGameRepository.logAntiCheatViolation(
                     matchId = multiplayerManager.roomCode.value,
                     violationType = "OUT_OF_TURN_PLAY",
                     severity = "high",
@@ -809,7 +874,7 @@ class GameViewModel(
                     AlertSeverity.CRITICAL,
                     "Security Alert: Intercepted illegal board manipulation (${actionType}) from remote opponent at node $nodeId! Syncing board."
                 )
-                supabaseManager.logAntiCheatViolation(
+                remoteGameRepository.logAntiCheatViolation(
                     matchId = multiplayerManager.roomCode.value,
                     violationType = "ILLEGAL_MOVE",
                     severity = "critical",
@@ -933,6 +998,9 @@ class GameViewModel(
                 GameMode.ONLINE_MULTIPLAYER -> {
                     "Warning! You ran out of time. $chancesLeft $chancesWord remaining. Resetting timer..."
                 }
+                GameMode.AI_VS_AI -> {
+                    "Bot timed out. $chancesLeft $chancesWord remaining."
+                }
             }
             startTurnTimer()
             return
@@ -975,17 +1043,74 @@ class GameViewModel(
     }
 
     private fun updateAiCommentary(nextState: GameState) {
-        val commentary = when {
-            nextState.winner == Player.PLAYER_2 -> "Chanakya Bot: Victory is mine! Practice more to rival Chanakya!"
-            nextState.winner == Player.PLAYER_1 -> "Chanakya Bot: Outstanding move! You possess the mind of a true King."
-            nextState.isCapturePending && nextState.currentPlayer == Player.PLAYER_2 -> "Chanakya Bot: DAADI! Your bead is mine! Sprung a clever trap..."
-            nextState.isCapturePending && nextState.currentPlayer == Player.PLAYER_1 -> "Chanakya Bot: Ah, a well deserved capture! Nicely blocked."
-            nextState.phase == GamePhase.PLACEMENT -> listOf("Chanakya Bot: Laying foundations bead by bead...", "Chanakya Bot: Watch your sides, do not invite a line!", "Chanakya Bot: A steady placement establishes control.", "Chanakya Bot: Let's see if you can defend these nine seeds.").random()
-            nextState.phase == GamePhase.MOVEMENT -> listOf("Chanakya Bot: The board shifts! Slide carefully.", "Chanakya Bot: A strategic pincer of nodes is forming.", "Chanakya Bot: Can you slip past my defensive guard?", "Chanakya Bot: Each slide must serve our long battle.").random()
-            nextState.phase == GamePhase.FLYING -> listOf("Chanakya Bot: Jumping active! Beads fly freely now!", "Chanakya Bot: Three beads left, but the wings of strategy are wide.", "Chanakya Bot: Complete freedom! Select any destination spot.").random()
+        val event = when {
+            nextState.winner == Player.PLAYER_2 -> "AI_VICTORY"
+            nextState.winner == Player.PLAYER_1 -> "PLAYER_VICTORY"
+            nextState.isCapturePending && nextState.currentPlayer == Player.PLAYER_2 -> "AI_MILL"
+            nextState.isCapturePending && nextState.currentPlayer == Player.PLAYER_1 -> "PLAYER_MILL"
+            nextState.phase == GamePhase.PLACEMENT -> "PLACEMENT_PHASE"
+            nextState.phase == GamePhase.MOVEMENT -> "MOVEMENT_PHASE"
+            nextState.phase == GamePhase.FLYING -> "FLYING_PHASE"
+            else -> "GENERIC_MOVE"
+        }
+        generateGeminiCommentary(event, nextState)
+    }
+
+    private fun generateGeminiCommentary(event: String, state: GameState) {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
+            // Fallback to static commentary if no API key
+            _aiCommentary.value = getFallbackCommentary(event, state)
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                val prompt = """
+                    You are Chanakya, the legendary ancient Indian strategist. 
+                    You are playing a game of Daadi (Nine Men's Morris) against a human.
+                    Current Game State:
+                    - Event: $event
+                    - Phase: ${state.phase}
+                    - Board: ${state.board.nodes.values.filterNotNull().size} pieces total
+                    - Human Pieces: ${state.board.nodes.values.count { it == Player.PLAYER_1 }}
+                    - Your Pieces: ${state.board.nodes.values.count { it == Player.PLAYER_2 }}
+                    
+                    Task: Provide a short (max 15 words), witty, and period-appropriate commentary in Chanakya's voice. 
+                    Use terms like "beads", "shastra", "strategy", "dharma".
+                    Do not use modern slang.
+                """.trimIndent()
+
+                val request = GeminiGenerateRequest(
+                    contents = listOf(
+                        GeminiContent(parts = listOf(GeminiPart(text = prompt)))
+                    )
+                )
+
+                val response = DaadiApplication.instance.supabaseManager.geminiService.generateContent(apiKey, request)
+                val text = response?.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                if (!text.isNullOrBlank()) {
+                    _aiCommentary.value = "Chanakya: ${text.trim()}"
+                } else {
+                    _aiCommentary.value = getFallbackCommentary(event, state)
+                }
+            } catch (e: Exception) {
+                _aiCommentary.value = getFallbackCommentary(event, state)
+            }
+        }
+    }
+
+    private fun getFallbackCommentary(event: String, state: GameState): String {
+        return when (event) {
+            "AI_VICTORY" -> "Chanakya Bot: Victory is mine! Practice more to rival Chanakya!"
+            "PLAYER_VICTORY" -> "Chanakya Bot: Outstanding move! You possess the mind of a true King."
+            "AI_MILL" -> "Chanakya Bot: DAADI! Your bead is mine! Sprung a clever trap..."
+            "PLAYER_MILL" -> "Chanakya Bot: Ah, a well deserved capture! Nicely blocked."
+            "PLACEMENT_PHASE" -> "Chanakya Bot: Laying foundations bead by bead..."
+            "MOVEMENT_PHASE" -> "Chanakya Bot: The board shifts! Slide carefully."
+            "FLYING_PHASE" -> "Chanakya Bot: Jumping active! Beads fly freely now!"
             else -> "Chanakya Bot: The clash of wits continues..."
         }
-        _aiCommentary.value = commentary
     }
 
     fun computeHint() {
@@ -1003,7 +1128,7 @@ class GameViewModel(
     fun reportOpponent(onResult: (Boolean, String) -> Unit = { _, _ -> }) {
         val opponentName = multiplayerManager.opponentPlayerName.value
         if (opponentName.isNotBlank()) {
-            supabaseManager.reportUserByName(opponentName, "In-game behavior violation / online match report") { success ->
+            supportRepository.reportUserByName(opponentName, "In-game behavior violation / online match report") { success ->
                 if (success) {
                     _aiCommentary.value = "Report submitted. We take fair play seriously!"
                     onResult(true, "Successfully reported $opponentName.")
@@ -1098,7 +1223,7 @@ class GameViewModel(
                 Player.PLAYER_2 -> opponentName
                 else -> null
             }
-            supabaseManager.registerMatchResult(multiplayerManager.roomCode.value, hostName, opponentName, winnerName, nextState.moveHistory.size)
+            remoteGameRepository.registerMatchResult(multiplayerManager.roomCode.value, hostName, opponentName, winnerName, nextState.moveHistory.size)
         }
     }
 
@@ -1118,13 +1243,14 @@ class SettingsViewModel(private val settingsRepository: SettingsRepository) : Vi
     fun updateSettings(settings: AppSettings) { settingsRepository.saveSettings(settings) }
 }
 
-class ViewModelFactory(private val application: DaadiApplication) : androidx.lifecycle.ViewModelProvider.Factory {
+class ViewModelFactory(private val application: com.example.daadi.DaadiApplication) : androidx.lifecycle.ViewModelProvider.Factory {
     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
         @Suppress("UNCHECKED_CAST")
         return when {
-            modelClass.isAssignableFrom(GameViewModel::class.java) -> GameViewModel(application.gameRepository, application.statsRepository, application.settingsRepository, application.soundManager, application.multiplayerManager, application.supabaseManager)
+            modelClass.isAssignableFrom(GameViewModel::class.java) -> GameViewModel(application.gameRepository, application.statsRepository, application.settingsRepository, application.soundManager, application.multiplayerManager, application.authRepository, application.analyticsRepository, application.remoteConfigRepository, application.remoteGameRepository, application.supportRepository)
             modelClass.isAssignableFrom(StatsViewModel::class.java) -> StatsViewModel(application.statsRepository)
             modelClass.isAssignableFrom(SettingsViewModel::class.java) -> SettingsViewModel(application.settingsRepository)
+            modelClass.isAssignableFrom(AdminViewModel::class.java) -> AdminViewModel(application.authRepository, application.adminRepository, application.analyticsRepository, application.remoteGameRepository, application.economyRepository, application.liveOpsRepository, application.supportRepository, application.tournamentRepository, application.remoteConfigRepository, application.userRepository)
             else -> throw IllegalArgumentException("Unknown ViewModel class")
         } as T
     }

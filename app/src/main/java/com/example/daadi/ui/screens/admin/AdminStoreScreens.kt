@@ -1,7 +1,7 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
-
+import com.example.daadi.data.supabase.SupabaseStoreItem
+import com.example.daadi.data.supabase.SupabaseCoupon
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -26,17 +26,35 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 
 @Composable
-fun AdminStoreManagement(supabaseManager: SupabaseManager, onBack: () -> Unit) {
-    val storeItems by supabaseManager.storeItems.collectAsStateWithLifecycle()
-    val coupons by supabaseManager.coupons.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+fun AdminStoreManagement(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onBack: () -> Unit) {
+    val storeItems by adminViewModel.economyRepository.storeItems.collectAsStateWithLifecycle()
+    val coupons by adminViewModel.economyRepository.coupons.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Items & Packs", "Coupons")
+    var showCreateItemDialog by remember { mutableStateOf(false) }
+    var showCreateCouponDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        adminViewModel.economyRepository.fetchStoreItems()
+        adminViewModel.economyRepository.fetchCoupons()
+    }
 
     AdminFoundationScaffold(
         title = "Store Management", 
-        supabaseManager = supabaseManager, 
-        onBack = onBack
+        adminViewModel = adminViewModel, 
+        onBack = onBack,
+        actions = {
+            if (selectedTab == 0) {
+                IconButton(onClick = { showCreateItemDialog = true }) {
+                    Icon(Icons.Default.AddBusiness, contentDescription = "Add Pack", tint = AdminDesign.Primary)
+                }
+            } else {
+                IconButton(onClick = { showCreateCouponDialog = true }) {
+                    Icon(Icons.Default.ConfirmationNumber, contentDescription = "Add Coupon", tint = AdminDesign.Primary)
+                }
+            }
+        }
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             TabRow(
@@ -57,17 +75,49 @@ fun AdminStoreManagement(supabaseManager: SupabaseManager, onBack: () -> Unit) {
             Box(modifier = Modifier.weight(1f)) {
                 AnimatedContent(targetState = selectedTab, label = "store_tabs") { tabIndex ->
                     when (tabIndex) {
-                        0 -> StoreItemsList(storeItems, isSyncing)
-                        1 -> CouponList(coupons, isSyncing)
+                        0 -> StoreItemsList(
+                            items = storeItems, 
+                            isSyncing = isSyncing,
+                            onDelete = { id -> adminViewModel.economyRepository.deleteStoreItem(id) }
+                        )
+                        1 -> CouponList(
+                            coupons = coupons, 
+                            isSyncing = isSyncing,
+                            onDelete = { id -> adminViewModel.economyRepository.deleteCoupon(id) }
+                        )
                     }
                 }
             }
+        }
+
+        if (showCreateItemDialog) {
+            CreateStoreItemDialog(
+                onDismiss = { showCreateItemDialog = false },
+                onConfirm = { name, desc, type, coinPrice, usdPrice, isFeatured, discount ->
+                    adminViewModel.economyRepository.createStoreItem(name, desc, type, coinPrice, usdPrice, isFeatured, discount)
+                    showCreateItemDialog = false
+                }
+            )
+        }
+
+        if (showCreateCouponDialog) {
+            CreateCouponDialog(
+                onDismiss = { showCreateCouponDialog = false },
+                onConfirm = { code, dType, valDouble, maxU ->
+                    adminViewModel.economyRepository.createCoupon(code, dType, valDouble, maxU)
+                    showCreateCouponDialog = false
+                }
+            )
         }
     }
 }
 
 @Composable
-fun StoreItemsList(items: List<com.example.daadi.data.supabase.SupabaseStoreItem>, isSyncing: Boolean) {
+fun StoreItemsList(
+    items: List<SupabaseStoreItem>, 
+    isSyncing: Boolean,
+    onDelete: (String) -> Unit
+) {
     if (isSyncing && items.isEmpty()) {
         LazyColumn(modifier = Modifier.fillMaxSize().padding(AdminDesign.SpacingMedium)) {
             items(5) { ShimmerItem(Modifier.padding(vertical = AdminDesign.SpacingSmall)) }
@@ -81,14 +131,14 @@ fun StoreItemsList(items: List<com.example.daadi.data.supabase.SupabaseStoreItem
             verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingMedium)
         ) {
             items(items) { item ->
-                StoreItemCard(item)
+                StoreItemCard(item, onDelete)
             }
         }
     }
 }
 
 @Composable
-fun StoreItemCard(item: com.example.daadi.data.supabase.SupabaseStoreItem) {
+fun StoreItemCard(item: SupabaseStoreItem, onDelete: (String) -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = AdminDesign.CardShape,
@@ -144,15 +194,19 @@ fun StoreItemCard(item: com.example.daadi.data.supabase.SupabaseStoreItem) {
                     }
                 }
             }
-            IconButton(onClick = { /* Edit Item */ }) {
-                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = AdminDesign.Primary)
+            IconButton(onClick = { onDelete(item.id) }) {
+                Icon(Icons.Default.Delete, contentDescription = "Delete Pack", tint = AdminDesign.Error)
             }
         }
     }
 }
 
 @Composable
-fun CouponList(coupons: List<com.example.daadi.data.supabase.SupabaseCoupon>, isSyncing: Boolean) {
+fun CouponList(
+    coupons: List<SupabaseCoupon>, 
+    isSyncing: Boolean,
+    onDelete: (String) -> Unit
+) {
     if (isSyncing && coupons.isEmpty()) {
         LazyColumn(modifier = Modifier.fillMaxSize().padding(AdminDesign.SpacingMedium)) {
             items(5) { ShimmerItem(Modifier.padding(vertical = AdminDesign.SpacingSmall)) }
@@ -166,14 +220,14 @@ fun CouponList(coupons: List<com.example.daadi.data.supabase.SupabaseCoupon>, is
             verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingMedium)
         ) {
             items(coupons) { coupon ->
-                CouponCard(coupon)
+                CouponCard(coupon, onDelete)
             }
         }
     }
 }
 
 @Composable
-fun CouponCard(coupon: com.example.daadi.data.supabase.SupabaseCoupon) {
+fun CouponCard(coupon: SupabaseCoupon, onDelete: (String) -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = AdminDesign.CardShape,
@@ -213,6 +267,127 @@ fun CouponCard(coupon: com.example.daadi.data.supabase.SupabaseCoupon) {
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                 )
             }
+            Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
+            IconButton(onClick = { onDelete(coupon.id) }) {
+                Icon(Icons.Default.Delete, contentDescription = "Delete coupon", tint = AdminDesign.Error)
+            }
         }
     }
+}
+
+@Composable
+fun CreateStoreItemDialog(onDismiss: () -> Unit, onConfirm: (String, String, String, Int?, Double?, Boolean, Int) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var desc by remember { mutableStateOf("") }
+    var type by remember { mutableStateOf("pack") }
+    var currencyType by remember { mutableStateOf("USD") } // or "COINS"
+    var coinPrice by remember { mutableStateOf("100") }
+    var usdPrice by remember { mutableStateOf("4.99") }
+    var isFeatured by remember { mutableStateOf(false) }
+    var discountPercent by remember { mutableStateOf("0") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Deploy Store Item/Pack", fontWeight = FontWeight.Black) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Item Name") }, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape)
+                OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("Product Description") }, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape, minLines = 2)
+                
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("TYPE:", fontSize = 10.sp, fontWeight = FontWeight.Black)
+                    FilterChip(selected = type == "pack", onClick = { type = "pack" }, label = { Text("PACK") })
+                    FilterChip(selected = type == "bundle", onClick = { type = "bundle" }, label = { Text("BUNDLE") })
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("PRICING:", fontSize = 10.sp, fontWeight = FontWeight.Black)
+                    FilterChip(selected = currencyType == "USD", onClick = { currencyType = "USD" }, label = { Text("FIAT (USD)") })
+                    FilterChip(selected = currencyType == "COINS", onClick = { currencyType = "COINS" }, label = { Text("GOLD COINS") })
+                }
+
+                if (currencyType == "USD") {
+                    OutlinedTextField(value = usdPrice, onValueChange = { usdPrice = it }, label = { Text("Price (USD)") }, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape)
+                } else {
+                    OutlinedTextField(value = coinPrice, onValueChange = { coinPrice = it }, label = { Text("Price (Coins)") }, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape)
+                }
+
+                OutlinedTextField(value = discountPercent, onValueChange = { discountPercent = it }, label = { Text("Discount Percentage") }, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape)
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = isFeatured, onCheckedChange = { isFeatured = it })
+                    Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
+                    Text("Pin to Featured Shelf", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val finalCoinPrice = if (currencyType == "COINS") coinPrice.toIntOrNull() ?: 0 else null
+                    val finalUsdPrice = if (currencyType == "USD") usdPrice.toDoubleOrNull() ?: 0.0 else null
+                    onConfirm(
+                        name,
+                        desc,
+                        type,
+                        finalCoinPrice,
+                        finalUsdPrice,
+                        isFeatured,
+                        discountPercent.toIntOrNull() ?: 0
+                    )
+                },
+                shape = AdminDesign.ButtonShape
+            ) {
+                Text("PUBLISH PACK")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("ABORT") }
+        }
+    )
+}
+
+@Composable
+fun CreateCouponDialog(onDismiss: () -> Unit, onConfirm: (String, String, Double, Int?) -> Unit) {
+    var code by remember { mutableStateOf("") }
+    var discountType by remember { mutableStateOf("percentage") } // or "fixed"
+    var value by remember { mutableStateOf("15") }
+    var maxUses by remember { mutableStateOf("500") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Issue Promo Coupon", fontWeight = FontWeight.Black) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
+                OutlinedTextField(value = code, onValueChange = { code = it }, label = { Text("PROMO CODE (e.g. SUMMER50)") }, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape)
+                
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("DISCOUNT TYPE:", fontSize = 10.sp, fontWeight = FontWeight.Black)
+                    FilterChip(selected = discountType == "percentage", onClick = { discountType = "percentage" }, label = { Text("PERCENTAGE") })
+                    FilterChip(selected = discountType == "fixed", onClick = { discountType = "fixed" }, label = { Text("FLAT CASH") })
+                }
+
+                OutlinedTextField(value = value, onValueChange = { value = it }, label = { Text(if (discountType == "percentage") "Percentage Discount (%)" else "Flat Discount Value ($)") }, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape)
+                OutlinedTextField(value = maxUses, onValueChange = { maxUses = it }, label = { Text("Max Claims (Blank for infinite)") }, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape)
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onConfirm(
+                        code.uppercase(),
+                        discountType,
+                        value.toDoubleOrNull() ?: 0.0,
+                        maxUses.toIntOrNull()
+                    )
+                },
+                shape = AdminDesign.ButtonShape
+            ) {
+                Text("ISSUE COUPON")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("ABORT") }
+        }
+    )
 }

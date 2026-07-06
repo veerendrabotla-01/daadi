@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.foundation.background
@@ -25,24 +24,24 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun AdminEventScreen(
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onBack: () -> Unit
 ) {
-    val events by supabaseManager.gameEvents.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+    val events by adminViewModel.liveOpsRepository.gameEvents.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
     var showCreateDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        supabaseManager.fetchGameEvents()
+        adminViewModel.liveOpsRepository.fetchGameEvents()
     }
 
     AdminFoundationScaffold(
         title = "Live Operations",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack,
         actions = {
             IconButton(onClick = { showCreateDialog = true }) {
-                Icon(Icons.Default.EventAvailable, contentDescription = "New Event", tint = AdminDesign.Primary)
+                Icon(Icons.Default.Add, contentDescription = "New Event", tint = AdminDesign.Primary)
             }
         }
     ) { padding ->
@@ -53,7 +52,19 @@ fun AdminEventScreen(
         } else if (events.isEmpty()) {
             AdminEmptyState(
                 title = "No Active Events", 
-                description = "Game world is currently static. Launch a bonus event to increase player engagement."
+                description = "Game world is currently static. Launch a bonus event to increase player engagement.",
+                icon = { Icon(Icons.Default.EventNote, contentDescription = null, modifier = Modifier.size(64.dp), tint = AdminDesign.Primary) },
+                actionButton = {
+                    Button(
+                        onClick = { showCreateDialog = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Primary),
+                        shape = AdminDesign.ButtonShape
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                        Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
+                        Text("LAUNCH NEW EVENT", fontWeight = FontWeight.Bold)
+                    }
+                }
             )
         } else {
             LazyColumn(
@@ -62,11 +73,32 @@ fun AdminEventScreen(
                 modifier = Modifier.fillMaxSize().padding(padding)
             ) {
                 item {
-                    Text("BONUS & MULTIPLIER EVENTS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("BONUS & MULTIPLIER EVENTS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
+                        Button(
+                            onClick = { showCreateDialog = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Primary.copy(alpha = 0.1f), contentColor = AdminDesign.Primary),
+                            shape = AdminDesign.ButtonShape,
+                            contentPadding = PaddingValues(horizontal = AdminDesign.SpacingMedium, vertical = 0.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("ADD EVENT", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                     Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
                 }
                 items(events) { event ->
-                    EventItem(event) { isOn -> supabaseManager.toggleGameEvent(event.id, isOn) }
+                    EventItem(
+                        event = event,
+                        onToggle = { isOn -> adminViewModel.liveOpsRepository.toggleGameEvent(event.id, isOn) },
+                        onDelete = { adminViewModel.liveOpsRepository.deleteGameEvent(event.id) }
+                    )
                 }
             }
         }
@@ -75,7 +107,7 @@ fun AdminEventScreen(
             CreateEventDialog(
                 onDismiss = { showCreateDialog = false },
                 onConfirm = { title, type, mult ->
-                    supabaseManager.createGameEvent(
+                    adminViewModel.liveOpsRepository.createGameEvent(
                         title, 
                         type, 
                         mult, 
@@ -120,7 +152,7 @@ fun CreateEventDialog(onDismiss: () -> Unit, onConfirm: (String, String, Double)
 }
 
 @Composable
-fun EventItem(event: SupabaseGameEvent, onToggle: (Boolean) -> Unit) {
+fun EventItem(event: SupabaseGameEvent, onToggle: (Boolean) -> Unit, onDelete: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = AdminDesign.CardShape,
@@ -171,6 +203,12 @@ fun EventItem(event: SupabaseGameEvent, onToggle: (Boolean) -> Unit) {
                     checkedTrackColor = AdminDesign.Primary
                 )
             )
+
+            Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
+
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, contentDescription = "Delete Event", tint = AdminDesign.Error)
+            }
         }
     }
 }

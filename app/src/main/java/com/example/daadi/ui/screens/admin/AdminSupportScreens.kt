@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.foundation.background
@@ -26,25 +25,25 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun AdminSupportHubScreen(
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onBack: () -> Unit
 ) {
-    val tickets by supabaseManager.tickets.collectAsStateWithLifecycle()
-    val feedbackV2 by supabaseManager.feedbackV2.collectAsStateWithLifecycle()
-    val users by supabaseManager.users.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+    val tickets by adminViewModel.supportRepository.tickets.collectAsStateWithLifecycle()
+    val feedbackV2 by adminViewModel.supportRepository.feedbackV2.collectAsStateWithLifecycle()
+    val users by adminViewModel.userRepository.users.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
 
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Support Tickets", "Feedback Center")
 
     LaunchedEffect(Unit) {
-        supabaseManager.fetchTickets()
-        supabaseManager.fetchFeedbackV2()
+        adminViewModel.supportRepository.fetchTickets()
+        adminViewModel.supportRepository.fetchFeedbackV2()
     }
 
     AdminFoundationScaffold(
         title = "Support Console",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack,
         actions = {
             IconButton(onClick = { /* Export CSV */ }) {

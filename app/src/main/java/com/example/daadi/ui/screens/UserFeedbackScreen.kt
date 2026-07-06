@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.foundation.layout.*
@@ -24,7 +23,7 @@ import androidx.compose.ui.unit.sp
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserFeedbackScreen(
-    supabaseManager: SupabaseManager,
+    sharedGameViewModel: com.example.daadi.viewmodel.GameViewModel,
     onBack: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -135,7 +134,7 @@ fun UserFeedbackScreen(
                 onClick = {
                     if (content.isNotBlank()) {
                         isSubmitting = true
-                        supabaseManager.submitFeedback(content, category) { success, errMsg ->
+                        sharedGameViewModel.supportRepository.submitFeedback(content, category) { success, errMsg ->
                             isSubmitting = false
                             if (success) {
                                 content = ""

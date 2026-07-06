@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.foundation.background
@@ -26,20 +25,20 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun AdminAntiCheatDashboard(
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onBack: () -> Unit
 ) {
-    val logs by supabaseManager.antiCheatLogs.collectAsStateWithLifecycle()
-    val users by supabaseManager.users.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+    val logs by adminViewModel.remoteGameRepository.antiCheatLogs.collectAsStateWithLifecycle()
+    val users by adminViewModel.userRepository.users.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
-        supabaseManager.fetchAntiCheatLogs()
+        adminViewModel.remoteGameRepository.fetchAntiCheatLogs()
     }
 
     AdminFoundationScaffold(
         title = "Sentinel Shield",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {

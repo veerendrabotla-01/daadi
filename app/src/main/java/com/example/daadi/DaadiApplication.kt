@@ -6,6 +6,7 @@ import com.example.daadi.data.multiplayer.MultiplayerManager
 import com.example.daadi.audio.SoundManager
 import com.example.daadi.data.repository.*
 import com.example.daadi.data.supabase.SupabaseManager
+import com.example.daadi.data.repository.supabase.*
 import kotlinx.coroutines.*
 
 class DaadiApplication : Application() {
@@ -16,7 +17,24 @@ class DaadiApplication : Application() {
     val soundManager: SoundManager by lazy { SoundManager(this, settingsRepository) }
     val multiplayerManager: MultiplayerManager by lazy { MultiplayerManager(this, soundManager) }
     val supabaseManager: SupabaseManager by lazy { SupabaseManager(this) }
-    val adManager: AdManager by lazy { AdManager(this, supabaseManager) }
+    val database: com.example.daadi.data.local.AppDatabase by lazy {
+        androidx.room.Room.databaseBuilder(
+            this,
+            com.example.daadi.data.local.AppDatabase::class.java,
+            "daadi_cache_db"
+        ).build()
+    }
+    val authRepository: AuthRepository by lazy { AuthRepository(supabaseManager) }
+    val adminRepository: AdminRepository by lazy { AdminRepository(supabaseManager) }
+    val analyticsRepository: AnalyticsRepository by lazy { AnalyticsRepository(supabaseManager) }
+    val remoteGameRepository: RemoteGameRepository by lazy { RemoteGameRepository(supabaseManager, database.matchDao()) }
+    val economyRepository: EconomyRepository by lazy { EconomyRepository(supabaseManager) }
+    val liveOpsRepository: LiveOpsRepository by lazy { LiveOpsRepository(supabaseManager) }
+    val supportRepository: SupportRepository by lazy { SupportRepository(supabaseManager) }
+    val tournamentRepository: TournamentRepository by lazy { TournamentRepository(supabaseManager) }
+    val remoteConfigRepository: RemoteConfigRepository by lazy { RemoteConfigRepository(supabaseManager) }
+    val userRepository: UserRepository by lazy { UserRepository(supabaseManager, database.userDao()) }
+    val adManager: AdManager by lazy { AdManager(this, remoteConfigRepository, analyticsRepository) }
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 

@@ -1,7 +1,5 @@
 package com.example.daadi.data.multiplayer
 
-import com.example.daadi.data.supabase.SupabaseManager
-
 
 import android.content.Context
 import com.example.daadi.util.SecureLog as Log
@@ -336,7 +334,7 @@ class MultiplayerManager(
                 if (receivedSig != calculatedSig) {
                     Log.e(tag, "Security Alert: PACKET TAMPERING detected from ${msg.sender}! Invalid signature rejected.")
                     _errorMessage.value = "Security Error: Blocked corrupted/tampered packet."
-                    com.example.daadi.DaadiApplication.instance.supabaseManager.logAntiCheatViolation(
+                    com.example.daadi.DaadiApplication.instance.remoteGameRepository.logAntiCheatViolation(
                         matchId = _roomCode.value,
                         violationType = "PACKET_TAMPERING",
                         severity = "critical",
@@ -352,7 +350,7 @@ class MultiplayerManager(
                 val lastSeq = expectedRemoteSequences[msg.sender] ?: 0
                 if (remoteSeq <= lastSeq) {
                     Log.e(tag, "Security Alert: REPLAY ATTACK intercepted from ${msg.sender}. Last Seq: $lastSeq, Received Seq: $remoteSeq")
-                    com.example.daadi.DaadiApplication.instance.supabaseManager.logAntiCheatViolation(
+                    com.example.daadi.DaadiApplication.instance.remoteGameRepository.logAntiCheatViolation(
                         matchId = _roomCode.value,
                         violationType = "REPLAY_ATTACK",
                         severity = "high",
@@ -370,7 +368,7 @@ class MultiplayerManager(
                 if (drift > 35000) { // 35 seconds threshold
                     Log.e(tag, "Security Alert: CLOCK CHEATING/EXPIRED packet from ${msg.sender}. Drift: ${drift}ms")
                     _errorMessage.value = "Security warning: Dismissed out-of-time request."
-                    com.example.daadi.DaadiApplication.instance.supabaseManager.logAntiCheatViolation(
+                    com.example.daadi.DaadiApplication.instance.remoteGameRepository.logAntiCheatViolation(
                         matchId = _roomCode.value,
                         violationType = "CLOCK_CHEATING",
                         severity = "medium",

@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     id UUID PRIMARY KEY,
     username TEXT NOT NULL,
     email TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'player', -- owner, super_admin, admin, moderator, support, community_manager, analytics, finance, read_only, player
+    role TEXT NOT NULL DEFAULT 'publicuser', -- publicuser, player, admin
     "createdAt" TEXT NOT NULL,
     "totalGames" INTEGER DEFAULT 0,
     wins INTEGER DEFAULT 0,
@@ -194,7 +194,7 @@ CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS BOOLEAN AS $$
 BEGIN
   RETURN (
-    SELECT (role IN ('admin', 'superadmin')) FROM public.users WHERE id = auth.uid()
+    SELECT (role IN ('admin', 'superadmin', 'super_admin')) FROM public.users WHERE id = auth.uid()
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
@@ -203,7 +203,7 @@ CREATE OR REPLACE FUNCTION public.is_moderator()
 RETURNS BOOLEAN AS $$
 BEGIN
   RETURN (
-    SELECT (role IN ('moderator', 'admin', 'superadmin')) FROM public.users WHERE id = auth.uid()
+    SELECT (role IN ('admin', 'superadmin', 'super_admin')) FROM public.users WHERE id = auth.uid()
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
@@ -212,7 +212,7 @@ CREATE OR REPLACE FUNCTION public.is_support()
 RETURNS BOOLEAN AS $$
 BEGIN
   RETURN (
-    SELECT (role IN ('support', 'moderator', 'admin', 'superadmin')) FROM public.users WHERE id = auth.uid()
+    SELECT (role IN ('admin', 'superadmin', 'super_admin')) FROM public.users WHERE id = auth.uid()
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
@@ -227,7 +227,7 @@ BEGIN
     JOIN public.permissions p ON rp.permission_id = p.id
     WHERE ur.user_id = auth.uid() AND p.name = perm_name
   ) OR (
-    SELECT (role IN ('admin', 'superadmin')) FROM public.users WHERE id = auth.uid()
+    SELECT (role IN ('admin', 'superadmin', 'super_admin')) FROM public.users WHERE id = auth.uid()
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
@@ -236,10 +236,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 DO $$
 DECLARE
     role_admin_id UUID;
-    role_superadmin_id UUID;
-    role_mod_id UUID;
-    role_support_id UUID;
-    role_user_id UUID;
+    role_player_id UUID;
+    role_publicuser_id UUID;
     p TEXT;
     perms TEXT[] := ARRAY[
         'manage_users', 'manage_matches', 'manage_reports', 'manage_ads', 
@@ -248,32 +246,29 @@ DECLARE
         'delete_accounts', 'export_user_data', 'maintenance_control'
     ];
 BEGIN
-    INSERT INTO public.roles (name, description) VALUES 
-    ('user', 'Standard player'),
-    ('moderator', 'Can handle reports and bans'),
-    ('support', 'Can assist users and view logs'),
-    ('admin', 'Full system management'),
-    ('superadmin', 'Total control including RBAC')
-    ON CONFLICT (name) DO NOTHING;
+    -- Remove any old roles that are not part of our simplified v1 structure
+    DELETE FROM public.roles WHERE name NOT IN ('publicuser', 'player', 'admin');
 
-    SELECT id INTO role_user_id FROM public.roles WHERE name = 'user';
-    SELECT id INTO role_mod_id FROM public.roles WHERE name = 'moderator';
-    SELECT id INTO role_support_id FROM public.roles WHERE name = 'support';
+    INSERT INTO public.roles (name, description) VALUES 
+    ('publicuser', 'Standard registered public visitor profile'),
+    ('player', 'Active competing player profile'),
+    ('admin', 'Full system administration and total management')
+    ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description;
+
+    SELECT id INTO role_publicuser_id FROM public.roles WHERE name = 'publicuser';
+    SELECT id INTO role_player_id FROM public.roles WHERE name = 'player';
     SELECT id INTO role_admin_id FROM public.roles WHERE name = 'admin';
-    SELECT id INTO role_superadmin_id FROM public.roles WHERE name = 'superadmin';
 
     FOREACH p IN ARRAY perms LOOP
         INSERT INTO public.permissions (name) VALUES (p) ON CONFLICT (name) DO NOTHING;
     END LOOP;
 
+    -- Clean up role permissions to ensure total consistency
+    DELETE FROM public.role_permissions;
+
+    -- Admin receives all system permissions
     INSERT INTO public.role_permissions (role_id, permission_id)
     SELECT role_admin_id, id FROM public.permissions ON CONFLICT DO NOTHING;
-
-    INSERT INTO public.role_permissions (role_id, permission_id)
-    SELECT role_superadmin_id, id FROM public.permissions ON CONFLICT DO NOTHING;
-
-    INSERT INTO public.role_permissions (role_id, permission_id)
-    SELECT role_mod_id, id FROM public.permissions WHERE name IN ('manage_reports', 'manage_matches') ON CONFLICT DO NOTHING;
 END $$;
 
 -- 5. ENABLE ROW LEVEL SECURITY
@@ -293,6 +288,9 @@ CREATE POLICY "Public profiles are viewable by everyone" ON public.users FOR SEL
 
 DROP POLICY IF EXISTS "Users can update own profile" ON public.users;
 CREATE POLICY "Users can update own profile" ON public.users FOR UPDATE USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Users can insert own profile" ON public.users;
+CREATE POLICY "Users can insert own profile" ON public.users FOR INSERT WITH CHECK (auth.uid() = id);
 
 DROP POLICY IF EXISTS "Admins can manage all profiles" ON public.users;
 CREATE POLICY "Admins can manage all profiles" ON public.users FOR ALL USING (public.is_admin());
@@ -447,7 +445,7 @@ BEGIN
         NEW.id,
         username_val,
         COALESCE(NEW.email, ''),
-        'player',
+        'publicuser',
         NOW()::text,
         0,
         0,
@@ -987,7 +985,7 @@ ALTER TABLE public.admin_sessions ADD COLUMN IF NOT EXISTS admin_id UUID REFEREN
 CREATE TABLE IF NOT EXISTS public.admin_invitations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'moderator',
+    role TEXT NOT NULL DEFAULT 'admin',
     permissions JSONB DEFAULT '[]'::jsonb NOT NULL,
     invited_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
     status TEXT DEFAULT 'pending' NOT NULL, -- 'pending', 'accepted', 'revoked'

@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.animation.*
@@ -31,43 +30,64 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun AdminUserManagementScreen(
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onBack: () -> Unit
 ) {
-    val users by supabaseManager.users.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+    val users by adminViewModel.userRepository.users.collectAsStateWithLifecycle()
+    val isOnline by adminViewModel.authRepository.network.isOnline.collectAsStateWithLifecycle()
+    val cachedUsers by adminViewModel.userRepository.cachedUsers.collectAsState(initial = emptyList())
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
     var selectedUser by remember { mutableStateOf<SupabaseUser?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     
+    // Display logic: Prefer live users if online, otherwise cached
+    val displayUsers = if (isOnline) users else cachedUsers.map { 
+        SupabaseUser(
+            id = it.id,
+            username = it.username,
+            email = it.email,
+            role = it.role,
+            createdAt = it.createdAt,
+            totalGames = it.totalGames,
+            wins = it.wins,
+            losses = it.losses,
+            coins = it.coins,
+            xp = it.xp,
+            rating = it.rating,
+            isBanned = it.isBanned,
+            isVerified = it.isVerified
+        )
+    }
+
     BoxWithConstraints {
         val isWide = maxWidth >= 900.dp
         
         if (isWide) {
             AdminWideUserManagement(
-                users = users,
-                isSyncing = isSyncing,
+                users = displayUsers,
+                isSyncing = isSyncing || !isOnline,
                 selectedUser = selectedUser,
                 onUserSelect = { selectedUser = it },
                 searchQuery = searchQuery,
                 onSearchQueryChange = { searchQuery = it },
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = onBack
             )
         } else {
             if (selectedUser == null) {
                 AdminUserListScreen(
-                    users = users,
-                    isSyncing = isSyncing,
+                    users = displayUsers,
+                    isSyncing = isSyncing || !isOnline,
                     onUserClick = { selectedUser = it },
                     searchQuery = searchQuery,
                     onSearchChange = { searchQuery = it },
-                    supabaseManager = supabaseManager,
+                    adminViewModel = adminViewModel,
                     onBack = onBack
                 )
             } else {
                 AdminUserDetailsScreen(
                     user = selectedUser!!,
-                    supabaseManager = supabaseManager,
+                    adminViewModel = adminViewModel,
                     onBack = { selectedUser = null }
                 )
             }
@@ -83,12 +103,12 @@ fun AdminWideUserManagement(
     onUserSelect: (SupabaseUser) -> Unit,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onBack: () -> Unit
 ) {
     AdminFoundationScaffold(
         title = "User Management",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack,
         showSearch = true,
         searchQuery = searchQuery,
@@ -110,7 +130,7 @@ fun AdminWideUserManagement(
             // Right Panel: Details
             Box(modifier = Modifier.weight(0.6f).fillMaxHeight()) {
                 if (selectedUser != null) {
-                    UserDetailsContent(user = selectedUser, supabaseManager = supabaseManager)
+                    UserDetailsContent(user = selectedUser, adminViewModel = adminViewModel)
                 } else {
                     AdminEmptyState(
                         title = "No User Selected",
@@ -130,12 +150,12 @@ fun AdminUserListScreen(
     onUserClick: (SupabaseUser) -> Unit,
     searchQuery: String,
     onSearchChange: (String) -> Unit,
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onBack: () -> Unit
 ) {
     AdminFoundationScaffold(
         title = "User Directory",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack,
         showSearch = true,
         searchQuery = searchQuery,
@@ -270,16 +290,15 @@ fun UserListItem(user: SupabaseUser, onClick: () -> Unit, isSelected: Boolean = 
                 Text(user.email, fontSize = 11.sp, color = AdminDesign.OnSurfaceVariant)
             }
             Column(horizontalAlignment = Alignment.End) {
-                user.roles.take(1).forEach { role ->
-                    Badge(
-                        containerColor = when(role) {
-                            "admin" -> AdminDesign.Secondary
-                            "moderator" -> AdminDesign.Primary
-                            else -> AdminDesign.OnSurfaceVariant
-                        }
-                    ) {
-                        Text(role.uppercase(), fontSize = 8.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                val displayRole = if (user.role.isNotEmpty()) user.role else (user.roles.firstOrNull() ?: "publicuser")
+                Badge(
+                    containerColor = when(displayRole.lowercase()) {
+                        "admin", "superadmin", "super_admin" -> AdminDesign.Secondary
+                        "player" -> AdminDesign.Primary
+                        else -> AdminDesign.OnSurfaceVariant
                     }
+                ) {
+                    Text(displayRole.uppercase(), fontSize = 8.sp, color = Color.White, fontWeight = FontWeight.Bold)
                 }
                 if (user.isBanned) {
                     Spacer(modifier = Modifier.height(4.dp))
@@ -293,22 +312,22 @@ fun UserListItem(user: SupabaseUser, onClick: () -> Unit, isSelected: Boolean = 
 @Composable
 fun AdminUserDetailsScreen(
     user: SupabaseUser,
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onBack: () -> Unit
 ) {
     AdminFoundationScaffold(
         title = "Player Profile",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
-            UserDetailsContent(user = user, supabaseManager = supabaseManager)
+            UserDetailsContent(user = user, adminViewModel = adminViewModel)
         }
     }
 }
 
 @Composable
-fun UserDetailsContent(user: SupabaseUser, supabaseManager: SupabaseManager) {
+fun UserDetailsContent(user: SupabaseUser, adminViewModel: com.example.daadi.viewmodel.AdminViewModel) {
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Overview", "Moderation", "Activity", "Economics")
 
@@ -353,9 +372,9 @@ fun UserDetailsContent(user: SupabaseUser, supabaseManager: SupabaseManager) {
                     Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingMedium)) {
                         when(index) {
                             0 -> OverviewTab(user)
-                            1 -> ModerationTab(user, supabaseManager)
-                            2 -> ActivityTab(user, supabaseManager)
-                            3 -> EconomicsTab(user, supabaseManager)
+                            1 -> ModerationTab(user, adminViewModel)
+                            2 -> ActivityTab(user, adminViewModel)
+                            3 -> EconomicsTab(user, adminViewModel)
                         }
                     }
                 }
@@ -364,7 +383,7 @@ fun UserDetailsContent(user: SupabaseUser, supabaseManager: SupabaseManager) {
             item {
                 Spacer(modifier = Modifier.height(AdminDesign.SpacingLarge))
                 Button(
-                    onClick = { supabaseManager.deleteUser(user.id) },
+                    onClick = { adminViewModel.authRepository.deleteUser(user.id) },
                     colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Error.copy(alpha = 0.1f), contentColor = AdminDesign.Error),
                     modifier = Modifier.fillMaxWidth(),
                     shape = AdminDesign.ButtonShape
@@ -407,35 +426,35 @@ fun OverviewTab(user: SupabaseUser) {
 }
 
 @Composable
-fun ModerationTab(user: SupabaseUser, supabaseManager: SupabaseManager) {
+fun ModerationTab(user: SupabaseUser, adminViewModel: com.example.daadi.viewmodel.AdminViewModel) {
     Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
         ActionTile(
             title = if (user.isBanned) "Unban Account" else "Ban Account",
             subtitle = if (user.isBanned) "Restore full access for this player" else "Prevents all game access and authentication",
             icon = Icons.Default.Block,
             color = if (user.isBanned) AdminDesign.Secondary else AdminDesign.Error,
-            onClick = { supabaseManager.toggleUserBan(user.id) }
+            onClick = { adminViewModel.userRepository.toggleUserBan(user.id) }
         )
         ActionTile(
             title = if (user.shadowBanned) "Remove Shadow Ban" else "Apply Shadow Ban",
             subtitle = "Player can still play but only with other toxic users",
             icon = Icons.Default.VisibilityOff,
             color = Color.Gray,
-            onClick = { supabaseManager.setShadowBan(user.id, !user.shadowBanned) }
+            onClick = { adminViewModel.authRepository.setShadowBan(user.id, !user.shadowBanned) }
         )
         ActionTile(
             title = if (user.isVerified) "Remove Verification" else "Verify Identity",
             subtitle = "Grants the blue verification badge in profiles",
             icon = Icons.Default.Verified,
             color = AdminDesign.Primary,
-            onClick = { supabaseManager.updateUserVerification(user.id, !user.isVerified) }
+            onClick = { adminViewModel.authRepository.updateUserVerification(user.id, !user.isVerified) }
         )
         ActionTile(
             title = "Invalidate Sessions",
             subtitle = "Force logout from all devices immediately",
             icon = Icons.Default.Logout,
             color = AdminDesign.Warning,
-            onClick = { supabaseManager.forceLogout(user.id) }
+            onClick = { adminViewModel.authRepository.forceLogout(user.id) }
         )
         
         Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
@@ -449,7 +468,7 @@ fun ModerationTab(user: SupabaseUser, supabaseManager: SupabaseManager) {
             shape = AdminDesign.InputShape
         )
         Button(
-            onClick = { supabaseManager.updateInternalNotes(user.id, notes) },
+            onClick = { adminViewModel.authRepository.updateInternalNotes(user.id, notes) },
             modifier = Modifier.align(Alignment.End).padding(top = AdminDesign.SpacingSmall),
             shape = AdminDesign.ButtonShape,
             colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Primary)
@@ -460,9 +479,9 @@ fun ModerationTab(user: SupabaseUser, supabaseManager: SupabaseManager) {
 }
 
 @Composable
-fun ActivityTab(user: SupabaseUser, supabaseManager: SupabaseManager) {
-    val loginHistory by supabaseManager.userLoginHistory.collectAsStateWithLifecycle()
-    LaunchedEffect(user.id) { supabaseManager.fetchLoginHistory(user.id) }
+fun ActivityTab(user: SupabaseUser, adminViewModel: com.example.daadi.viewmodel.AdminViewModel) {
+    val loginHistory by adminViewModel.userRepository.userLoginHistory.collectAsStateWithLifecycle()
+    LaunchedEffect(user.id) { adminViewModel.userRepository.fetchLoginHistory(user.id) }
 
     if (loginHistory.isEmpty()) {
         AdminEmptyState(title = "No Recent Activity", description = "User hasn't logged in recently or history was purged.")
@@ -489,20 +508,20 @@ fun ActivityTab(user: SupabaseUser, supabaseManager: SupabaseManager) {
 }
 
 @Composable
-fun EconomicsTab(user: SupabaseUser, supabaseManager: SupabaseManager) {
+fun EconomicsTab(user: SupabaseUser, adminViewModel: com.example.daadi.viewmodel.AdminViewModel) {
     Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingMedium)) {
         Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface), shape = AdminDesign.CardShape) {
             Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
                 Text("CURRENCY ADJUSTMENTS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
                 Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
                 Row(horizontalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
-                    Button(onClick = { supabaseManager.adjustUserEconomy(user.id, 500, 0) }, modifier = Modifier.weight(1f), shape = AdminDesign.ButtonShape) { Text("+500 C", fontSize = 10.sp) }
-                    Button(onClick = { supabaseManager.adjustUserEconomy(user.id, 0, 1000) }, modifier = Modifier.weight(1f), shape = AdminDesign.ButtonShape) { Text("+1k XP", fontSize = 10.sp) }
+                    Button(onClick = { adminViewModel.economyRepository.adjustUserEconomy(user.id, 500, 0) }, modifier = Modifier.weight(1f), shape = AdminDesign.ButtonShape) { Text("+500 C", fontSize = 10.sp) }
+                    Button(onClick = { adminViewModel.economyRepository.adjustUserEconomy(user.id, 0, 1000) }, modifier = Modifier.weight(1f), shape = AdminDesign.ButtonShape) { Text("+1k XP", fontSize = 10.sp) }
                 }
                 Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
                 Row(horizontalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
-                    OutlinedButton(onClick = { supabaseManager.adjustUserEconomy(user.id, -500, 0) }, modifier = Modifier.weight(1f), shape = AdminDesign.ButtonShape) { Text("-500 C", fontSize = 10.sp) }
-                    OutlinedButton(onClick = { supabaseManager.adjustUserEconomy(user.id, 0, -1000) }, modifier = Modifier.weight(1f), shape = AdminDesign.ButtonShape) { Text("-1k XP", fontSize = 10.sp) }
+                    OutlinedButton(onClick = { adminViewModel.economyRepository.adjustUserEconomy(user.id, -500, 0) }, modifier = Modifier.weight(1f), shape = AdminDesign.ButtonShape) { Text("-500 C", fontSize = 10.sp) }
+                    OutlinedButton(onClick = { adminViewModel.economyRepository.adjustUserEconomy(user.id, 0, -1000) }, modifier = Modifier.weight(1f), shape = AdminDesign.ButtonShape) { Text("-1k XP", fontSize = 10.sp) }
                 }
             }
         }
@@ -512,8 +531,8 @@ fun EconomicsTab(user: SupabaseUser, supabaseManager: SupabaseManager) {
                 Text("RATING OVERRIDES", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
                 Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
                 Row(horizontalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
-                    Button(onClick = { supabaseManager.adjustUserStats(user.id, 1, 0, 50) }, modifier = Modifier.weight(1f), shape = AdminDesign.ButtonShape) { Text("+1 Win (+50 E)", fontSize = 10.sp) }
-                    Button(onClick = { supabaseManager.adjustUserStats(user.id, 0, 1, -50) }, modifier = Modifier.weight(1f), shape = AdminDesign.ButtonShape) { Text("+1 Loss (-50 E)", fontSize = 10.sp) }
+                    Button(onClick = { adminViewModel.economyRepository.adjustUserStats(user.id, 1, 0, 50) }, modifier = Modifier.weight(1f), shape = AdminDesign.ButtonShape) { Text("+1 Win (+50 E)", fontSize = 10.sp) }
+                    Button(onClick = { adminViewModel.economyRepository.adjustUserStats(user.id, 0, 1, -50) }, modifier = Modifier.weight(1f), shape = AdminDesign.ButtonShape) { Text("+1 Loss (-50 E)", fontSize = 10.sp) }
                 }
             }
         }

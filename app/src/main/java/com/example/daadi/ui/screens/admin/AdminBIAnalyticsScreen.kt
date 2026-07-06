@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.foundation.background
@@ -22,10 +21,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
-fun AdminBIAnalyticsScreen(supabaseManager: SupabaseManager, onBack: () -> Unit) {
-    val biMetrics by supabaseManager.biMetrics.collectAsStateWithLifecycle()
-    val financeReports by supabaseManager.financeReports.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+fun AdminBIAnalyticsScreen(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onBack: () -> Unit) {
+    val biMetrics by adminViewModel.analyticsRepository.biMetrics.collectAsStateWithLifecycle()
+    val financeReports by adminViewModel.analyticsRepository.financeReports.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
     
     val latestMetrics = biMetrics.firstOrNull()
     val latestFinance = financeReports.firstOrNull()

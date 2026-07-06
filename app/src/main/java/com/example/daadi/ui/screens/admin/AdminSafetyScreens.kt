@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.foundation.background
@@ -27,14 +26,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun AdminSafetyHubScreen(
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onUserClick: (SupabaseUser) -> Unit,
     onBack: () -> Unit
 ) {
     val reports by supabaseManager.reports.collectAsStateWithLifecycle()
     val bans by supabaseManager.bans.collectAsStateWithLifecycle()
-    val users by supabaseManager.users.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+    val users by adminViewModel.userRepository.users.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
 
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Incident Reports", "Exclusion List")
@@ -46,7 +45,7 @@ fun AdminSafetyHubScreen(
 
     AdminFoundationScaffold(
         title = "Safety & Compliance",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {

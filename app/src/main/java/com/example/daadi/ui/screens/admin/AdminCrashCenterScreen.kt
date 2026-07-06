@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.foundation.background
@@ -23,9 +22,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
-fun AdminCrashCenterScreen(supabaseManager: SupabaseManager, onBack: () -> Unit) {
-    val crashLogs by supabaseManager.crashLogs.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+fun AdminCrashCenterScreen(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onBack: () -> Unit) {
+    val crashLogs by adminViewModel.analyticsRepository.crashLogs.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
 
     AdminFoundationScaffold("Crash Terminal", supabaseManager, onBack) { padding ->
         if (isSyncing && crashLogs.isEmpty()) {

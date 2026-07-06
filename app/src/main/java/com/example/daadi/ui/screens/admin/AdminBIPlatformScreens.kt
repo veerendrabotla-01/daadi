@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.foundation.background
@@ -27,7 +26,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun AdminBIPlatformSuite(
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     type: String, // "analytics", "revenue", "notifications", "logs", "monitoring", "database"
     onBack: () -> Unit
 ) {
@@ -43,29 +42,29 @@ fun AdminBIPlatformSuite(
 
     AdminFoundationScaffold(
         title = title,
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             when(type) {
-                "analytics" -> AdminAnalyticsDashboard(supabaseManager)
-                "revenue" -> AdminRevenueDashboard(supabaseManager)
-                "notifications" -> AdminNotificationCenter(supabaseManager)
-                "logs" -> AdminLogsExplorer(supabaseManager)
-                "monitoring" -> AdminRealtimeMonitoring(supabaseManager)
-                "database" -> AdminDatabaseTools(supabaseManager)
+                "analytics" -> AdminAnalyticsDashboard(adminViewModel)
+                "revenue" -> AdminRevenueDashboard(adminViewModel)
+                "notifications" -> AdminNotificationCenter(adminViewModel)
+                "logs" -> AdminLogsExplorer(adminViewModel)
+                "monitoring" -> AdminRealtimeMonitoring(adminViewModel)
+                "database" -> AdminDatabaseTools(adminViewModel)
             }
         }
     }
 }
 
 @Composable
-fun AdminAnalyticsDashboard(supabaseManager: SupabaseManager) {
-    val metrics by supabaseManager.biDailyMetrics.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+fun AdminAnalyticsDashboard(adminViewModel: com.example.daadi.viewmodel.AdminViewModel) {
+    val metrics by adminViewModel.analyticsRepository.biDailyMetrics.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
     
     LaunchedEffect(Unit) {
-        supabaseManager.fetchBIDailyMetrics()
+        adminViewModel.analyticsRepository.fetchBIDailyMetrics()
     }
 
     if (isSyncing && metrics.isEmpty()) {
@@ -130,9 +129,9 @@ fun BIGraphCard(label: String, value: String, color: Color, modifier: Modifier =
 }
 
 @Composable
-fun AdminRevenueDashboard(supabaseManager: SupabaseManager) {
-    val metrics by supabaseManager.biDailyMetrics.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+fun AdminRevenueDashboard(adminViewModel: com.example.daadi.viewmodel.AdminViewModel) {
+    val metrics by adminViewModel.analyticsRepository.biDailyMetrics.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
     
     if (isSyncing && metrics.isEmpty()) {
         LazyColumn(modifier = Modifier.fillMaxSize().padding(AdminDesign.SpacingMedium)) {
@@ -200,13 +199,13 @@ fun RevenueHighlightCard(label: String, value: String, color: Color) {
 }
 
 @Composable
-fun AdminNotificationCenter(supabaseManager: SupabaseManager) {
-    val notifications by supabaseManager.biNotifications.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+fun AdminNotificationCenter(adminViewModel: com.example.daadi.viewmodel.AdminViewModel) {
+    val notifications by adminViewModel.analyticsRepository.biNotifications.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
     var showCreate by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        supabaseManager.fetchBINotifications()
+        adminViewModel.analyticsRepository.fetchBINotifications()
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -292,7 +291,7 @@ fun AdminNotificationCenter(supabaseManager: SupabaseManager) {
             },
             confirmButton = {
                 Button(
-                    onClick = { supabaseManager.scheduleNotification(title, body, "all"); showCreate = false },
+                    onClick = { adminViewModel.analyticsRepository.scheduleNotification(title, body, "all"); showCreate = false },
                     shape = AdminDesign.ButtonShape
                 ) {
                     Text("DEPLOY TO ALL")
@@ -306,14 +305,14 @@ fun AdminNotificationCenter(supabaseManager: SupabaseManager) {
 }
 
 @Composable
-fun AdminLogsExplorer(supabaseManager: SupabaseManager) {
-    val logs by supabaseManager.biAppLogs.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+fun AdminLogsExplorer(adminViewModel: com.example.daadi.viewmodel.AdminViewModel) {
+    val logs by adminViewModel.analyticsRepository.biAppLogs.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
     var selectedCategory by remember { mutableStateOf<String?>(null) }
     val categories = listOf("NETWORK", "ADS", "SECURITY", "CRASH", "UI")
 
     LaunchedEffect(selectedCategory) {
-        supabaseManager.fetchBIAppLogs(selectedCategory)
+        adminViewModel.analyticsRepository.fetchBIAppLogs(selectedCategory)
     }
 
     Column {
@@ -387,12 +386,12 @@ fun AdminLogsExplorer(supabaseManager: SupabaseManager) {
 }
 
 @Composable
-fun AdminRealtimeMonitoring(supabaseManager: SupabaseManager) {
-    val metrics by supabaseManager.biHealthMetrics.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+fun AdminRealtimeMonitoring(adminViewModel: com.example.daadi.viewmodel.AdminViewModel) {
+    val metrics by adminViewModel.analyticsRepository.biHealthMetrics.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
-        supabaseManager.fetchBIHealthMetrics()
+        adminViewModel.analyticsRepository.fetchBIHealthMetrics()
     }
 
     if (isSyncing && metrics.isEmpty()) {
@@ -478,7 +477,7 @@ fun MonitoringBar(label: String, progress: Float, color: Color) {
 }
 
 @Composable
-fun AdminDatabaseTools(supabaseManager: SupabaseManager) {
+fun AdminDatabaseTools(adminViewModel: com.example.daadi.viewmodel.AdminViewModel) {
     LazyColumn(
         contentPadding = PaddingValues(AdminDesign.SpacingMedium), 
         verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)

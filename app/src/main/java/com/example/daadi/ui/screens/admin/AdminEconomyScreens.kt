@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.foundation.background
@@ -22,14 +21,14 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
-fun AdminEconomyCenter(supabaseManager: SupabaseManager, onBack: () -> Unit) {
-    val transactions by supabaseManager.economyTransactions.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+fun AdminEconomyCenter(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onBack: () -> Unit) {
+    val transactions by adminViewModel.economyRepository.economyTransactions.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
     var showAdjustDialog by remember { mutableStateOf(false) }
 
     AdminFoundationScaffold(
         title = "Economy Hub",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack,
         actions = {
             IconButton(onClick = { showAdjustDialog = true }) {
@@ -71,7 +70,7 @@ fun AdminEconomyCenter(supabaseManager: SupabaseManager, onBack: () -> Unit) {
             EconomyAdjustmentDialog(
                 onDismiss = { showAdjustDialog = false },
                 onConfirm = { userId, amount, currency, reason ->
-                    supabaseManager.adjustUserEconomy(userId, amount, currency, reason)
+                    adminViewModel.economyRepository.adjustUserEconomy(userId, amount, currency, reason)
                     showAdjustDialog = false
                 }
             )

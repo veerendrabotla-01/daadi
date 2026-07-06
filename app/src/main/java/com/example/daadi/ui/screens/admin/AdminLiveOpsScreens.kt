@@ -1,7 +1,6 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
-
+import com.example.daadi.data.supabase.SupabaseLiveOpsEvent
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -21,18 +20,25 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.text.SimpleDateFormat
+import java.util.*
 
 @Composable
-fun AdminLiveOpsCenter(supabaseManager: SupabaseManager, onBack: () -> Unit) {
-    val events by supabaseManager.liveOpsEvents.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+fun AdminLiveOpsCenter(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onBack: () -> Unit) {
+    val events by adminViewModel.liveOpsRepository.liveOpsEvents.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
+    var showCreateDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        adminViewModel.liveOpsRepository.fetchLiveOpsEvents()
+    }
 
     AdminFoundationScaffold(
         title = "LiveOps Command",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack,
         actions = {
-            IconButton(onClick = { /* Create Event */ }) {
+            IconButton(onClick = { showCreateDialog = true }) {
                 Icon(Icons.Default.AddCircle, contentDescription = "Schedule Event", tint = AdminDesign.Primary)
             }
         }
@@ -44,7 +50,16 @@ fun AdminLiveOpsCenter(supabaseManager: SupabaseManager, onBack: () -> Unit) {
         } else if (events.isEmpty()) {
             AdminEmptyState(
                 title = "Ops Silence", 
-                description = "No LiveOps events are currently scheduled or active. Game logic is operating on baseline parameters."
+                description = "No LiveOps events are currently scheduled or active. Game logic is operating on baseline parameters.",
+                actionButton = {
+                    Button(
+                        onClick = { showCreateDialog = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Primary),
+                        shape = AdminDesign.ButtonShape
+                    ) {
+                        Text("SCHEDULE NEW EVENT")
+                    }
+                }
             )
         } else {
             LazyColumn(
@@ -61,15 +76,45 @@ fun AdminLiveOpsCenter(supabaseManager: SupabaseManager, onBack: () -> Unit) {
                     Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
                 }
                 items(events) { event ->
-                    LiveOpsEventCard(event)
+                    LiveOpsEventCard(
+                        event = event,
+                        onToggleActive = { active ->
+                            adminViewModel.liveOpsRepository.toggleLiveOpsEventActive(event.id, active)
+                        },
+                        onDelete = {
+                            adminViewModel.liveOpsRepository.deleteLiveOpsEvent(event.id)
+                        }
+                    )
                 }
             }
+        }
+
+        if (showCreateDialog) {
+            CreateLiveOpsDialog(
+                onDismiss = { showCreateDialog = false },
+                onConfirm = { title, desc, type, xp, coin ->
+                    val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+                    val start = sdf.format(Date())
+                    val end = sdf.format(Date(System.currentTimeMillis() + 172800000)) // 48h from now
+                    adminViewModel.liveOpsRepository.createLiveOpsEvent(
+                        title = title,
+                        description = desc,
+                        type = type,
+                        xpMultiplier = xp,
+                        coinMultiplier = coin,
+                        startTime = start,
+                        endTime = end,
+                        isActive = true
+                    )
+                    showCreateDialog = false
+                }
+            )
         }
     }
 }
 
 @Composable
-fun LiveOpsStatusBanner(events: List<com.example.daadi.data.supabase.SupabaseLiveOpsEvent>) {
+fun LiveOpsStatusBanner(events: List<SupabaseLiveOpsEvent>) {
     val activeCount = events.count { it.isActive }
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -97,7 +142,11 @@ fun LiveOpsStatusBanner(events: List<com.example.daadi.data.supabase.SupabaseLiv
 }
 
 @Composable
-fun LiveOpsEventCard(event: com.example.daadi.data.supabase.SupabaseLiveOpsEvent) {
+fun LiveOpsEventCard(
+    event: SupabaseLiveOpsEvent,
+    onToggleActive: (Boolean) -> Unit,
+    onDelete: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = AdminDesign.CardShape,
@@ -106,8 +155,25 @@ fun LiveOpsEventCard(event: com.example.daadi.data.supabase.SupabaseLiveOpsEvent
     ) {
         Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(event.title, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, modifier = Modifier.weight(1f), color = AdminDesign.OnSurface)
-                StatusBadge(if (event.isActive) "LIVE" else "PAST")
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(event.title, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = AdminDesign.OnSurface)
+                    Text("TYPE: ${event.type.uppercase()}", fontSize = 10.sp, fontWeight = FontWeight.Black, color = AdminDesign.Secondary)
+                }
+                
+                Switch(
+                    checked = event.isActive,
+                    onCheckedChange = onToggleActive,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = AdminDesign.Primary
+                    )
+                )
+
+                Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
+
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete event", tint = AdminDesign.Error)
+                }
             }
             Text(
                 text = event.description ?: "No operation description provided.", 
@@ -134,7 +200,7 @@ fun LiveOpsEventCard(event: com.example.daadi.data.supabase.SupabaseLiveOpsEvent
                     Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(12.dp), tint = AdminDesign.OnSurfaceVariant)
                     Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
                     Text(
-                        text = "WINDOW: ${event.startTime?.take(16)} » ${event.endTime?.take(16)}", 
+                        text = "WINDOW: ${event.startTime.take(16)} » ${event.endTime.take(16)}", 
                         fontSize = 9.sp, 
                         color = AdminDesign.OnSurfaceVariant,
                         fontWeight = FontWeight.Black
@@ -151,4 +217,59 @@ private fun MultiplerIndicator(label: String, multiplier: Double, color: Color) 
         Text(label, fontSize = 9.sp, color = AdminDesign.OnSurfaceVariant, fontWeight = FontWeight.Black)
         Text("x${multiplier}", fontSize = 16.sp, fontWeight = FontWeight.Black, color = color)
     }
+}
+
+@Composable
+fun CreateLiveOpsDialog(onDismiss: () -> Unit, onConfirm: (String, String, String, Double, Double) -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var desc by remember { mutableStateOf("") }
+    var type by remember { mutableStateOf("xp_weekend") }
+    var xpMultiplier by remember { mutableStateOf("2.0") }
+    var coinMultiplier by remember { mutableStateOf("1.5") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Schedule LiveOps Cluster", fontWeight = FontWeight.Black) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
+                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Event Title") }, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape)
+                OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("Campaign Description") }, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape, minLines = 2)
+                
+                Text("EVENT TYPE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AdminDesign.OnSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf("xp_weekend", "coin_rush", "seasonal").forEach { t ->
+                        FilterChip(
+                            selected = type == t,
+                            onClick = { type = t },
+                            label = { Text(t.replace("_", " ").uppercase(), fontSize = 10.sp) }
+                        )
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
+                    OutlinedTextField(value = xpMultiplier, onValueChange = { xpMultiplier = it }, label = { Text("XP Mult") }, modifier = Modifier.weight(1f), shape = AdminDesign.InputShape)
+                    OutlinedTextField(value = coinMultiplier, onValueChange = { coinMultiplier = it }, label = { Text("Coin Mult") }, modifier = Modifier.weight(1f), shape = AdminDesign.InputShape)
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { 
+                    onConfirm(
+                        title, 
+                        desc, 
+                        type, 
+                        xpMultiplier.toDoubleOrNull() ?: 1.0, 
+                        coinMultiplier.toDoubleOrNull() ?: 1.0
+                    ) 
+                },
+                shape = AdminDesign.ButtonShape
+            ) {
+                Text("LAUNCH CLUSTER")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("ABORT") }
+        }
+    )
 }

@@ -9,7 +9,7 @@ import android.net.NetworkRequest
 import android.os.Handler
 import android.os.Looper
 import com.example.BuildConfig
-import com.example.daadi.data.supabase.SupabaseManager
+import com.example.daadi.data.supabase.*
 import com.example.daadi.util.SecureLog as Log
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdRequest
@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class AdManager(
     private val context: Context,
-    private val supabaseManager: SupabaseManager) {
+    private val remoteConfigRepository: com.example.daadi.data.repository.supabase.RemoteConfigRepository, val analyticsRepository: com.example.daadi.data.repository.supabase.AnalyticsRepository) {
     private val tag = "AdManager"
     private val handler = Handler(Looper.getMainLooper())
 
@@ -74,8 +74,8 @@ class AdManager(
      * Must be called from MainActivity on startup to satisfy EEA compliance before showing ads.
      */
     fun gatherConsent(activity: Activity, onConsentGathered: () -> Unit) {
-        val adConfig = supabaseManager.adConfig.value
-        val systemSettings = supabaseManager.systemSettings.value
+        val adConfig = remoteConfigRepository.adConfig.value
+        val systemSettings = remoteConfigRepository.systemSettings.value
         val isAdsEnabledByLauncher = systemSettings.find { it.key == "ads_launcher" }?.value == "on"
         val isAdsEnabled = adConfig.isMonetizationGlobalOverride || isAdsEnabledByLauncher
 
@@ -190,7 +190,7 @@ class AdManager(
 
     // --- Dynamic ID Resolver (Remote Config + Injected Config) ---
     private fun getInterstitialAdUnitId(): String {
-        val remoteId = supabaseManager.adConfig.value.interstitialAdUnitId
+        val remoteId = remoteConfigRepository.adConfig.value.interstitialAdUnitId
         // Comply with 'No hardcoded test IDs' in source code. Fallback to injected build-time values.
         return if (remoteId.isBlank() || remoteId.contains("3940256099942544")) {
             BuildConfig.ADMOB_INTERSTITIAL_UNIT_ID
@@ -200,7 +200,7 @@ class AdManager(
     }
 
     private fun getRewardedAdUnitId(): String {
-        val remoteId = supabaseManager.adConfig.value.rewardedAdUnitId
+        val remoteId = remoteConfigRepository.adConfig.value.rewardedAdUnitId
         // Comply with 'No hardcoded test IDs' in source code. Fallback to injected build-time values.
         return if (remoteId.isBlank() || remoteId.contains("3940256099942544")) {
             BuildConfig.ADMOB_REWARDED_UNIT_ID
@@ -235,7 +235,7 @@ class AdManager(
                 val delayMs = calculateRetryDelay(interstitialRetryCount)
                 Log.e(tag, "Interstitial failed to load: ${adError.message}. Code: ${adError.code}. Retrying in ${delayMs}ms (Attempt #$interstitialRetryCount)")
                 
-                com.example.daadi.DaadiApplication.instance.supabaseManager.logBIEvent(
+                com.example.daadi.DaadiApplication.instance.analyticsRepository.logBIEvent(
                     category = "ADS",
                     message = "Interstitial Load Failed: ${adError.message} (Code: ${adError.code})",
                     level = "WARNING"
@@ -248,7 +248,7 @@ class AdManager(
 
             override fun onAdLoaded(ad: InterstitialAd) {
                 Log.i(tag, "Interstitial Ad preloaded successfully.")
-                com.example.daadi.DaadiApplication.instance.supabaseManager.logBIEvent(
+                com.example.daadi.DaadiApplication.instance.analyticsRepository.logBIEvent(
                     category = "ADS",
                     message = "Interstitial Loaded Successfully",
                     level = "INFO"
@@ -263,7 +263,7 @@ class AdManager(
     fun showInterstitial(activity: Activity, onAdDismissed: () -> Unit) {
         val currentTime = System.currentTimeMillis()
         val elapsedSinceLastShow = currentTime - lastInterstitialShownTime
-        val frequencyCap = supabaseManager.adConfig.value.interstitialFrequencyCap
+        val frequencyCap = remoteConfigRepository.adConfig.value.interstitialFrequencyCap
 
         // Dynamic Frequency Cap Verification
         if (sessionInterstitialImpressions >= frequencyCap) {
@@ -336,7 +336,7 @@ class AdManager(
                 val delayMs = calculateRetryDelay(rewardedRetryCount)
                 Log.e(tag, "Rewarded ad failed to load: ${adError.message}. Code: ${adError.code}. Retrying in ${delayMs}ms (Attempt #$rewardedRetryCount)")
                 
-                com.example.daadi.DaadiApplication.instance.supabaseManager.logBIEvent(
+                com.example.daadi.DaadiApplication.instance.analyticsRepository.logBIEvent(
                     category = "ADS",
                     message = "Rewarded Load Failed: ${adError.message} (Code: ${adError.code})",
                     level = "WARNING"
@@ -349,7 +349,7 @@ class AdManager(
 
             override fun onAdLoaded(ad: RewardedAd) {
                 Log.i(tag, "Rewarded Ad preloaded successfully.")
-                com.example.daadi.DaadiApplication.instance.supabaseManager.logBIEvent(
+                com.example.daadi.DaadiApplication.instance.analyticsRepository.logBIEvent(
                     category = "ADS",
                     message = "Rewarded Loaded Successfully",
                     level = "INFO"

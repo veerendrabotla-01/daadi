@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.animation.*
@@ -40,15 +39,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SupabaseAuthScreen(
-    supabaseManager: SupabaseManager,
+    sharedGameViewModel: com.example.daadi.viewmodel.GameViewModel,
     onBack: () -> Unit,
     onAuthSuccess: () -> Unit = {},
     onNavigateToAdmin: () -> Unit = {}
 ) {
-    val currentUser by supabaseManager.currentUser.collectAsStateWithLifecycle()
-    val globalErrorMsg by supabaseManager.errorMessage.collectAsStateWithLifecycle()
-    val passwordResetRequired by supabaseManager.passwordResetRequired.collectAsStateWithLifecycle()
-    val isConfigured = supabaseManager.isConfigured
+    val currentUser by sharedGameViewModel.authRepository.currentUser.collectAsStateWithLifecycle()
+    val globalErrorMsg by sharedGameViewModel.authRepository.errorMessage.collectAsStateWithLifecycle()
+    val passwordResetRequired by sharedGameViewModel.authRepository.passwordResetRequired.collectAsStateWithLifecycle()
+    val isConfigured = sharedGameViewModel.authRepository.isConfigured
     val context = LocalContext.current
 
     var showResetPasswordDialog by remember { mutableStateOf(false) }
@@ -59,7 +58,7 @@ fun SupabaseAuthScreen(
 
     LaunchedEffect(Unit) {
         if (currentUser != null) {
-            supabaseManager.refreshUserProfile()
+            sharedGameViewModel.authRepository.refreshUserProfile()
         }
     }
 
@@ -176,7 +175,7 @@ fun SupabaseAuthScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "Supabase Ranking Statistics",
+                            text = "Global Ranking Statistics",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF8B5E3C)
@@ -239,7 +238,7 @@ fun SupabaseAuthScreen(
                         .padding(vertical = 4.dp)
                         .clickable(enabled = !isRefreshingProfile) {
                             isRefreshingProfile = true
-                            supabaseManager.refreshUserProfile {
+                            sharedGameViewModel.authRepository.refreshUserProfile {
                                 isRefreshingProfile = false
                             }
                         },
@@ -311,7 +310,7 @@ fun SupabaseAuthScreen(
 
                 Button(
                     onClick = {
-                        supabaseManager.logout()
+                        sharedGameViewModel.authRepository.logout()
                         localSuccessMsg = "Log out successful. Return to guest mode."
                     },
                     modifier = Modifier
@@ -330,8 +329,8 @@ fun SupabaseAuthScreen(
                     onClick = {
                         val currentUserId = currentUser?.id
                         if (currentUserId != null) {
-                            supabaseManager.deleteUser(currentUserId)
-                            supabaseManager.logout()
+                            sharedGameViewModel.authRepository.deleteUser(currentUserId)
+                            sharedGameViewModel.authRepository.logout()
                             localSuccessMsg = "Account deleted and data purged under India DPDP Act Right to Erasure."
                         }
                     },
@@ -362,7 +361,7 @@ fun SupabaseAuthScreen(
                 )
 
                 Text(
-                    text = if (isConfigured) "Syncs automatically with Supabase Cloud Identity" else "Sandbox Mode: Any credentials work instantly",
+                    text = if (isConfigured) "Syncs automatically with Cloud Identity" else "Sandbox Mode: Any credentials work instantly",
                     fontSize = 12.sp,
                     color = if (isConfigured) Color(0xFF2E7D32) else Color(0xFFC75D27),
                     textAlign = TextAlign.Center,
@@ -396,7 +395,7 @@ fun SupabaseAuthScreen(
                             
                             if (globalErrorMsg != null && localErrorMsg == null) {
                                 TextButton(
-                                    onClick = { supabaseManager.loadInitialData() },
+                                    onClick = { sharedGameViewModel.authRepository.network.loadInitialData() },
                                     modifier = Modifier.align(Alignment.End).padding(end = 8.dp, bottom = 4.dp)
                                 ) {
                                     Text("RETRY SYNC", color = Color(0xFFC62828), fontSize = 10.sp, fontWeight = FontWeight.Bold)
@@ -621,7 +620,7 @@ fun SupabaseAuthScreen(
 
                                 when {
                                     isForgotPasswordMode -> {
-                                        supabaseManager.resetPassword(email) { success, msg ->
+                                        sharedGameViewModel.authRepository.resetPassword(email) { success, msg ->
                                             localIsLoading = false
                                             if (success) {
                                                 localSuccessMsg = msg
@@ -632,7 +631,7 @@ fun SupabaseAuthScreen(
                                         }
                                     }
                                     isSignUpMode -> {
-                                        supabaseManager.signUp(email, username, password) { success, msg ->
+                                        sharedGameViewModel.authRepository.signUp(email, username, password) { success, msg ->
                                             localIsLoading = false
                                             if (success) {
                                                 localSuccessMsg = "Player profile registered successfully!"
@@ -644,7 +643,7 @@ fun SupabaseAuthScreen(
                                         }
                                     }
                                     else -> {
-                                        supabaseManager.login(email, password) { success, msg ->
+                                        sharedGameViewModel.authRepository.login(email, password) { success, msg ->
                                             localIsLoading = false
                                             if (success) {
                                                 localSuccessMsg = "Access granted! Welcome to Daadi multiplay."
@@ -736,7 +735,7 @@ fun SupabaseAuthScreen(
                         localIsLoading = true
                         localErrorMsg = null
                         localSuccessMsg = null
-                        supabaseManager.signInWithOAuth("google", oauthContext) { success, msg ->
+                        sharedGameViewModel.authRepository.signInWithOAuth("google", oauthContext) { success, msg ->
                             localIsLoading = false
                             if (success) {
                                 localSuccessMsg = msg
@@ -847,7 +846,7 @@ fun SupabaseAuthScreen(
                         color = Color(0xFF5C2D0A)
                     )
                     Text(
-                        text = "In compliance with the Digital Personal Data Protection Act of India, we obtain your explicit consent to process your credentials (email address, game wins, losses, usernames). All records reside in secured databases with transit HTTPS/WSS encryption.",
+                        text = "In compliance with the Digital Personal Data Protection Act of India, we obtain your explicit consent to process your credentials (email address, game wins, losses, usernames). All records reside in secured cloud environments with transit HTTPS/WSS encryption.",
                         fontSize = 11.sp,
                         color = Color.Gray
                     )
@@ -858,7 +857,7 @@ fun SupabaseAuthScreen(
                         color = Color(0xFF5C2D0A)
                     )
                     Text(
-                        text = "Under DPDP laws, you retain the absolute right to request deletion of your account. You can do this at any time using the 'Delete Account & Wipe Data' trigger in your active profile tab, which immediately wipes all your database logs.",
+                        text = "Under DPDP laws, you retain the absolute right to request deletion of your account. You can do this at any time using the 'Delete Account & Wipe Data' trigger in your active profile tab, which immediately wipes all your cloud logs.",
                         fontSize = 11.sp,
                         color = Color.Gray
                     )
@@ -911,7 +910,7 @@ fun SupabaseAuthScreen(
         AlertDialog(
             onDismissRequest = {
                 showResetPasswordDialog = false
-                supabaseManager.clearPasswordResetRequired()
+                sharedGameViewModel.authRepository.clearPasswordResetRequired()
             },
             title = {
                 Text(
@@ -976,13 +975,13 @@ fun SupabaseAuthScreen(
                         }
                         resetIsLoading = true
                         resetErrorMsg = null
-                        supabaseManager.updatePassword(newPasswordInput) { success, msg ->
+                        sharedGameViewModel.authRepository.updatePassword(newPasswordInput) { success, msg ->
                             resetIsLoading = false
                             if (success) {
                                 resetSuccessMsg = "Password updated successfully!"
                                 Toast.makeText(context, "Your password has been changed. Welcome back! 🎉", Toast.LENGTH_LONG).show()
                                 showResetPasswordDialog = false
-                                supabaseManager.clearPasswordResetRequired()
+                                sharedGameViewModel.authRepository.clearPasswordResetRequired()
                                 onAuthSuccess()
                             } else {
                                 resetErrorMsg = msg ?: "Failed to update password."
@@ -1000,7 +999,7 @@ fun SupabaseAuthScreen(
                 TextButton(
                     onClick = {
                         showResetPasswordDialog = false
-                        supabaseManager.clearPasswordResetRequired()
+                        sharedGameViewModel.authRepository.clearPasswordResetRequired()
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF5C2D0A))
                 ) {

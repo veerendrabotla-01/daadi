@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.foundation.background
@@ -27,11 +26,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun AdminMatchManagementScreen(
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onBack: () -> Unit
 ) {
-    val matches by supabaseManager.matches.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+    val matches by adminViewModel.remoteGameRepository.matches.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
     var selectedMatch by remember { mutableStateOf<SupabaseMatch?>(null) }
     var searchQuery by remember { mutableStateOf("") }
 
@@ -46,7 +45,7 @@ fun AdminMatchManagementScreen(
                 onMatchSelect = { selectedMatch = it },
                 searchQuery = searchQuery,
                 onSearchQueryChange = { searchQuery = it },
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = onBack
             )
         } else {
@@ -57,7 +56,7 @@ fun AdminMatchManagementScreen(
                     onMatchClick = { selectedMatch = it },
                     searchQuery = searchQuery,
                     onSearchChange = { searchQuery = it },
-                    supabaseManager = supabaseManager,
+                    adminViewModel = adminViewModel,
                     onBack = onBack
                 )
             } else {
@@ -78,12 +77,12 @@ fun AdminWideMatchManagement(
     onMatchSelect: (SupabaseMatch) -> Unit,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onBack: () -> Unit
 ) {
     AdminFoundationScaffold(
         title = "Match Archive",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack,
         showSearch = true,
         searchQuery = searchQuery,
@@ -98,7 +97,7 @@ fun AdminWideMatchManagement(
                     searchQuery = searchQuery,
                     onMatchClick = onMatchSelect,
                     selectedMatchId = selectedMatch?.id,
-                    supabaseManager = supabaseManager
+                    adminViewModel = adminViewModel
                 )
             }
             VerticalDivider(color = AdminDesign.OnSurfaceVariant.copy(alpha = 0.1f), thickness = 1.dp)
@@ -126,12 +125,12 @@ fun AdminMatchArchiveScreen(
     onMatchClick: (SupabaseMatch) -> Unit,
     searchQuery: String,
     onSearchChange: (String) -> Unit,
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onBack: () -> Unit
 ) {
     AdminFoundationScaffold(
         title = "Match Archive",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack,
         showSearch = true,
         searchQuery = searchQuery,
@@ -143,7 +142,7 @@ fun AdminMatchArchiveScreen(
                 isSyncing = isSyncing,
                 searchQuery = searchQuery,
                 onMatchClick = onMatchClick,
-                supabaseManager = supabaseManager
+                adminViewModel = adminViewModel
             )
         }
     }
@@ -156,7 +155,7 @@ fun MatchListContent(
     searchQuery: String,
     onMatchClick: (SupabaseMatch) -> Unit,
     selectedMatchId: String? = null,
-    supabaseManager: SupabaseManager
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel
 ) {
     val filteredMatches = remember(matches, searchQuery) {
         matches.filter { 
@@ -182,7 +181,7 @@ fun MatchListContent(
                 MatchArchiveItem(
                     match = match, 
                     onClick = { onMatchClick(match) },
-                    onDelete = { supabaseManager.deleteMatch(match.id) },
+                    onDelete = { adminViewModel.remoteGameRepository.deleteMatch(match.id) },
                     isSelected = match.id == selectedMatchId
                 )
             }

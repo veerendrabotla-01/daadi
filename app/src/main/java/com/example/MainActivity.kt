@@ -37,6 +37,7 @@ import com.example.daadi.viewmodel.GameViewModel
 import com.example.daadi.viewmodel.SettingsViewModel
 import com.example.daadi.viewmodel.StatsViewModel
 import com.example.daadi.viewmodel.ViewModelFactory
+import com.example.daadi.viewmodel.AdminViewModel
 
 import android.os.Vibrator
 import android.os.VibrationEffect
@@ -65,34 +66,30 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         
-        // 15. Prevent screenshots and screen recording (Disabled to allow AI Studio preview streaming; re-enable for production release)
-        // window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
-        
+        val app = applicationContext as DaadiApplication
+        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        val networkRequest = android.net.NetworkRequest.Builder()
+            .addCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        connectivityManager.registerNetworkCallback(networkRequest, object : android.net.ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) {
+                app.supabaseManager.updateConnectivity(true)
+            }
+            override fun onLost(network: android.net.Network) {
+                app.supabaseManager.updateConnectivity(false)
+            }
+        })
+
         // 16. Prevent tapjacking / overlay attacks
         window.decorView.filterTouchesWhenObscured = true
         
         // Handle incoming deep link
         handleDeepLink(intent)
         
-        // 18. Prevent clipboard leaks when app goes to background
-        lifecycle.addObserver(androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
-                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                if (clipboard != null && clipboard.hasPrimaryClip()) {
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                        clipboard.clearPrimaryClip()
-                    } else {
-                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("", ""))
-                    }
-                }
-            }
-        })
-        
         // Initialize Sound Effects Engine asynchronously
         initSoundPool()
 
         // Gather GDPR/EEA Consent using User Messaging Platform (UMP) before initializing ads
-        val app = applicationContext as DaadiApplication
         app.adManager.gatherConsent(this) {
             com.example.daadi.util.SecureLog.d("MainActivity", "AdMob Consent state checked. Ready for compliant placements.")
         }
@@ -105,15 +102,15 @@ class MainActivity : ComponentActivity() {
             
             if (isRooted) {
                 com.example.daadi.util.SecureLog.e("SECURITY", "Rooted device detected. Logging violation.")
-                app.supabaseManager.logAntiCheatViolation(null, "ROOT_DETECTION", "high", "Device is rooted")
+                app.remoteGameRepository.logAntiCheatViolation("", "ROOT_DETECTION", "high", "Device is rooted")
             }
             if (isEmulator) {
                 com.example.daadi.util.SecureLog.i("SECURITY", "Emulator detected.")
-                app.supabaseManager.logAntiCheatViolation(null, "EMULATOR_DETECTION", "medium", "Device is emulator")
+                app.remoteGameRepository.logAntiCheatViolation("", "EMULATOR_DETECTION", "medium", "Device is emulator")
             }
             if (isDebugger && !BuildConfig.DEBUG) {
                 com.example.daadi.util.SecureLog.w("SECURITY", "Debugger connected in release build!")
-                app.supabaseManager.logAntiCheatViolation(null, "DEBUGGER_DETECTION", "high", "Debugger attached to release app")
+                app.remoteGameRepository.logAntiCheatViolation("", "DEBUGGER_DETECTION", "high", "Debugger attached to release app")
             }
         }
 
@@ -126,7 +123,7 @@ class MainActivity : ComponentActivity() {
                     val sharedGameViewModel: GameViewModel = viewModel(factory = ViewModelFactory(LocalContext.current.applicationContext as DaadiApplication))
                     val maintenanceMode by sharedGameViewModel.maintenanceMode.collectAsStateWithLifecycle()
                     val globalBroadcast by sharedGameViewModel.globalBroadcast.collectAsStateWithLifecycle()
-                    val currentUser by sharedGameViewModel.supabaseManager.currentUser.collectAsStateWithLifecycle()
+                    val currentUser by sharedGameViewModel.authRepository.currentUser.collectAsStateWithLifecycle()
 
                     androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
                         DaadiAppNavigation(
@@ -241,7 +238,7 @@ class MainActivity : ComponentActivity() {
         val uri = intent?.data
         if (uri != null && uri.scheme == "daadi" && uri.host == "auth-callback") {
             val app = applicationContext as DaadiApplication
-            app.supabaseManager.handleAuthDeepLink(uri) { success, error ->
+            app.authRepository.network.handleAuthDeepLink(uri) { success, error ->
                 com.example.daadi.util.SecureLog.d("MainActivity", "Deep Link Auth result: success=$success, error=$error")
             }
         }
@@ -258,6 +255,8 @@ fun DaadiAppNavigation(onPlaySound: (SoundEvent) -> Unit) {
 
     // Shared GameViewModel to handle global match lifecycle and backgrounding
     val sharedGameViewModel: GameViewModel = viewModel(factory = ViewModelFactory(application))
+    val settingsViewModel: SettingsViewModel = viewModel(factory = ViewModelFactory(application))
+    val settingsState by settingsViewModel.settings.collectAsStateWithLifecycle()
 
     // Advanced Device Sound Engine integration
     DisposableEffect(sharedGameViewModel) {
@@ -269,17 +268,33 @@ fun DaadiAppNavigation(onPlaySound: (SoundEvent) -> Unit) {
     val vibrator = remember { context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator }
     DisposableEffect(sharedGameViewModel) {
         sharedGameViewModel.onPerformHaptic = { pattern ->
-            when (pattern) {
-                HapticPattern.TICK -> {
-                    vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                when (pattern) {
+                    HapticPattern.TICK -> {
+                        vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+                    }
+                    HapticPattern.MILL -> {
+                        val timings = longArrayOf(0, 40, 100, 40)
+                        val amplitudes = intArrayOf(0, VibrationEffect.DEFAULT_AMPLITUDE, 0, VibrationEffect.DEFAULT_AMPLITUDE)
+                        vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
+                    }
+                    HapticPattern.LOSS -> {
+                        vibrator.vibrate(VibrationEffect.createOneShot(200, 255))
+                    }
                 }
-                HapticPattern.MILL -> {
-                    val timings = longArrayOf(0, 40, 100, 40)
-                    val amplitudes = intArrayOf(0, VibrationEffect.DEFAULT_AMPLITUDE, 0, VibrationEffect.DEFAULT_AMPLITUDE)
-                    vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
-                }
-                HapticPattern.LOSS -> {
-                    vibrator.vibrate(VibrationEffect.createOneShot(200, 255))
+            } else {
+                @Suppress("DEPRECATION")
+                when (pattern) {
+                    HapticPattern.TICK -> {
+                        vibrator.vibrate(50)
+                    }
+                    HapticPattern.MILL -> {
+                        val patternArray = longArrayOf(0, 40, 100, 40)
+                        vibrator.vibrate(patternArray, -1)
+                    }
+                    HapticPattern.LOSS -> {
+                        vibrator.vibrate(200)
+                    }
                 }
             }
         }
@@ -309,8 +324,25 @@ fun DaadiAppNavigation(onPlaySound: (SoundEvent) -> Unit) {
         composable("splash") {
             SplashScreen(
                 onNavigateHome = {
+                    if (settingsState.hasSeenOnboarding) {
+                        navController.navigate("home") {
+                            popUpTo("splash") { inclusive = true }
+                        }
+                    } else {
+                        navController.navigate("onboarding") {
+                            popUpTo("splash") { inclusive = true }
+                        }
+                    }
+                }
+            )
+        }
+
+        composable("onboarding") {
+            OnboardingScreen(
+                onFinish = {
+                    settingsViewModel.updateSettings(settingsState.copy(hasSeenOnboarding = true))
                     navController.navigate("home") {
-                        popUpTo("splash") { inclusive = true }
+                        popUpTo("onboarding") { inclusive = true }
                     }
                 }
             )
@@ -327,7 +359,7 @@ fun DaadiAppNavigation(onPlaySound: (SoundEvent) -> Unit) {
 
             HomeScreen(
                 savedGameState = resumeReadySave,
-                supabaseManager = application.supabaseManager,
+                sharedGameViewModel = sharedGameViewModel,
                 onPlayVsAi = { ruleSet ->
                     navController.navigate("difficulty_select?ruleSet=${ruleSet.name}")
                 },
@@ -342,10 +374,10 @@ fun DaadiAppNavigation(onPlaySound: (SoundEvent) -> Unit) {
                 onStatsClick = { navController.navigate("stats") },
                 onSettingsClick = { navController.navigate("settings") },
                 onSignInClick = {
-                    val user = application.supabaseManager.currentUser.value
+                    val user = application.authRepository.currentUser.value
                     if (user == null) {
                         navController.navigate("supabase_auth")
-                    } else if (application.supabaseManager.hasPermission("admin_dashboard")) {
+                    } else if (application.authRepository.userHasPermission("admin_dashboard")) {
                         navController.navigate("supabase_admin")
                     } else {
                         navController.navigate("supabase_auth") 
@@ -361,7 +393,7 @@ fun DaadiAppNavigation(onPlaySound: (SoundEvent) -> Unit) {
 
         composable("feedback") {
             UserFeedbackScreen(
-                supabaseManager = (application as com.example.daadi.DaadiApplication).supabaseManager,
+                sharedGameViewModel = sharedGameViewModel,
                 onBack = { navController.popBackStack() }
             )
         }
@@ -393,7 +425,7 @@ fun DaadiAppNavigation(onPlaySound: (SoundEvent) -> Unit) {
             val ruleSet = RuleSet.valueOf(ruleSetName)
             MultiplayerLobbyScreen(
                 multiplayerManager = multiplayerManager,
-                supabaseManager = (application as com.example.daadi.DaadiApplication).supabaseManager,
+                sharedGameViewModel = sharedGameViewModel,
                 onBack = { navController.popBackStack() },
                 onManageProfile = { navController.navigate("supabase_auth") },
                 onPlayVsAi = { navController.navigate("difficulty_select?ruleSet=${ruleSet.name}") },
@@ -408,7 +440,7 @@ fun DaadiAppNavigation(onPlaySound: (SoundEvent) -> Unit) {
 
         composable("supabase_auth") {
             com.example.daadi.ui.screens.SupabaseAuthScreen(
-                supabaseManager = (application as com.example.daadi.DaadiApplication).supabaseManager,
+                sharedGameViewModel = sharedGameViewModel,
                 onBack = { navController.popBackStack() },
                 onAuthSuccess = { 
                     navController.navigate("home") {
@@ -539,8 +571,8 @@ fun DaadiAppNavigation(onPlaySound: (SoundEvent) -> Unit) {
             val application = context.applicationContext as DaadiApplication
             val settingsViewModel: SettingsViewModel = viewModel(factory = ViewModelFactory(application))
             val settingsState by settingsViewModel.settings.collectAsStateWithLifecycle()
-            val currentUser by application.supabaseManager.currentUser.collectAsStateWithLifecycle()
-            val isAdmin = application.supabaseManager.hasPermission("admin_dashboard")
+            val currentUser by application.authRepository.currentUser.collectAsStateWithLifecycle()
+            val isAdmin = application.authRepository.userHasPermission("admin_dashboard")
 
             SettingsScreen(
                 settings = settingsState,
@@ -548,7 +580,7 @@ fun DaadiAppNavigation(onPlaySound: (SoundEvent) -> Unit) {
                 onSettingsChanged = { settingsViewModel.updateSettings(it) },
                 onAdminClick = { navController.navigate("supabase_admin") },
                 onDeleteAccount = {
-                    application.supabaseManager.deleteAccountGDPR { success ->
+                    application.authRepository.network.deleteAccountGDPR { success ->
                         if (success) {
                             android.widget.Toast.makeText(context, "Account deleted successfully.", android.widget.Toast.LENGTH_LONG).show()
                             navController.navigate("supabase_auth")
@@ -558,7 +590,7 @@ fun DaadiAppNavigation(onPlaySound: (SoundEvent) -> Unit) {
                     }
                 },
                 onExportData = {
-                    application.supabaseManager.requestDataExport { success ->
+                    application.authRepository.network.requestDataExport { success ->
                         if (success) {
                             android.widget.Toast.makeText(context, "Data export request sent! Check your registered email.", android.widget.Toast.LENGTH_LONG).show()
                         } else {
@@ -572,9 +604,9 @@ fun DaadiAppNavigation(onPlaySound: (SoundEvent) -> Unit) {
 
         // 7. Supabase Administration Operations Control Center
         composable("supabase_admin") {
+            val adminViewModel: com.example.daadi.viewmodel.AdminViewModel = viewModel(factory = ViewModelFactory(application))
             SupabaseAdminScreen(
-                viewModel = sharedGameViewModel,
-                supabaseManager = application.supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { navController.popBackStack() }
             )
         }

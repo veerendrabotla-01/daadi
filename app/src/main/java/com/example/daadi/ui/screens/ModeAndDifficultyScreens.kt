@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.foundation.background

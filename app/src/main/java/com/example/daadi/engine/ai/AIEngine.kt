@@ -5,13 +5,18 @@ import com.example.daadi.engine.GameEngine
 import com.example.daadi.engine.MillDetector
 import com.example.daadi.model.*
 
+enum class AIPersonality {
+    BALANCED, AGGRESSIVE, DEFENSIVE
+}
+
 data class AiConfig(
     val maxDepth: Int = 4,
     val pincerTwoOfThreeWeight: Int = 30,
     val captureProximityWeight: Int = 200,
     val pathBlockingWeight: Int = 60,
     val pieceDifferentialWeight: Int = 400,
-    val millWeight: Int = 150
+    val millWeight: Int = 150,
+    val personality: AIPersonality = AIPersonality.BALANCED
 )
 
 object AIEngine {
@@ -303,6 +308,17 @@ object AIEngine {
         var p2TwoInALine = 0
         var p1TwoInALine = 0
 
+        val p1MillWeight = when (currentConfig.personality) {
+            AIPersonality.DEFENSIVE -> currentConfig.millWeight * 3
+            AIPersonality.AGGRESSIVE -> currentConfig.millWeight
+            else -> currentConfig.millWeight * 2
+        }
+
+        val p2MillWeight = when (currentConfig.personality) {
+            AIPersonality.AGGRESSIVE -> currentConfig.millWeight * 2
+            else -> currentConfig.millWeight
+        }
+
         for (mill in BoardDefinition.getMills(ruleSet)) {
             val o1 = board.nodes[mill.first]
             val o2 = board.nodes[mill.second]
@@ -318,8 +334,8 @@ object AIEngine {
                 if (owners.count { it == Player.PLAYER_1 } == 2 && owners.any { it == null }) p1TwoInALine++
             }
         }
-        score += p2Mills * currentConfig.millWeight
-        score -= p1Mills * (currentConfig.millWeight * 2) // Defensive priority
+        score += p2Mills * p2MillWeight
+        score -= p1Mills * p1MillWeight
         score += p2TwoInALine * currentConfig.pincerTwoOfThreeWeight
         score -= p1TwoInALine * (currentConfig.pincerTwoOfThreeWeight * 2) // Block human "open" mills
 

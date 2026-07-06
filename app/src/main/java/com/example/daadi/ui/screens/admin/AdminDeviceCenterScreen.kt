@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.foundation.background
@@ -23,9 +22,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
-fun AdminDeviceCenterScreen(supabaseManager: SupabaseManager, onBack: () -> Unit) {
-    val deviceRecords by supabaseManager.deviceRecords.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+fun AdminDeviceCenterScreen(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onBack: () -> Unit) {
+    val deviceRecords by adminViewModel.analyticsRepository.deviceRecords.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
 
     AdminFoundationScaffold("Device Command", supabaseManager, onBack) { padding ->
         if (isSyncing && deviceRecords.isEmpty()) {

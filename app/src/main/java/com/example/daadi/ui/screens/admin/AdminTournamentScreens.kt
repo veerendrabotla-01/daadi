@@ -1,7 +1,6 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
-
+import com.example.daadi.data.supabase.SupabaseTournament
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,25 +19,26 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.daadi.data.supabase.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.text.SimpleDateFormat
+import java.util.*
 
 @Composable
 fun AdminTournamentScreen(
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onBack: () -> Unit
 ) {
-    val tournaments by supabaseManager.tournaments.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+    val tournaments by adminViewModel.tournamentRepository.tournaments.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
     var showCreateDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        supabaseManager.fetchTournaments()
+        adminViewModel.tournamentRepository.fetchTournaments()
     }
 
     AdminFoundationScaffold(
         title = "Tournaments",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack,
         actions = {
             IconButton(onClick = { showCreateDialog = true }) {
@@ -53,7 +53,16 @@ fun AdminTournamentScreen(
         } else if (tournaments.isEmpty()) {
             AdminEmptyState(
                 title = "No Tournaments", 
-                description = "Competitive play is currently quiet. Schedule a new tournament to drive high-stakes engagement."
+                description = "Competitive play is currently quiet. Schedule a new tournament to drive high-stakes engagement.",
+                actionButton = {
+                    Button(
+                        onClick = { showCreateDialog = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Primary),
+                        shape = AdminDesign.ButtonShape
+                    ) {
+                        Text("LAUNCH NEW TOURNAMENT")
+                    }
+                }
             )
         } else {
             LazyColumn(
@@ -66,7 +75,15 @@ fun AdminTournamentScreen(
                     Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
                 }
                 items(tournaments) { tournament ->
-                    TournamentItem(tournament)
+                    TournamentItem(
+                        tournament = tournament,
+                        onUpdateStatus = { newStatus ->
+                            adminViewModel.tournamentRepository.updateTournamentStatus(tournament.id, newStatus)
+                        },
+                        onDelete = {
+                            adminViewModel.tournamentRepository.deleteTournament(tournament.id)
+                        }
+                    )
                 }
             }
         }
@@ -75,7 +92,7 @@ fun AdminTournamentScreen(
             CreateTournamentDialog(
                 onDismiss = { showCreateDialog = false },
                 onConfirm = { title, desc, fee, prize ->
-                    supabaseManager.createTournament(title, desc, fee, prize)
+                    adminViewModel.tournamentRepository.createTournament(title, desc, fee, prize)
                     showCreateDialog = false
                 }
             )
@@ -84,7 +101,11 @@ fun AdminTournamentScreen(
 }
 
 @Composable
-fun TournamentItem(tournament: SupabaseTournament) {
+fun TournamentItem(
+    tournament: SupabaseTournament,
+    onUpdateStatus: (String) -> Unit,
+    onDelete: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = AdminDesign.CardShape,
@@ -107,7 +128,30 @@ fun TournamentItem(tournament: SupabaseTournament) {
                     Text(tournament.title, fontWeight = FontWeight.ExtraBold, color = AdminDesign.OnSurface, fontSize = 15.sp)
                     Text(tournament.status.uppercase(), style = MaterialTheme.typography.labelSmall, color = AdminDesign.Success, fontWeight = FontWeight.Black)
                 }
-                StatusBadge(tournament.status)
+                
+                // Status rotation action button
+                IconButton(onClick = {
+                    val nextStatus = when (tournament.status.lowercase()) {
+                        "scheduled" -> "active"
+                        "active" -> "completed"
+                        else -> "scheduled"
+                    }
+                    onUpdateStatus(nextStatus)
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.Transform,
+                        contentDescription = "Shift status",
+                        tint = AdminDesign.Primary
+                    )
+                }
+
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete tournament",
+                        tint = AdminDesign.Error
+                    )
+                }
             }
             
             Text(

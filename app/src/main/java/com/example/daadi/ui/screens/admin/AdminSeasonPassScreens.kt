@@ -1,7 +1,6 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
-
+import com.example.daadi.data.supabase.SupabaseSeasonPass
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -20,18 +19,25 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.text.SimpleDateFormat
+import java.util.*
 
 @Composable
-fun AdminSeasonPassManager(supabaseManager: SupabaseManager, onBack: () -> Unit) {
-    val seasonPasses by supabaseManager.seasonPasses.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+fun AdminSeasonPassManager(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onBack: () -> Unit) {
+    val seasonPasses by adminViewModel.liveOpsRepository.seasonPasses.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
+    var showCreateDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        adminViewModel.liveOpsRepository.fetchSeasonPasses()
+    }
 
     AdminFoundationScaffold(
         title = "Season Pass Matrix",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack,
         actions = {
-            IconButton(onClick = { /* New Season */ }) {
+            IconButton(onClick = { showCreateDialog = true }) {
                 Icon(Icons.Default.AddBox, contentDescription = "Create Season", tint = AdminDesign.Primary)
             }
         }
@@ -43,7 +49,16 @@ fun AdminSeasonPassManager(supabaseManager: SupabaseManager, onBack: () -> Unit)
         } else if (seasonPasses.isEmpty()) {
             AdminEmptyState(
                 title = "No Seasons Found", 
-                description = "Progression tracks are empty. Initialize a new Season Pass to start player journey cycles."
+                description = "Progression tracks are empty. Initialize a new Season Pass to start player journey cycles.",
+                actionButton = {
+                    Button(
+                        onClick = { showCreateDialog = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Primary),
+                        shape = AdminDesign.ButtonShape
+                    ) {
+                        Text("LAUNCH BATTLE PASS")
+                    }
+                }
             )
         } else {
             LazyColumn(
@@ -56,15 +71,45 @@ fun AdminSeasonPassManager(supabaseManager: SupabaseManager, onBack: () -> Unit)
                     Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
                 }
                 items(seasonPasses) { pass ->
-                    SeasonPassCard(pass)
+                    SeasonPassCard(
+                        pass = pass,
+                        onToggleActive = { active ->
+                            adminViewModel.liveOpsRepository.toggleSeasonPassActive(pass.id, active)
+                        },
+                        onDelete = {
+                            adminViewModel.liveOpsRepository.deleteSeasonPass(pass.id)
+                        }
+                    )
                 }
             }
+        }
+
+        if (showCreateDialog) {
+            CreateSeasonPassDialog(
+                onDismiss = { showCreateDialog = false },
+                onConfirm = { title ->
+                    val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+                    val start = sdf.format(Date())
+                    val end = sdf.format(Date(System.currentTimeMillis() + 2592000000)) // 30 days
+                    adminViewModel.liveOpsRepository.createSeasonPass(
+                        title = title,
+                        startTime = start,
+                        endTime = end,
+                        isActive = true
+                    )
+                    showCreateDialog = false
+                }
+            )
         }
     }
 }
 
 @Composable
-fun SeasonPassCard(pass: com.example.daadi.data.supabase.SupabaseSeasonPass) {
+fun SeasonPassCard(
+    pass: SupabaseSeasonPass,
+    onToggleActive: (Boolean) -> Unit,
+    onDelete: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = AdminDesign.CardShape,
@@ -92,7 +137,21 @@ fun SeasonPassCard(pass: com.example.daadi.data.supabase.SupabaseSeasonPass) {
                         fontWeight = FontWeight.Black
                     )
                 }
-                StatusBadge(if (pass.isActive) "ACTIVE" else "ENDED")
+                
+                Switch(
+                    checked = pass.isActive,
+                    onCheckedChange = onToggleActive,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = AdminDesign.Primary
+                    )
+                )
+
+                Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
+
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete season pass", tint = AdminDesign.Error)
+                }
             }
             
             Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
@@ -121,4 +180,36 @@ fun SeasonPassCard(pass: com.example.daadi.data.supabase.SupabaseSeasonPass) {
             }
         }
     }
+}
+
+@Composable
+fun CreateSeasonPassDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var title by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Deploy Battle Pass Track", fontWeight = FontWeight.Black) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Season Pass Title (e.g. Genesis Track)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = AdminDesign.InputShape
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(title) },
+                shape = AdminDesign.ButtonShape
+            ) {
+                Text("DEPLOY EXPEDITION")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("ABORT") }
+        }
+    )
 }

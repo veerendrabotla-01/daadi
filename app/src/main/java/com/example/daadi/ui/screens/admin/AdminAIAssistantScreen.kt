@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.foundation.background
@@ -24,7 +23,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
 @Composable
-fun AdminAIAssistantScreen(supabaseManager: SupabaseManager, onBack: () -> Unit) {
+fun AdminAIAssistantScreen(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onBack: () -> Unit) {
     var query by remember { mutableStateOf("") }
     var response by remember { mutableStateOf<String?>(null) }
     var isSearching by remember { mutableStateOf(false) }
@@ -150,7 +149,7 @@ fun AdminAIAssistantScreen(supabaseManager: SupabaseManager, onBack: () -> Unit)
                                 if (query.isNotBlank()) {
                                     isSearching = true
                                     scope.launch {
-                                        response = supabaseManager.askAiAssistant(query)
+                                        response = adminViewModel.analyticsRepository.askAiAssistant(query)
                                         isSearching = false
                                     }
                                 }

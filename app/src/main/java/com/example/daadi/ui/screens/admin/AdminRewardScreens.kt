@@ -1,7 +1,7 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
-
+import com.example.daadi.data.supabase.SupabaseDailyReward
+import com.example.daadi.data.supabase.SupabaseSpinWheelReward
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,11 +27,19 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
-fun AdminRewardEditor(supabaseManager: SupabaseManager, onBack: () -> Unit) {
-    val dailyRewards by supabaseManager.dailyRewards.collectAsStateWithLifecycle()
-    val spinWheelRewards by supabaseManager.spinWheelRewards.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+fun AdminRewardEditor(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onBack: () -> Unit) {
+    val dailyRewards by adminViewModel.economyRepository.dailyRewards.collectAsStateWithLifecycle()
+    val spinWheelRewards by adminViewModel.economyRepository.spinWheelRewards.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
     var selectedTab by remember { mutableIntStateOf(0) }
+    
+    var editingDailyReward by remember { mutableStateOf<SupabaseDailyReward?>(null) }
+    var editingSpinReward by remember { mutableStateOf<SupabaseSpinWheelReward?>(null) }
+
+    LaunchedEffect(Unit) {
+        adminViewModel.economyRepository.fetchDailyRewards()
+        adminViewModel.economyRepository.fetchSpinWheelRewards()
+    }
 
     AdminFoundationScaffold("Reward Orchestrator", supabaseManager, onBack) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
@@ -60,20 +68,45 @@ fun AdminRewardEditor(supabaseManager: SupabaseManager, onBack: () -> Unit) {
                     }
                 } else {
                     when (selectedTab) {
-                        0 -> DailyRewardGrid(dailyRewards)
-                        1 -> SpinWheelRewardList(spinWheelRewards)
+                        0 -> DailyRewardGrid(dailyRewards, onEdit = { reward -> editingDailyReward = reward })
+                        1 -> SpinWheelRewardList(spinWheelRewards, onEdit = { reward -> editingSpinReward = reward })
                     }
                 }
             }
+        }
+
+        if (editingDailyReward != null) {
+            EditDailyRewardDialog(
+                reward = editingDailyReward!!,
+                onDismiss = { editingDailyReward = null },
+                onConfirm = { type, amount ->
+                    adminViewModel.economyRepository.saveDailyReward(editingDailyReward!!.day, type, amount)
+                    editingDailyReward = null
+                }
+            )
+        }
+
+        if (editingSpinReward != null) {
+            EditSpinWheelRewardDialog(
+                reward = editingSpinReward!!,
+                onDismiss = { editingSpinReward = null },
+                onConfirm = { type, amount, weight ->
+                    adminViewModel.economyRepository.saveSpinWheelReward(editingSpinReward!!.id, type, amount, weight)
+                    editingSpinReward = null
+                }
+            )
         }
     }
 }
 
 @Composable
-fun DailyRewardGrid(rewards: List<com.example.daadi.data.supabase.SupabaseDailyReward>) {
+fun DailyRewardGrid(
+    rewards: List<SupabaseDailyReward>,
+    onEdit: (SupabaseDailyReward) -> Unit
+) {
     val displayRewards = remember(rewards) {
         (1..30).map { day -> 
-            rewards.find { it.day == day } ?: com.example.daadi.data.supabase.SupabaseDailyReward(day, "coins", 100 * day, null, null) 
+            rewards.find { it.day == day } ?: SupabaseDailyReward(day, "coins", 100 * day, null, null) 
         }
     }
 
@@ -89,7 +122,9 @@ fun DailyRewardGrid(rewards: List<com.example.daadi.data.supabase.SupabaseDailyR
                 colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface),
                 shape = AdminDesign.CardShape,
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier.aspectRatio(1f).clickable { /* Edit Reward */ }
+                modifier = Modifier
+                    .aspectRatio(1f)
+                    .clickable { onEdit(reward) }
             ) {
                 Column(
                     modifier = Modifier.fillMaxSize().padding(AdminDesign.SpacingSmall),
@@ -138,7 +173,10 @@ fun DailyRewardGrid(rewards: List<com.example.daadi.data.supabase.SupabaseDailyR
 }
 
 @Composable
-fun SpinWheelRewardList(rewards: List<com.example.daadi.data.supabase.SupabaseSpinWheelReward>) {
+fun SpinWheelRewardList(
+    rewards: List<SupabaseSpinWheelReward>,
+    onEdit: (SupabaseSpinWheelReward) -> Unit
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(AdminDesign.SpacingMedium),
@@ -157,10 +195,12 @@ fun SpinWheelRewardList(rewards: List<com.example.daadi.data.supabase.SupabaseSp
             ) {
                 Row(modifier = Modifier.padding(AdminDesign.SpacingMedium), verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        modifier = Modifier.size(40.dp).background(
-                            Color(android.graphics.Color.parseColor(reward.color ?: "#CCCCCC")),
-                            CircleShape
-                        ),
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(
+                                Color(android.graphics.Color.parseColor(reward.color ?: "#CCCCCC")),
+                                CircleShape
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -176,8 +216,10 @@ fun SpinWheelRewardList(rewards: List<com.example.daadi.data.supabase.SupabaseSp
                         Text("Selection Weight: ${reward.weight}", fontSize = 11.sp, color = AdminDesign.OnSurfaceVariant, fontWeight = FontWeight.Bold)
                     }
                     IconButton(
-                        onClick = { /* Edit Reward */ },
-                        modifier = Modifier.background(AdminDesign.Background, CircleShape).size(32.dp)
+                        onClick = { onEdit(reward) },
+                        modifier = Modifier
+                            .background(AdminDesign.Background, CircleShape)
+                            .size(32.dp)
                     ) {
                         Icon(Icons.Default.Tune, contentDescription = "Config", tint = AdminDesign.Primary, modifier = Modifier.size(16.dp))
                     }
@@ -185,4 +227,109 @@ fun SpinWheelRewardList(rewards: List<com.example.daadi.data.supabase.SupabaseSp
             }
         }
     }
+}
+
+@Composable
+fun EditDailyRewardDialog(
+    reward: SupabaseDailyReward,
+    onDismiss: () -> Unit,
+    onConfirm: (String, Int) -> Unit
+) {
+    var type by remember { mutableStateOf(reward.type) }
+    var amount by remember { mutableStateOf(reward.amount.toString()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Configure Day ${reward.day} Reward", fontWeight = FontWeight.Black) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
+                Text("REWARD TYPE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AdminDesign.OnSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf("coins", "xp", "item").forEach { t ->
+                        FilterChip(
+                            selected = type == t,
+                            onClick = { type = t },
+                            label = { Text(t.uppercase(), fontSize = 10.sp) }
+                        )
+                    }
+                }
+
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    label = { Text("Reward Amount") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = AdminDesign.InputShape
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(type, amount.toIntOrNull() ?: 0) },
+                shape = AdminDesign.ButtonShape
+            ) {
+                Text("UPDATE DAY ${reward.day}")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("ABORT") }
+        }
+    )
+}
+
+@Composable
+fun EditSpinWheelRewardDialog(
+    reward: SupabaseSpinWheelReward,
+    onDismiss: () -> Unit,
+    onConfirm: (String, Int, Int) -> Unit
+) {
+    var type by remember { mutableStateOf(reward.type) }
+    var amount by remember { mutableStateOf(reward.amount.toString()) }
+    var weight by remember { mutableStateOf(reward.weight.toString()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Configure Wheel Sector", fontWeight = FontWeight.Black) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
+                Text("REWARD TYPE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AdminDesign.OnSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf("coins", "xp", "gems").forEach { t ->
+                        FilterChip(
+                            selected = type == t,
+                            onClick = { type = t },
+                            label = { Text(t.uppercase(), fontSize = 10.sp) }
+                        )
+                    }
+                }
+
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    label = { Text("Reward Amount") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = AdminDesign.InputShape
+                )
+
+                OutlinedTextField(
+                    value = weight,
+                    onValueChange = { weight = it },
+                    label = { Text("Probability Weight (Higher = More Common)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = AdminDesign.InputShape
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(type, amount.toIntOrNull() ?: 0, weight.toIntOrNull() ?: 1) },
+                shape = AdminDesign.ButtonShape
+            ) {
+                Text("SAVE SECTOR CONFIG")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("ABORT") }
+        }
+    )
 }

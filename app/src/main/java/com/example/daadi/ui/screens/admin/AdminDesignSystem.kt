@@ -16,7 +16,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.daadi.data.supabase.SupabaseManager
 
 object AdminDesign {
     // We will compute these dynamically in a theme wrapper or just rely on MaterialTheme colors mostly
@@ -149,7 +148,8 @@ fun ShimmerItem(modifier: Modifier = Modifier) {
 fun AdminEmptyState(
     title: String = "No Data Found",
     description: String = "There are no records to display at this time.",
-    icon: @Composable (() -> Unit)? = null
+    icon: @Composable (() -> Unit)? = null,
+    actionButton: @Composable (() -> Unit)? = null
 ) {
     Column(
         modifier = Modifier
@@ -174,6 +174,10 @@ fun AdminEmptyState(
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier.widthIn(max = 300.dp)
         )
+        if (actionButton != null) {
+            Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+            actionButton()
+        }
     }
 }
 

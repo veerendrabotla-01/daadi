@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.foundation.background
@@ -26,14 +25,14 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
-fun AdminCMSCenter(supabaseManager: SupabaseManager, onBack: () -> Unit) {
-    val cmsContent by supabaseManager.cmsContent.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+fun AdminCMSCenter(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onBack: () -> Unit) {
+    val cmsContent by adminViewModel.remoteConfigRepository.cmsContent.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
     var selectedItem by remember { mutableStateOf<com.example.daadi.data.supabase.SupabaseCMSContent?>(null) }
 
     AdminFoundationScaffold(
         title = "Content Hub",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = if (selectedItem == null) onBack else { { selectedItem = null } },
         actions = {
             if (selectedItem == null) {
@@ -74,7 +73,7 @@ fun AdminCMSCenter(supabaseManager: SupabaseManager, onBack: () -> Unit) {
                     content = selectedItem!!,
                     onBack = { selectedItem = null },
                     onSave = { updated -> 
-                        supabaseManager.saveCMSContent(updated)
+                        adminViewModel.remoteConfigRepository.saveCMSContent(updated)
                         selectedItem = null
                     }
                 )

@@ -1,8 +1,5 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
-
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,14 +18,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.daadi.data.supabase.SupabaseAuditLog
-import com.example.daadi.data.supabase.SupabaseUser
+import com.example.daadi.data.supabase.*
+
+val supabaseManager: com.example.daadi.data.supabase.SupabaseManager
+    get() = com.example.daadi.DaadiApplication.instance.supabaseManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminFoundationScaffold(
     title: String,
-    supabaseManager: SupabaseManager?,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel? = null,
     onBack: () -> Unit,
     searchQuery: String = "",
     onSearchQueryChange: (String) -> Unit = {},
@@ -115,15 +114,39 @@ fun AdminFoundationScaffold(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdminAuditTrailScreen(supabaseManager: SupabaseManager, onBack: () -> Unit) {
-    val auditLogs by supabaseManager.auditLogsV2.collectAsStateWithLifecycle()
+fun AdminFoundationScaffold(
+    title: String,
+    supabaseManager: com.example.daadi.data.supabase.SupabaseManager?,
+    onBack: () -> Unit,
+    searchQuery: String = "",
+    onSearchQueryChange: (String) -> Unit = {},
+    showSearch: Boolean = false,
+    actions: @Composable RowScope.() -> Unit = {},
+    content: @Composable (PaddingValues) -> Unit
+) {
+    AdminFoundationScaffold(
+        title = title,
+        adminViewModel = null,
+        onBack = onBack,
+        searchQuery = searchQuery,
+        onSearchQueryChange = onSearchQueryChange,
+        showSearch = showSearch,
+        actions = actions,
+        content = content
+    )
+}
+
+@Composable
+fun AdminAuditTrailScreen(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onBack: () -> Unit) {
+    val auditLogs by adminViewModel.adminRepository.auditLogs.collectAsStateWithLifecycle()
     var searchQuery by remember { mutableStateOf("") }
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
 
     AdminFoundationScaffold(
         title = "Audit Trail",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack,
         showSearch = true,
         searchQuery = searchQuery,
@@ -241,20 +264,210 @@ fun AuditLogItem(log: SupabaseAuditLog) {
 }
 
 @Composable
-fun AdminPermissionMatrixScreen(supabaseManager: SupabaseManager, onBack: () -> Unit) {
-    AdminFoundationScaffold("Permission Matrix", supabaseManager, onBack) { padding ->
-        AdminEmptyState(
-            title = "Permission Editor",
-            description = "Configure granular access per role. This module is currently under development.",
-            icon = { Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(64.dp), tint = AdminDesign.OnSurfaceVariant) }
-        )
+fun AdminPermissionMatrixScreen(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onBack: () -> Unit) {
+    val roles by supabaseManager.roles.collectAsStateWithLifecycle()
+    val permissions by supabaseManager.permissions.collectAsStateWithLifecycle()
+    val rolePermissions by supabaseManager.rolePermissions.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        supabaseManager.fetchRolesAndPermissions()
+    }
+
+    AdminFoundationScaffold(
+        title = "Permission Matrix",
+        adminViewModel = adminViewModel,
+        onBack = onBack,
+        actions = {
+            IconButton(onClick = { supabaseManager.fetchRolesAndPermissions() }) {
+                Icon(Icons.Default.Refresh, contentDescription = "Refresh Matrix", tint = AdminDesign.Primary)
+            }
+        }
+    ) { padding ->
+        if (isSyncing && (roles.isEmpty() || permissions.isEmpty())) {
+            LazyColumn(
+                modifier = Modifier.padding(padding).fillMaxSize().padding(AdminDesign.SpacingMedium),
+                verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)
+            ) {
+                items(10) { ShimmerItem() }
+            }
+        } else if (roles.isEmpty() || permissions.isEmpty()) {
+            AdminEmptyState(
+                title = "No Roles/Permissions Found",
+                description = "Role-based access matrix records could not be retrieved from the cloud services. Please initialize your roles table.",
+                icon = { Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(64.dp), tint = AdminDesign.Error) },
+                actionButton = {
+                    Button(
+                        onClick = { supabaseManager.fetchRolesAndPermissions() },
+                        colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Primary),
+                        shape = AdminDesign.ButtonShape
+                    ) {
+                        Text("RETRY CONNECTION")
+                    }
+                }
+            )
+        } else {
+            val publicUserRole = remember(roles) { roles.find { it.name.lowercase() == "publicuser" } }
+            val playerRole = remember(roles) { roles.find { it.name.lowercase() == "player" } }
+            val adminRole = remember(roles) { roles.find { it.name.lowercase() == "admin" } }
+
+            Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+                // Header Row
+                Surface(
+                    color = AdminDesign.Surface,
+                    shadowElevation = 2.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = AdminDesign.SpacingMedium, vertical = AdminDesign.SpacingMedium),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "SYSTEM PERMISSIONS",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 11.sp,
+                            color = AdminDesign.OnSurfaceVariant,
+                            modifier = Modifier.weight(1.5f)
+                        )
+                        Row(
+                            modifier = Modifier.weight(2f),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("PUBLIC", fontWeight = FontWeight.Bold, fontSize = 9.sp, color = AdminDesign.OnSurfaceVariant, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            Text("PLAYER", fontWeight = FontWeight.Bold, fontSize = 9.sp, color = AdminDesign.OnSurfaceVariant, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            Text("ADMIN", fontWeight = FontWeight.Bold, fontSize = 9.sp, color = AdminDesign.OnSurfaceVariant, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        }
+                    }
+                }
+
+                // Scrollable Matrix Items
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(bottom = AdminDesign.SpacingLarge)
+                ) {
+                    items(permissions) { perm ->
+                        val prettyName = perm.name.replace("_", " ").uppercase()
+                        
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = AdminDesign.SpacingMedium, vertical = 4.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = AdminDesign.SpacingMedium, vertical = AdminDesign.SpacingSmall),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Left side: Permission Name and desc
+                                Column(modifier = Modifier.weight(1.5f)) {
+                                    Text(
+                                        text = prettyName,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 12.sp,
+                                        color = AdminDesign.OnSurface
+                                    )
+                                    Text(
+                                        text = perm.description ?: "Grants access to ${perm.name}",
+                                        fontSize = 10.sp,
+                                        color = AdminDesign.OnSurfaceVariant
+                                    )
+                                }
+
+                                // Right side: Role column toggles
+                                Row(
+                                    modifier = Modifier.weight(2f),
+                                    horizontalArrangement = Arrangement.SpaceEvenly,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // Public User Role Checkbox
+                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.width(56.dp)) {
+                                        if (publicUserRole != null) {
+                                            val isChecked = rolePermissions.any { it.roleId == publicUserRole.id && it.permissionId == perm.id }
+                                            Checkbox(
+                                                checked = isChecked,
+                                                onCheckedChange = { checked ->
+                                                    if (checked) {
+                                                        supabaseManager.addRolePermission(publicUserRole.id, perm.id)
+                                                    } else {
+                                                        supabaseManager.removeRolePermission(publicUserRole.id, perm.id)
+                                                    }
+                                                },
+                                                colors = CheckboxDefaults.colors(
+                                                    checkedColor = AdminDesign.Primary,
+                                                    uncheckedColor = AdminDesign.OnSurfaceVariant.copy(alpha = 0.5f)
+                                                )
+                                            )
+                                        } else {
+                                            Text("-", color = AdminDesign.OnSurfaceVariant)
+                                        }
+                                    }
+
+                                    // Player Role Checkbox
+                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.width(56.dp)) {
+                                        if (playerRole != null) {
+                                            val isChecked = rolePermissions.any { it.roleId == playerRole.id && it.permissionId == perm.id }
+                                            Checkbox(
+                                                checked = isChecked,
+                                                onCheckedChange = { checked ->
+                                                    if (checked) {
+                                                        supabaseManager.addRolePermission(playerRole.id, perm.id)
+                                                    } else {
+                                                        supabaseManager.removeRolePermission(playerRole.id, perm.id)
+                                                    }
+                                                },
+                                                colors = CheckboxDefaults.colors(
+                                                    checkedColor = AdminDesign.Primary,
+                                                    uncheckedColor = AdminDesign.OnSurfaceVariant.copy(alpha = 0.5f)
+                                                )
+                                            )
+                                        } else {
+                                            Text("-", color = AdminDesign.OnSurfaceVariant)
+                                        }
+                                    }
+
+                                    // Admin Role Checkbox
+                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.width(56.dp)) {
+                                        if (adminRole != null) {
+                                            val isChecked = rolePermissions.any { it.roleId == adminRole.id && it.permissionId == perm.id }
+                                            Checkbox(
+                                                checked = isChecked,
+                                                onCheckedChange = { checked ->
+                                                    if (checked) {
+                                                        supabaseManager.addRolePermission(adminRole.id, perm.id)
+                                                    } else {
+                                                        supabaseManager.removeRolePermission(adminRole.id, perm.id)
+                                                    }
+                                                },
+                                                colors = CheckboxDefaults.colors(
+                                                    checkedColor = AdminDesign.Secondary,
+                                                    uncheckedColor = AdminDesign.OnSurfaceVariant.copy(alpha = 0.5f)
+                                                )
+                                            )
+                                        } else {
+                                            Text("-", color = AdminDesign.OnSurfaceVariant)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
-fun AdminSessionManagerScreen(supabaseManager: SupabaseManager, onBack: () -> Unit) {
-    val sessions by supabaseManager.adminSessions.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+fun AdminSessionManagerScreen(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onBack: () -> Unit) {
+    val sessions by adminViewModel.adminRepository.adminSessions.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
 
     AdminFoundationScaffold("Admin Sessions", supabaseManager, onBack) { padding ->
         if (isSyncing && sessions.isEmpty()) {
@@ -262,7 +475,7 @@ fun AdminSessionManagerScreen(supabaseManager: SupabaseManager, onBack: () -> Un
                 items(5) { ShimmerItem(Modifier.padding(vertical = AdminDesign.SpacingSmall)) }
             }
         } else if (sessions.isEmpty()) {
-            AdminEmptyState(title = "No Active Sessions", description = "There are no recorded admin sessions in the database.")
+            AdminEmptyState(title = "No Active Sessions", description = "There are no recorded admin sessions in the cloud services.")
         } else {
             LazyColumn(
                 modifier = Modifier.padding(padding).fillMaxSize(),
@@ -292,7 +505,7 @@ fun AdminSessionManagerScreen(supabaseManager: SupabaseManager, onBack: () -> Un
                             }
                             if (session.terminatedAt == null) {
                                 Button(
-                                    onClick = { supabaseManager.terminateAdminSession(session.id) },
+                                    onClick = { adminViewModel.adminRepository.terminateAdminSession(session.id) },
                                     colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Error.copy(alpha = 0.1f), contentColor = AdminDesign.Error),
                                     shape = AdminDesign.ButtonShape,
                                     contentPadding = PaddingValues(horizontal = AdminDesign.SpacingMedium)
@@ -318,4 +531,45 @@ private fun HealthStat(label: String, value: String) {
         Text(label, fontSize = 10.sp, color = Color.Gray)
         Text(value, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AdminTopBar(
+    title: String,
+    currentUser: SupabaseUser?,
+    onBack: () -> Unit,
+    showBackButton: Boolean = true
+) {
+    TopAppBar(
+        title = {
+            Column {
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                if (currentUser != null) {
+                    Text("Session: ${currentUser.username} • ${currentUser.role}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        },
+        navigationIcon = {
+            if (showBackButton) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                }
+            }
+        },
+        actions = {
+            IconButton(onClick = { /* Search */ }) {
+                Icon(Icons.Default.Search, contentDescription = "Search")
+            }
+            IconButton(onClick = { /* Notifications */ }) {
+                Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = Color.Transparent,
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+            actionIconContentColor = MaterialTheme.colorScheme.onSurface
+        )
+    )
 }

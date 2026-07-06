@@ -17,7 +17,8 @@ enum class GamePhase {
 enum class GameMode {
     VS_AI,
     PASS_AND_PLAY,
-    ONLINE_MULTIPLAYER
+    ONLINE_MULTIPLAYER,
+    AI_VS_AI
 }
 
 enum class AIDifficulty {
@@ -122,5 +123,6 @@ data class AppSettings(
     val defaultDifficulty: AIDifficulty = AIDifficulty.MEDIUM,
     val selectedBoardTheme: String = "classic_wood",
     val showRulesOnStart: Boolean = true,
-    val showLatestActivity: Boolean = false
+    val showLatestActivity: Boolean = false,
+    val hasSeenOnboarding: Boolean = false
 )

@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.foundation.Image
@@ -19,7 +18,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -33,7 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun HomeScreen(
     savedGameState: GameState?,
-    supabaseManager: SupabaseManager,
+    sharedGameViewModel: com.example.daadi.viewmodel.GameViewModel,
     onPlayVsAi: (com.example.daadi.model.RuleSet) -> Unit,
     onPlayLocal: (com.example.daadi.model.RuleSet) -> Unit,
     onPlayMultiplayer: (com.example.daadi.model.RuleSet) -> Unit,
@@ -44,10 +46,10 @@ fun HomeScreen(
     onFeedbackClick: () -> Unit,
     onDiscardSave: () -> Unit
 ) {
-    val systemSettings by supabaseManager.systemSettings.collectAsStateWithLifecycle()
+    val systemSettings by sharedGameViewModel.remoteConfigRepository.systemSettings.collectAsStateWithLifecycle()
     val isMaintenanceMode = systemSettings.find { it.key == "maintenance_mode" }?.value == "on"
-    val currentUser by supabaseManager.currentUser.collectAsStateWithLifecycle()
-    val isAdmin = supabaseManager.hasPermission("admin_dashboard")
+    val currentUser by sharedGameViewModel.authRepository.currentUser.collectAsStateWithLifecycle()
+    val isAdmin = sharedGameViewModel.authRepository.userHasPermission("admin_dashboard")
 
     if (isMaintenanceMode && !isAdmin) {
         MaintenanceOverlay(onSignInClick)
@@ -88,27 +90,57 @@ fun HomeScreen(
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.Top
         ) {
+                // Hero Banner
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .padding(horizontal = 24.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                ) {
+                    Image(
+                        painter = painterResource(id = com.example.R.drawable.ancient_game_hero_1783210108589),
+                        contentDescription = "Ancient Daadi Board",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f)),
+                                    startY = 100f
+                                )
+                            )
+                    )
+                    Column(
+                        modifier = Modifier.align(Alignment.BottomStart).padding(16.dp)
+                    ) {
+                        Text(
+                            "DAADI",
+                            color = Color.White,
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 4.sp
+                        )
+                        Text(
+                            "INDIA'S TRADITIONAL STRATEGY",
+                            color = Color.Cyan,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 2.sp
+                        )
+                    }
+                }
+
                 // Header content
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(top = 42.dp)
+                    modifier = Modifier.padding(top = 16.dp)
                 ) {
-                    Text(
-                        "DAADI",
-                        style = MaterialTheme.typography.displayLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 5.sp
-                    )
-                    Text(
-                        "India's Traditional Board Game",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFF8B5E3C),
-                        letterSpacing = 1.sp,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
 
                     if (announcement.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(16.dp))
@@ -217,7 +249,7 @@ fun HomeScreen(
                 }
 
                 // AUTH SECTION (Login or User Profile)
-                val userState = supabaseManager.currentUser.collectAsStateWithLifecycle()
+                val userState = sharedGameViewModel.authRepository.currentUser.collectAsStateWithLifecycle()
                 val currentUser = userState.value
                 
                 if (currentUser == null) {
@@ -260,7 +292,7 @@ fun HomeScreen(
                                     Icon(Icons.Default.AdminPanelSettings, contentDescription = "Admin", tint = Color(0xFFC75D27))
                                 }
                             }
-                            IconButton(onClick = { supabaseManager.logout() }) {
+                            IconButton(onClick = { sharedGameViewModel.authRepository.logout() }) {
                                 Icon(Icons.Default.Logout, contentDescription = "Sign Out", tint = Color.LightGray)
                             }
                         }

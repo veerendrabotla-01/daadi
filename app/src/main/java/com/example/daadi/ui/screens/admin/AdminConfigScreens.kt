@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.foundation.background
@@ -24,16 +23,17 @@ import androidx.compose.ui.unit.sp
 import com.example.daadi.data.supabase.SupabaseAnnouncement
 import com.example.daadi.data.supabase.SupabaseSystemSetting
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.daadi.data.supabase.AdminAuditLog
 import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
 fun AdminSystemConfigScreen(
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onBack: () -> Unit
 ) {
-    val settings by supabaseManager.systemSettings.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+    val settings by adminViewModel.remoteConfigRepository.systemSettings.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
     var editingItem by remember { mutableStateOf<SupabaseSystemSetting?>(null) }
     
     val categories = listOf("SYSTEM", "MULTIPLIERS", "FEATURES", "ADS", "VERSION")
@@ -41,7 +41,7 @@ fun AdminSystemConfigScreen(
 
     AdminFoundationScaffold(
         title = "Remote Variables",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
@@ -90,7 +90,7 @@ fun AdminSystemConfigScreen(
                         ) {
                             items(filteredSettings) { item ->
                                 ConfigItemCard(item, onEdit = { editingItem = it }, onToggle = { key, newVal ->
-                                    supabaseManager.updateSystemSetting(key, newVal)
+                                    adminViewModel.remoteConfigRepository.updateSystemSetting(key, newVal)
                                 })
                             }
                         }
@@ -120,7 +120,7 @@ fun AdminSystemConfigScreen(
             },
             confirmButton = {
                 Button(
-                    onClick = { supabaseManager.updateRemoteConfig(editingItem!!.key, newVal); editingItem = null },
+                    onClick = { adminViewModel.remoteConfigRepository.updateRemoteConfig(editingItem!!.key, newVal); editingItem = null },
                     shape = AdminDesign.ButtonShape
                 ) {
                     Text("SAVE OVERWRITE")
@@ -185,16 +185,16 @@ fun ConfigItemCard(item: SupabaseSystemSetting, onEdit: (SupabaseSystemSetting) 
 
 @Composable
 fun AdminAnnouncementsScreen(
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onBack: () -> Unit
 ) {
-    val announcements by supabaseManager.announcements.collectAsStateWithLifecycle()
-    val isSyncing by supabaseManager.isSyncing.collectAsStateWithLifecycle()
+    val announcements by adminViewModel.remoteConfigRepository.announcements.collectAsStateWithLifecycle()
+    val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
     var showCreateDialog by remember { mutableStateOf(false) }
 
     AdminFoundationScaffold(
         title = "System Bulletins",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack,
         actions = {
             IconButton(onClick = { showCreateDialog = true }) {
@@ -218,7 +218,7 @@ fun AdminAnnouncementsScreen(
                 modifier = Modifier.fillMaxSize().padding(padding)
             ) {
                 items(announcements) { ann ->
-                    AnnouncementCard(ann, supabaseManager)
+                    AnnouncementCard(ann, adminViewModel)
                 }
             }
         }
@@ -228,7 +228,7 @@ fun AdminAnnouncementsScreen(
         AnnouncementCreateDialog(
             onDismiss = { showCreateDialog = false },
             onConfirm = { title, content ->
-                supabaseManager.createAnnouncement(title, content, true)
+                adminViewModel.remoteConfigRepository.createAnnouncement(title, content, true)
                 showCreateDialog = false
             }
         )
@@ -236,7 +236,7 @@ fun AdminAnnouncementsScreen(
 }
 
 @Composable
-fun AnnouncementCard(ann: SupabaseAnnouncement, supabaseManager: SupabaseManager) {
+fun AnnouncementCard(ann: SupabaseAnnouncement, adminViewModel: com.example.daadi.viewmodel.AdminViewModel) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = AdminDesign.CardShape,
@@ -263,7 +263,7 @@ fun AnnouncementCard(ann: SupabaseAnnouncement, supabaseManager: SupabaseManager
                 Text(ann.title, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f), color = AdminDesign.OnSurface)
                 Switch(
                     checked = ann.isActive,
-                    onCheckedChange = { supabaseManager.toggleAnnouncementStatus(ann.id) },
+                    onCheckedChange = { adminViewModel.remoteConfigRepository.toggleAnnouncementStatus(ann.id) },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
                         checkedTrackColor = AdminDesign.Primary
@@ -275,7 +275,7 @@ fun AnnouncementCard(ann: SupabaseAnnouncement, supabaseManager: SupabaseManager
             Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(ann.createdAt, fontSize = 9.sp, color = AdminDesign.OnSurfaceVariant, fontWeight = FontWeight.Bold)
-                IconButton(onClick = { supabaseManager.deleteAnnouncement(ann.id) }) {
+                IconButton(onClick = { adminViewModel.remoteConfigRepository.deleteAnnouncement(ann.id) }) {
                     Icon(Icons.Default.DeleteForever, contentDescription = "Delete", tint = AdminDesign.Error, modifier = Modifier.size(18.dp))
                 }
             }
@@ -326,33 +326,17 @@ fun AnnouncementCreateDialog(onDismiss: () -> Unit, onConfirm: (String, String) 
     )
 }
 
-data class ConfigHistoryEntry(
-    val id: String,
-    val key: String,
-    val oldValue: String,
-    val newValue: String,
-    val author: String,
-    val timestamp: String
-)
-
 @Composable
 fun AdminConfigHistoryScreen(
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onBack: () -> Unit
 ) {
-    val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-    val mockHistory = remember {
-        listOf(
-            ConfigHistoryEntry("H1", "maintenance_mode", "off", "on", "admin_jane", sdf.format(Date(System.currentTimeMillis() - 3600000))),
-            ConfigHistoryEntry("H2", "ads_launcher", "off", "on", "admin_bob", sdf.format(Date(System.currentTimeMillis() - 7200000))),
-            ConfigHistoryEntry("H3", "global_multiplier", "1.0", "2.0", "admin_jane", sdf.format(Date(System.currentTimeMillis() - 86400000))),
-            ConfigHistoryEntry("H4", "daily_reward_coins", "50", "100", "mod_sam", sdf.format(Date(System.currentTimeMillis() - 172800000)))
-        )
-    }
+    val auditLogs by adminViewModel.adminRepository.adminAuditLogs.collectAsStateWithLifecycle()
+    val configLogs = auditLogs.filter { it.action.contains("CONFIG", ignoreCase = true) || it.target == "system_settings" }
 
     AdminFoundationScaffold(
         title = "Configuration Rollbacks",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack
     ) { padding ->
         LazyColumn(
@@ -364,7 +348,12 @@ fun AdminConfigHistoryScreen(
                 Text("VARIABLE HISTORY", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.Primary)
                 Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
             }
-            items(mockHistory) { entry ->
+            if (configLogs.isEmpty()) {
+                item {
+                    Text("No configuration changes recorded yet.", fontSize = 12.sp, color = AdminDesign.OnSurfaceVariant)
+                }
+            }
+            items(configLogs) { entry ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = AdminDesign.CardShape,
@@ -375,27 +364,23 @@ fun AdminConfigHistoryScreen(
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Default.History, contentDescription = null, tint = AdminDesign.Primary, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(entry.key, fontWeight = FontWeight.Black, fontSize = 12.sp, color = AdminDesign.Primary, modifier = Modifier.weight(1f))
-                            Text(entry.timestamp, fontSize = 10.sp, color = AdminDesign.OnSurfaceVariant)
+                            Text(entry.action, fontWeight = FontWeight.Black, fontSize = 12.sp, color = AdminDesign.Primary, modifier = Modifier.weight(1f))
+                            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+                            Text(sdf.format(java.util.Date(entry.timestamp)), fontSize = 10.sp, color = AdminDesign.OnSurfaceVariant)
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("PREVIOUS", fontSize = 9.sp, color = AdminDesign.OnSurfaceVariant, fontWeight = FontWeight.Bold)
-                                Text(entry.oldValue, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AdminDesign.Error)
-                            }
-                            Icon(Icons.Default.ArrowForward, contentDescription = null, tint = AdminDesign.OnSurfaceVariant, modifier = Modifier.size(16.dp))
-                            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                                Text("UPDATED", fontSize = 9.sp, color = AdminDesign.OnSurfaceVariant, fontWeight = FontWeight.Bold)
-                                Text(entry.newValue, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
+                                Text("TARGET", fontSize = 9.sp, color = AdminDesign.OnSurfaceVariant, fontWeight = FontWeight.Bold)
+                                Text(entry.target, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = AdminDesign.OnSurface)
                             }
                         }
                         Spacer(modifier = Modifier.height(12.dp))
-                        Divider(color = AdminDesign.OnSurfaceVariant.copy(alpha = 0.1f))
+                        HorizontalDivider(color = AdminDesign.OnSurfaceVariant.copy(alpha = 0.1f))
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                            Text("Author: ${entry.author}", fontSize = 11.sp, color = AdminDesign.OnSurfaceVariant)
-                            TextButton(onClick = { supabaseManager.updateSystemSetting(entry.key, entry.oldValue) }) {
+                            Text("Author: ${entry.adminId}", fontSize = 11.sp, color = AdminDesign.OnSurfaceVariant)
+                            TextButton(onClick = { /* Rollback */ }) {
                                 Text("ROLLBACK", fontSize = 11.sp, fontWeight = FontWeight.Black, color = AdminDesign.Warning)
                             }
                         }

@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.foundation.background
@@ -275,6 +274,30 @@ fun SettingsScreen(
                 }
             }
 
+            // Background Music toggle
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBFA)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().border(1.dp, Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Background Music", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
+                        Text("Play ambient traditional music during the game", fontSize = 11.sp, color = Color.Gray)
+                    }
+                    Switch(
+                        checked = settings.musicEnabled,
+                        onCheckedChange = { onSettingsChanged(settings.copy(musicEnabled = it)) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF5C2D0A), checkedTrackColor = Color(0xFFD4A55A)),
+                        modifier = Modifier.testTag("music_toggle")
+                    )
+                }
+            }
+
             // Countdown Sound effects toggle
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBFA)),
@@ -502,7 +525,7 @@ fun SettingsScreen(
             if (isAdmin) {
                 Spacer(modifier = Modifier.height(18.dp))
 
-                Text("DATABASE SERVICES & ROLES", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8B5E3C), letterSpacing = 1.sp)
+                Text("CLOUD SERVICES & ROLES", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8B5E3C), letterSpacing = 1.sp)
 
                 Card(
                     shape = RoundedCornerShape(12.dp),
@@ -517,14 +540,14 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            "Supabase Operations Portal", 
+                            "Cloud Operations Portal", 
                             style = MaterialTheme.typography.titleMedium, 
                             color = Color(0xFF5C2D0A), 
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            "Manage registered game players, historic matches, publish announcements, and adjust real-time strategic settings in Supabase.", 
+                            "Manage registered game players, historic matches, publish announcements, and adjust real-time strategic settings.", 
                             fontSize = 11.sp, 
                             color = Color.Gray,
                             lineHeight = 15.sp

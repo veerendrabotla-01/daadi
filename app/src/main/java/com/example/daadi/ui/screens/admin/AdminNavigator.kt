@@ -1,6 +1,5 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseManager
 
 
 import androidx.compose.runtime.*
@@ -11,7 +10,7 @@ import com.example.daadi.data.supabase.SupabaseUser
 
 @Composable
 fun AdminNavigator(
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onExitAdmin: () -> Unit
 ) {
     val adminNavController = rememberNavController()
@@ -26,7 +25,7 @@ fun AdminNavigator(
     ) {
         composable("dashboard") {
             AdminDashboardScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onNavigateToUsers = { adminNavController.navigate("user_list") },
                 onNavigateToSafety = { adminNavController.navigate("safety") },
                 onNavigateToMatches = { adminNavController.navigate("match_archive") },
@@ -58,20 +57,21 @@ fun AdminNavigator(
                 onNavigateToApprovals = { adminNavController.navigate("approvals") },
                 onNavigateToScheduler = { adminNavController.navigate("scheduler") },
                 onNavigateToRollbacks = { adminNavController.navigate("rollbacks") },
+                onNavigateToAIEngine = { adminNavController.navigate("ai_engine") },
                 onBack = onExitAdmin
             )
         }
 
         composable("user_list") {
             AdminUserManagementScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("safety") {
             AdminSafetyHubScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onUserClick = { user ->
                     selectedUser = user
                     adminNavController.navigate("user_details")
@@ -82,21 +82,21 @@ fun AdminNavigator(
 
         composable("match_archive") {
             AdminMatchManagementScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("config") {
             AdminSystemConfigScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("analytics") {
             AdminBIPlatformSuite(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 type = "analytics",
                 onBack = { adminNavController.popBackStack() }
             )
@@ -104,14 +104,14 @@ fun AdminNavigator(
 
         composable("feedback") {
             AdminSupportHubScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
         
         composable("logs") {
             AdminAuditTrailScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
@@ -119,105 +119,105 @@ fun AdminNavigator(
         // Announcements can be another screen or part of config
         composable("announcements") {
             AdminAnnouncementsScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("health") {
             AdminMonitoringScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("crashes") {
             AdminCrashCenterScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("devices") {
             AdminDeviceCenterScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("fraud") {
             AdminFraudDetectionScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("ai_assistant") {
             AdminAIAssistantScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("audit_logs") {
             AdminAuditTrailScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("permission_matrix") {
             AdminPermissionMatrixScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("sessions") {
             AdminSessionManagerScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("anti_cheat") {
             AdminAntiCheatDashboard(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("tournaments") {
             AdminTournamentScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("events") {
             AdminEventScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("bi_analytics") {
             AdminBIAnalyticsScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("bi_revenue") {
             AdminBIAnalyticsScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("bi_notifications") {
             AdminBIPlatformSuite(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 type = "notifications",
                 onBack = { adminNavController.popBackStack() }
             )
@@ -225,70 +225,77 @@ fun AdminNavigator(
 
         composable("economy") {
             AdminEconomyCenter(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("store") {
             AdminStoreManagement(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("rewards") {
             AdminRewardEditor(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("liveops") {
             AdminLiveOpsCenter(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("season_pass") {
             AdminSeasonPassManager(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("cms") {
             AdminCMSCenter(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("exports") {
             AdminDataExportScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("approvals") {
             AdminWorkflowApprovalsScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("scheduler") {
             AdminTaskSchedulerScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("rollbacks") {
             AdminConfigHistoryScreen(
-                supabaseManager = supabaseManager,
+                adminViewModel = adminViewModel,
+                onBack = { adminNavController.popBackStack() }
+            )
+        }
+
+        composable("ai_engine") {
+            AdminAIEngineScreen(
+                adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )
         }

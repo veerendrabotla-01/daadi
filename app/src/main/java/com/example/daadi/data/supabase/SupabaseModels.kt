@@ -9,7 +9,7 @@ data class SupabaseUser(
     val id: String = "",
     val username: String = "",
     val email: String = "",
-    val role: String = "user", // Kept for backward compatibility
+    val role: String = "publicuser", // Default to publicuser
     val createdAt: String = "",
     val totalGames: Int = 0,
     val wins: Int = 0,
@@ -554,3 +554,81 @@ data class SupabaseAiConfig(
     val isStaged: Boolean = false,
     val version: Int = 1
 )
+
+@JsonClass(generateAdapter = true)
+data class SupabaseRole(
+    val id: String = "",
+    val name: String = "",
+    val description: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class SupabasePermission(
+    val id: String = "",
+    val name: String = "",
+    val description: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class SupabaseRolePermission(
+    @Json(name = "role_id") val roleId: String = "",
+    @Json(name = "permission_id") val permissionId: String = ""
+)
+
+@com.squareup.moshi.JsonClass(generateAdapter = true)
+data class DbHealthMetrics(
+    val status: String = "HEALTHY",
+    val latencyMs: Long = 0,
+    val roomCount: Int = 0,
+    val profileCount: Int = 0,
+    val lastRefresh: Long = System.currentTimeMillis()
+)
+
+@com.squareup.moshi.JsonClass(generateAdapter = true)
+data class AdminAuditLog(
+    val timestamp: Long = System.currentTimeMillis(),
+    val adminId: String,
+    val action: String,
+    val target: String
+)
+
+@com.squareup.moshi.JsonClass(generateAdapter = true)
+data class AdConfiguration(
+    val activeProvider: String = "ADMOB",
+    val bannerAdUnitId: String = "ca-app-pub-3940256099942544/6300978111",
+    val interstitialAdUnitId: String = "ca-app-pub-3940256099942544/1033173712",
+    val rewardedAdUnitId: String = "ca-app-pub-3940256099942544/5224354917",
+    val interstitialFrequencyCap: Int = 3,
+    val isMonetizationGlobalOverride: Boolean = true
+)
+
+@com.squareup.moshi.JsonClass(generateAdapter = true)
+data class AdTelemetry(
+    val totalRequests: Int = 0,
+    val filledImpressions: Int = 0,
+    val fillRate: Float = 0f,
+    val estimatedEcpm: Float = 0f,
+    val lastFlushTimestamp: Long = System.currentTimeMillis()
+)
+
+@com.squareup.moshi.JsonClass(generateAdapter = true)
+data class SupabaseApprovalRequest(
+    val id: String = "",
+    val requester: String = "",
+    val type: String = "",
+    val description: String = "",
+    val timestamp: String = "",
+    val severity: String = "",
+    val status: String = "pending"
+)
+
+@com.squareup.moshi.JsonClass(generateAdapter = true)
+data class SupabaseScheduledTask(
+    val id: String = "",
+    val name: String = "",
+    val schedule: String = "",
+    val nextRun: String = "",
+    @com.squareup.moshi.Json(name = "is_enabled") val isEnabled: Boolean = true,
+    @com.squareup.moshi.Json(name = "last_status") val lastStatus: String = ""
+)
+

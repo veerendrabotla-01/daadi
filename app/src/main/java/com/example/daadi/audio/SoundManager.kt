@@ -2,6 +2,7 @@ package com.example.daadi.audio
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.MediaPlayer
 import android.media.SoundPool
 import android.os.Build
 import android.os.VibrationEffect
@@ -15,8 +16,10 @@ import kotlinx.coroutines.launch
 
 class SoundManager(private val context: Context, private val settingsRepository: SettingsRepository) {
     private var soundPool: SoundPool? = null
+    private var mediaPlayer: MediaPlayer? = null
     private val soundMap = mutableMapOf<Int, Int>()
     private var isLoaded = false
+    private var musicEnabled = true
 
     private val vibrator: Vibrator? by lazy {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -30,6 +33,20 @@ class SoundManager(private val context: Context, private val settingsRepository:
 
     init {
         initializeSoundPool()
+        observeSettings()
+    }
+
+    private fun observeSettings() {
+        CoroutineScope(Dispatchers.Main).launch {
+            settingsRepository.settingsFlow.collect { settings ->
+                musicEnabled = settings.musicEnabled
+                if (musicEnabled && !isBackgroundMuted) {
+                    resumeMusic()
+                } else {
+                    pauseMusic()
+                }
+            }
+        }
     }
 
     private fun initializeSoundPool() {
@@ -59,6 +76,23 @@ class SoundManager(private val context: Context, private val settingsRepository:
                 soundMap[R.raw.game_over] = pool.load(context, R.raw.game_over, 1)
             }
         }
+    }
+
+    private fun startMusic() {
+        // mediaPlayer = MediaPlayer.create(context, R.raw.bg_music)
+        // mediaPlayer?.isLooping = true
+        if (musicEnabled && !isBackgroundMuted) {
+            mediaPlayer?.start()
+        }
+    }
+
+    private fun pauseMusic() {
+        mediaPlayer?.pause()
+    }
+
+    private fun resumeMusic() {
+        if (mediaPlayer == null) startMusic()
+        else if (musicEnabled && !isBackgroundMuted) mediaPlayer?.start()
     }
 
     private fun playSound(resId: Int) {
@@ -99,6 +133,11 @@ class SoundManager(private val context: Context, private val settingsRepository:
 
     fun setBackgroundMuted(muted: Boolean) {
         isBackgroundMuted = muted
+        if (muted) {
+            pauseMusic()
+        } else if (musicEnabled) {
+            resumeMusic()
+        }
     }
 
     fun playPlace() {

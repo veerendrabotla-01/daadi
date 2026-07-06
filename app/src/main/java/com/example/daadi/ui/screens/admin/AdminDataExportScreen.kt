@@ -14,7 +14,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.daadi.data.supabase.SupabaseManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -22,7 +21,7 @@ import java.util.*
 
 @Composable
 fun AdminDataExportScreen(
-    supabaseManager: SupabaseManager,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onBack: () -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -42,7 +41,7 @@ fun AdminDataExportScreen(
 
     AdminFoundationScaffold(
         title = "Data Exports & Archives",
-        supabaseManager = supabaseManager,
+        adminViewModel = adminViewModel,
         onBack = onBack
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize().padding(AdminDesign.SpacingMedium)) {
@@ -108,10 +107,9 @@ fun AdminDataExportScreen(
                     if (selectedModules.isNotEmpty()) {
                         isExporting = true
                         exportSuccess = null
-                        coroutineScope.launch {
-                            delay(2000) // Simulate export generation
+                        adminViewModel.adminRepository.requestDataExport(selectedModules.toList(), exportFormat) { success, msg ->
                             isExporting = false
-                            exportSuccess = "Export complete. Download link sent to your admin email."
+                            exportSuccess = msg
                         }
                     }
                 },
