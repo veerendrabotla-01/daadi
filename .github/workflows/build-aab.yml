@@ -48,16 +48,18 @@ jobs:
           if [ -z "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" ]; then
             echo "⚠️ No release keystore secret found. Generating a temporary self-signed keystore for this build..."
             keytool -genkey -v -keystore my-upload-key.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass tempstorepass -keypass tempkeypass -dname "CN=Daadi, O=VeeruStudio, C=IN"
+              -storepass tempstorepass -keypass tempstorepass -dname "CN=Daadi, O=VeeruStudio, C=IN"
             echo "KEYSTORE_PATH=${{ github.workspace }}/my-upload-key.jks" >> $GITHUB_ENV
             echo "STORE_PASSWORD=tempstorepass" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=tempkeypass" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=tempstorepass" >> $GITHUB_ENV
+            echo "KEY_ALIAS=upload" >> $GITHUB_ENV
           else
             echo "✅ Decoding production release keystore..."
             echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > my-upload-key.jks
             echo "KEYSTORE_PATH=${{ github.workspace }}/my-upload-key.jks" >> $GITHUB_ENV
             echo "STORE_PASSWORD=${{ secrets.STORE_PASSWORD }}" >> $GITHUB_ENV
             echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS || 'upload' }}" >> $GITHUB_ENV
           fi
 
       - name: Make Gradle wrapper executable
@@ -69,6 +71,7 @@ jobs:
           KEYSTORE_PATH: ${{ env.KEYSTORE_PATH }}
           STORE_PASSWORD: ${{ env.STORE_PASSWORD }}
           KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ env.KEY_ALIAS }}
 
       - name: Upload Build Artifacts (.aab)
         uses: actions/upload-artifact@v4 # Keep your bundle preserved in GitHub run artifacts
