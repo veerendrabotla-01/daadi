@@ -71,7 +71,7 @@ jobs:
           KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
 
       - name: Upload Build Artifacts (.aab)
-        uses: actions/artifacts-upload@v1 # Keep your bundle preserved in GitHub run artifacts
+        uses: actions/upload-artifact@v4 # Keep your bundle preserved in GitHub run artifacts
         with:
           name: app-release-bundle
           path: app/build/outputs/bundle/release/*.aab
