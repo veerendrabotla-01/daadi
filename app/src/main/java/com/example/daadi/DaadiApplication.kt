@@ -106,10 +106,10 @@ class DaadiApplication : Application() {
             while (true) {
                 ensureWebViewCacheDirs()
                 val elapsed = System.currentTimeMillis() - startTime
-                if (elapsed < 10000) {
-                    delay(50)
+                if (elapsed < 30000) {
+                    delay(100)
                 } else {
-                    delay(1000)
+                    delay(500)
                 }
             }
         }
