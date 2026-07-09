@@ -28,32 +28,81 @@ fun AdminTaskSchedulerScreen(
         adminViewModel.adminRepository.fetchScheduledTasks()
     }
 
+    var showAddTaskDialog by remember { mutableStateOf(false) }
+
     AdminFoundationScaffold(
         title = "Task Scheduler",
         adminViewModel = adminViewModel,
         onBack = onBack,
         actions = {
-            IconButton(onClick = { /* Handle Add */ }) {
+            IconButton(onClick = { showAddTaskDialog = true }) {
                 Icon(Icons.Default.Add, contentDescription = "Add Task", tint = AdminDesign.Primary)
             }
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.padding(padding).fillMaxSize(),
-            contentPadding = PaddingValues(AdminDesign.SpacingMedium),
-            verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)
-        ) {
-            item {
-                Text("CRON JOBS & AUTOMATION", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.Primary)
-                Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(AdminDesign.SpacingMedium),
+                verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)
+            ) {
+                item {
+                    Text("CRON JOBS & AUTOMATION", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.Primary)
+                    Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+                }
+                items(tasks) { task ->
+                    TaskSchedulerCard(
+                        task = task,
+                        onToggle = { isEnabled ->
+                            adminViewModel.adminRepository.toggleScheduledTask(task.id, isEnabled)
+                        },
+                        onRunNow = { 
+                            adminViewModel.adminRepository.triggerScheduledTask(task.id)
+                        }
+                    )
+                }
             }
-            items(tasks) { task ->
-                TaskSchedulerCard(
-                    task = task,
-                    onToggle = { isEnabled ->
-                        // Make an API call to toggle the task
+
+            if (showAddTaskDialog) {
+                var name by remember { mutableStateOf("") }
+                var schedule by remember { mutableStateOf("*/5 * * * *") }
+                
+                AlertDialog(
+                    onDismissRequest = { showAddTaskDialog = false },
+                    title = { Text("Create Scheduled Task", fontWeight = FontWeight.Bold) },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedTextField(
+                                value = name,
+                                onValueChange = { name = it },
+                                label = { Text("Task Name") },
+                                placeholder = { Text("e.g. Purge Temporary Data") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = schedule,
+                                onValueChange = { schedule = it },
+                                label = { Text("Cron Schedule") },
+                                placeholder = { Text("e.g. */10 * * * *") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                        }
                     },
-                    onRunNow = { /* Run task */ }
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                if (name.isNotBlank()) {
+                                    adminViewModel.adminRepository.createScheduledTask(name, schedule)
+                                    showAddTaskDialog = false
+                                }
+                            }
+                        ) { Text("Create") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showAddTaskDialog = false }) { Text("Cancel") }
+                    }
                 )
             }
         }

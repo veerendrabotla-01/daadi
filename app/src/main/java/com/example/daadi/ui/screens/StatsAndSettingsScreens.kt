@@ -690,7 +690,7 @@ fun SettingsScreen(
 
             // Version Display
             Text(
-                "Daadi Game Version 1.0.0 (Play Store Production ready)",
+                "Daadi Game Version ${com.example.BuildConfig.VERSION_NAME} (Production)",
                 style = MaterialTheme.typography.labelSmall,
                 color = Color.LightGray,
                 textAlign = TextAlign.Center,

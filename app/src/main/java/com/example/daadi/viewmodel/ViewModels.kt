@@ -38,7 +38,8 @@ class GameViewModel(
     val analyticsRepository: com.example.daadi.data.repository.supabase.AnalyticsRepository,
     val remoteConfigRepository: com.example.daadi.data.repository.supabase.RemoteConfigRepository,
     val remoteGameRepository: com.example.daadi.data.repository.supabase.RemoteGameRepository,
-    val supportRepository: com.example.daadi.data.repository.supabase.SupportRepository
+    val supportRepository: com.example.daadi.data.repository.supabase.SupportRepository,
+    val userRepository: com.example.daadi.data.repository.supabase.UserRepository
 ) : ViewModel() {
 
     companion object {
@@ -1207,7 +1208,7 @@ class ViewModelFactory(private val application: com.example.daadi.DaadiApplicati
     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
         @Suppress("UNCHECKED_CAST")
         return when {
-            modelClass.isAssignableFrom(GameViewModel::class.java) -> GameViewModel(application.gameRepository, application.statsRepository, application.settingsRepository, application.soundManager, application.multiplayerManager, application.authRepository, application.analyticsRepository, application.remoteConfigRepository, application.remoteGameRepository, application.supportRepository)
+            modelClass.isAssignableFrom(GameViewModel::class.java) -> GameViewModel(application.gameRepository, application.statsRepository, application.settingsRepository, application.soundManager, application.multiplayerManager, application.authRepository, application.analyticsRepository, application.remoteConfigRepository, application.remoteGameRepository, application.supportRepository, application.userRepository)
             modelClass.isAssignableFrom(StatsViewModel::class.java) -> StatsViewModel(application.statsRepository)
             modelClass.isAssignableFrom(SettingsViewModel::class.java) -> SettingsViewModel(application.settingsRepository)
             modelClass.isAssignableFrom(AdminViewModel::class.java) -> AdminViewModel(application.authRepository, application.adminRepository, application.analyticsRepository, application.remoteGameRepository, application.economyRepository, application.liveOpsRepository, application.supportRepository, application.tournamentRepository, application.remoteConfigRepository, application.userRepository)

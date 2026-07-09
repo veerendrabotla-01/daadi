@@ -39,53 +39,53 @@ class DaadiApplication : Application() {
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun ensureWebViewCacheDirs() {
-        try {
-            val webViewDir = java.io.File(cacheDir, "WebView")
-            val defaultDir = java.io.File(webViewDir, "Default")
-            val httpCacheDir = java.io.File(defaultDir, "HTTP Cache")
-            val codeCacheDir = java.io.File(httpCacheDir, "Code Cache")
-            val jsDir = java.io.File(codeCacheDir, "js")
-            val wasmDir = java.io.File(codeCacheDir, "wasm")
-
-            val dirs = listOf(webViewDir, defaultDir, httpCacheDir, codeCacheDir, jsDir, wasmDir)
-            for (dir in dirs) {
+        applicationScope.launch(Dispatchers.IO) {
+            // Repeat a few times during startup to combat race conditions with Chromium
+            repeat(3) {
                 try {
-                    var isNewlyCreated = false
-                    if (!dir.exists()) {
-                        isNewlyCreated = dir.mkdirs()
+                    val cacheBase = cacheDir.absolutePath
+                    val webViewDirs = listOf(
+                        "$cacheBase/WebView",
+                        "$cacheBase/WebView/Default",
+                        "$cacheBase/WebView/Default/HTTP Cache",
+                        "$cacheBase/WebView/Default/HTTP Cache/Code Cache",
+                        "$cacheBase/WebView/Default/HTTP Cache/Code Cache/js",
+                        "$cacheBase/WebView/Default/HTTP Cache/Code Cache/wasm",
+                        "$cacheBase/WebView/Default/Code Cache",
+                        "$cacheBase/WebView/Default/Code Cache/js",
+                        "$cacheBase/WebView/Default/Code Cache/wasm"
+                    )
+
+                    for (path in webViewDirs) {
+                        val dir = java.io.File(path)
+                        try {
+                            var isNewlyCreated = false
+                            if (!dir.exists()) {
+                                isNewlyCreated = dir.mkdirs()
+                            }
+                            if (dir.exists() && (isNewlyCreated || !dir.canRead() || !dir.canWrite())) {
+                                dir.setReadable(true, false)
+                                dir.setWritable(true, false)
+                                dir.setExecutable(true, false)
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("DaadiApp", "Failed to ensure webview cache dir: $path", e)
+                        }
                     }
-                    if (dir.exists() && (isNewlyCreated || !dir.canRead() || !dir.canWrite())) {
-                        dir.setReadable(true, false)
-                        dir.setWritable(true, false)
-                        dir.setExecutable(true, false)
+
+                    // Clean up placeholder files
+                    listOf("HTTP Cache/Code Cache/js", "HTTP Cache/Code Cache/wasm", "Code Cache/js", "Code Cache/wasm").forEach { subPath ->
+                        val dir = java.io.File(cacheDir, "WebView/Default/$subPath")
+                        if (dir.exists()) {
+                            val placeholder = java.io.File(dir, ".placeholder")
+                            if (placeholder.exists()) placeholder.delete()
+                        }
                     }
                 } catch (e: Exception) {
-                    android.util.Log.e("DaadiApp", "Failed to ensure webview cache dir: ${dir.absolutePath}", e)
+                    android.util.Log.e("DaadiApp", "Error in ensureWebViewCacheDirs pass", e)
                 }
+                delay(3000)
             }
-
-            // CLEAN UP: Delete any foreign placeholder files inside 'js' or 'wasm' subdirectories,
-            // because Chromium's SimpleCache expects ONLY valid cache entry hashes. Non-conforming filenames
-            // (like .placeholder) will flag the cache directory as corrupted and cause Chromium
-            // to delete the entire HTTP Cache / Code Cache folders on startup, resulting in opendir errors!
-            try {
-                if (jsDir.exists()) {
-                    val jsPlaceholder = java.io.File(jsDir, ".placeholder")
-                    if (jsPlaceholder.exists()) {
-                        jsPlaceholder.delete()
-                    }
-                }
-                if (wasmDir.exists()) {
-                    val wasmPlaceholder = java.io.File(wasmDir, ".placeholder")
-                    if (wasmPlaceholder.exists()) {
-                        wasmPlaceholder.delete()
-                    }
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("DaadiApp", "Failed to clean up placeholder files", e)
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("DaadiApp", "Error in ensureWebViewCacheDirs", e)
         }
     }
 
@@ -93,26 +93,8 @@ class DaadiApplication : Application() {
         super.onCreate()
         instance = this
         
-        // Pre-create WebView HTTP cache directories immediately
+        // Start WebView HTTP cache maintenance (handles its own background retries)
         ensureWebViewCacheDirs()
-        
-        // Launch a background coroutine to continuously ensure they exist during the entire application session.
-        // Checking for file existence is extremely fast (< 1 microsecond) and has zero noticeable CPU/battery impact,
-        // but guarantees that any runtime cache cleanups/re-creations by Chromium are immediately handled so opendir never fails.
-        // During the first 10 seconds (startup & WebView initialization), we check very frequently (every 50ms) to win
-        // the race against Chromium's startup cache wipe/recreation. After 10 seconds, we check every 1000ms.
-        applicationScope.launch {
-            val startTime = System.currentTimeMillis()
-            while (true) {
-                ensureWebViewCacheDirs()
-                val elapsed = System.currentTimeMillis() - startTime
-                if (elapsed < 30000) {
-                    delay(100)
-                } else {
-                    delay(500)
-                }
-            }
-        }
     }
 
     companion object {

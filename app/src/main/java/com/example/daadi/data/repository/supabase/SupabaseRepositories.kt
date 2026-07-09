@@ -449,6 +449,92 @@ class AuthRepository(val network: SupabaseManager) {
             network.prefs.edit().remove("current_user_session").apply()
         }
 
+    fun updateCurrentUserProfile(updatedUser: SupabaseUser, onResult: (Boolean) -> Unit = {}) {
+        network._currentUser.value = updatedUser
+        if (!network.isConfigured) {
+            network._users.value = network._users.value.map {
+                if (it.id == updatedUser.id) updatedUser else it
+            }
+            network.saveSimulatorUsers()
+            network.prefs.edit().putString("current_user_session", network.userAdapter.toJson(updatedUser)).apply()
+            onResult(true)
+        } else {
+            network.scope.launch {
+                try {
+                    val userJson = network.userAdapter.toJson(updatedUser)
+                    val request = Request.Builder()
+                        .url("${network.supabaseUrl}/rest/v1/users?id=eq.${updatedUser.id}")
+                        .headers(network.getHeaders())
+                        .patch(userJson.toRequestBody("application/json".toMediaType()))
+                        .build()
+                    network.client.newCall(request).enqueue(object : Callback {
+                        override fun onFailure(call: Call, e: IOException) {
+                            network.runOnMain { onResult(false) }
+                        }
+                        override fun onResponse(call: Call, response: Response) {
+                            network.runOnMain {
+                                if (response.isSuccessful) {
+                                    network.prefs.edit().putString("current_user_session", network.userAdapter.toJson(updatedUser)).apply()
+                                    onResult(true)
+                                } else {
+                                    onResult(false)
+                                }
+                            }
+                            response.close()
+                        }
+                    })
+                } catch (e: Exception) {
+                    network.runOnMain { onResult(false) }
+                }
+            }
+        }
+    }
+
+    fun submitApprovalRequest(type: String, description: String, severity: String, onResult: (Boolean) -> Unit) {
+        val user = network._currentUser.value ?: return
+        val newReq = SupabaseApprovalRequest(
+            id = UUID.randomUUID().toString(),
+            requester = user.username,
+            type = type,
+            description = description,
+            timestamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date()),
+            severity = severity,
+            status = "pending"
+        )
+        if (!network.isConfigured) {
+            network.scope.launch {
+                val saved = network.prefs.getString("sim_approval_requests", null)
+                val adapter = network.moshi.adapter<List<SupabaseApprovalRequest>>(com.squareup.moshi.Types.newParameterizedType(List::class.java, SupabaseApprovalRequest::class.java))
+                val list = (if (saved != null) adapter.fromJson(saved) ?: emptyList() else emptyList()).toMutableList()
+                list.add(newReq)
+                network.prefs.edit().putString("sim_approval_requests", adapter.toJson(list)).apply()
+                network.runOnMain { onResult(true) }
+            }
+        } else {
+            network.scope.launch {
+                try {
+                    val json = network.moshi.adapter(SupabaseApprovalRequest::class.java).toJson(newReq)
+                    val request = Request.Builder()
+                        .url("${network.supabaseUrl}/rest/v1/approval_requests")
+                        .headers(network.getHeaders())
+                        .post(json.toRequestBody("application/json".toMediaType()))
+                        .build()
+                    network.client.newCall(request).enqueue(object : Callback {
+                        override fun onFailure(call: Call, e: IOException) {
+                            network.runOnMain { onResult(false) }
+                        }
+                        override fun onResponse(call: Call, response: Response) {
+                            network.runOnMain { onResult(response.isSuccessful) }
+                            response.close()
+                        }
+                    })
+                } catch (e: Exception) {
+                    network.runOnMain { onResult(false) }
+                }
+            }
+        }
+    }
+
     fun logAdminAction(action: String, target: String) {
         network.logAdminAction(action, target)
     }
@@ -764,19 +850,32 @@ class AdminRepository(val network: SupabaseManager) {
     private val _scheduledTasks = MutableStateFlow<List<SupabaseScheduledTask>>(emptyList())
     val scheduledTasks: StateFlow<List<SupabaseScheduledTask>> = _scheduledTasks.asStateFlow()
 
+    private fun saveSimulatorApprovalRequests(list: List<SupabaseApprovalRequest>) {
+        try {
+            val adapter = network.moshi.adapter<List<SupabaseApprovalRequest>>(com.squareup.moshi.Types.newParameterizedType(List::class.java, SupabaseApprovalRequest::class.java))
+            network.prefs.edit().putString("sim_approval_requests", adapter.toJson(list)).apply()
+        } catch (e: Exception) { e.printStackTrace() }
+    }
+
     fun fetchWorkflowApprovals() {
         network.scope.launch {
             try {
-                val request = Request.Builder()
-                    .url("${network.supabaseUrl}/rest/v1/approval_requests?select=*")
-                    .headers(network.getHeaders())
-                    .build()
-                val response = network.client.newCall(request).execute()
-                if (response.isSuccessful) {
-                    val json = response.body?.string() ?: "[]"
-                    val type = Types.newParameterizedType(List::class.java, SupabaseApprovalRequest::class.java)
-                    val adapter = network.moshi.adapter<List<SupabaseApprovalRequest>>(type)
-                    _approvalRequests.value = adapter.fromJson(json) ?: emptyList()
+                if (network.isConfigured) {
+                    val request = Request.Builder()
+                        .url("${network.supabaseUrl}/rest/v1/approval_requests?select=*")
+                        .headers(network.getHeaders())
+                        .build()
+                    val response = network.client.newCall(request).execute()
+                    if (response.isSuccessful) {
+                        val json = response.body?.string() ?: "[]"
+                        val type = com.squareup.moshi.Types.newParameterizedType(List::class.java, SupabaseApprovalRequest::class.java)
+                        val adapter = network.moshi.adapter<List<SupabaseApprovalRequest>>(type)
+                        _approvalRequests.value = adapter.fromJson(json) ?: emptyList()
+                    }
+                } else {
+                    val saved = network.prefs.getString("sim_approval_requests", null)
+                    val adapter = network.moshi.adapter<List<SupabaseApprovalRequest>>(com.squareup.moshi.Types.newParameterizedType(List::class.java, SupabaseApprovalRequest::class.java))
+                    _approvalRequests.value = if (saved != null) adapter.fromJson(saved) ?: emptyList() else emptyList()
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -794,7 +893,7 @@ class AdminRepository(val network: SupabaseManager) {
                 val response = network.client.newCall(request).execute()
                 if (response.isSuccessful) {
                     val json = response.body?.string() ?: "[]"
-                    val type = Types.newParameterizedType(List::class.java, SupabaseScheduledTask::class.java)
+                    val type = com.squareup.moshi.Types.newParameterizedType(List::class.java, SupabaseScheduledTask::class.java)
                     val adapter = network.moshi.adapter<List<SupabaseScheduledTask>>(type)
                     _scheduledTasks.value = adapter.fromJson(json) ?: emptyList()
                 }
@@ -804,35 +903,188 @@ class AdminRepository(val network: SupabaseManager) {
         }
     }
 
-    fun approveRequest(requestId: String) {
-        // Implementation for real API call
+    fun toggleScheduledTask(taskId: String, isEnabled: Boolean) {
         network.scope.launch {
             try {
-                val update = mapOf("status" to "approved")
-                val jsonBody = network.moshi.adapter(Map::class.java).toJson(update)
-                val request = Request.Builder()
-                    .url("${network.supabaseUrl}/rest/v1/approval_requests?id=eq.$requestId")
-                    .headers(network.getHeaders())
-                    .patch(jsonBody.toRequestBody("application/json".toMediaType()))
-                    .build()
-                network.client.newCall(request).execute()
+                if (network.isConfigured) {
+                    val update = mapOf("is_enabled" to isEnabled)
+                    val jsonBody = network.moshi.adapter(Map::class.java).toJson(update)
+                    val request = Request.Builder()
+                        .url("${network.supabaseUrl}/rest/v1/scheduled_tasks?id=eq.$taskId")
+                        .headers(network.getHeaders())
+                        .patch(jsonBody.toRequestBody("application/json".toMediaType()))
+                        .build()
+                    network.client.newCall(request).execute()
+                }
+                _scheduledTasks.update { list ->
+                    list.map { if (it.id == taskId) it.copy(isEnabled = isEnabled) else it }
+                }
+            } catch (e: Exception) { e.printStackTrace() }
+        }
+    }
+
+    fun triggerScheduledTask(taskId: String) {
+        network.scope.launch {
+            try {
+                val lastStatusStr = "Success"
+                val nextRunStr = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(System.currentTimeMillis() + 3600000))
+                if (network.isConfigured) {
+                    val update = mapOf("last_status" to lastStatusStr, "nextRun" to nextRunStr)
+                    val jsonBody = network.moshi.adapter(Map::class.java).toJson(update)
+                    val request = Request.Builder()
+                        .url("${network.supabaseUrl}/rest/v1/scheduled_tasks?id=eq.$taskId")
+                        .headers(network.getHeaders())
+                        .patch(jsonBody.toRequestBody("application/json".toMediaType()))
+                        .build()
+                    network.client.newCall(request).execute()
+                }
+                _scheduledTasks.update { list ->
+                    list.map { if (it.id == taskId) it.copy(lastStatus = lastStatusStr, nextRun = nextRunStr) else it }
+                }
+            } catch (e: Exception) { e.printStackTrace() }
+        }
+    }
+
+    fun createScheduledTask(name: String, schedule: String) {
+        network.scope.launch {
+            try {
+                val nextRunStr = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(System.currentTimeMillis() + 1800000))
+                val newTask = SupabaseScheduledTask(
+                    id = UUID.randomUUID().toString(),
+                    name = name,
+                    schedule = schedule,
+                    isEnabled = true,
+                    lastStatus = "Pending",
+                    nextRun = nextRunStr
+                )
+                if (network.isConfigured) {
+                    val json = network.moshi.adapter(SupabaseScheduledTask::class.java).toJson(newTask)
+                    val request = Request.Builder()
+                        .url("${network.supabaseUrl}/rest/v1/scheduled_tasks")
+                        .headers(network.getHeaders())
+                        .post(json.toRequestBody("application/json".toMediaType()))
+                        .build()
+                    network.client.newCall(request).execute()
+                }
+                _scheduledTasks.update { list -> list + newTask }
+            } catch (e: Exception) { e.printStackTrace() }
+        }
+    }
+
+    fun approveRequest(requestId: String) {
+        network.scope.launch {
+            try {
+                val currentList = _approvalRequests.value.toMutableList()
+                val reqIndex = currentList.indexOfFirst { it.id == requestId }
+                if (reqIndex != -1) {
+                    val req = currentList[reqIndex]
+                    val updatedReq = req.copy(status = "approved")
+                    currentList[reqIndex] = updatedReq
+                    _approvalRequests.value = currentList
+                    
+                    if (network.isConfigured) {
+                        val update = mapOf("status" to "approved")
+                        val jsonBody = network.moshi.adapter(Map::class.java).toJson(update)
+                        val request = Request.Builder()
+                            .url("${network.supabaseUrl}/rest/v1/approval_requests?id=eq.$requestId")
+                            .headers(network.getHeaders())
+                            .patch(jsonBody.toRequestBody("application/json".toMediaType()))
+                            .build()
+                        network.client.newCall(request).execute()
+                    } else {
+                        saveSimulatorApprovalRequests(currentList)
+                    }
+
+                    // Side effects of approvals
+                    val targetUsername = req.requester
+                    val targetUser = network._users.value.find { it.username == targetUsername || it.id == targetUsername }
+                    if (targetUser != null) {
+                        when (req.type) {
+                            "Verification" -> {
+                                val updatedUser = targetUser.copy(isVerified = true)
+                                network._users.value = network._users.value.map { if (it.id == targetUser.id) updatedUser else it }
+                                network.saveSimulatorUsers()
+                                if (network._currentUser.value?.id == targetUser.id) {
+                                    network._currentUser.value = updatedUser
+                                }
+                                if (network.isConfigured) {
+                                    val body = "{\"is_verified\": true}".toRequestBody("application/json".toMediaType())
+                                    val reqVerify = Request.Builder()
+                                        .url("${network.supabaseUrl}/rest/v1/users?id=eq.${targetUser.id}")
+                                        .headers(network.getHeaders())
+                                        .patch(body)
+                                        .build()
+                                    network.client.newCall(reqVerify).execute()
+                                }
+                            }
+                            "Refund" -> {
+                                val coinsToRefund = req.description.substringAfter("Refund of ").substringBefore(" coins").toIntOrNull() ?: 1000
+                                val updatedUser = targetUser.copy(coins = targetUser.coins + coinsToRefund)
+                                network._users.value = network._users.value.map { if (it.id == targetUser.id) updatedUser else it }
+                                network.saveSimulatorUsers()
+                                if (network._currentUser.value?.id == targetUser.id) {
+                                    network._currentUser.value = updatedUser
+                                }
+                                if (network.isConfigured) {
+                                    val body = "{\"coins\": ${updatedUser.coins}}".toRequestBody("application/json".toMediaType())
+                                    val reqRefund = Request.Builder()
+                                        .url("${network.supabaseUrl}/rest/v1/users?id=eq.${targetUser.id}")
+                                        .headers(network.getHeaders())
+                                        .patch(body)
+                                        .build()
+                                    network.client.newCall(reqRefund).execute()
+                                }
+                            }
+                            "NameChange" -> {
+                                val newName = req.description.substringAfter("Change name to '").substringBefore("'")
+                                val updatedUser = targetUser.copy(username = newName)
+                                network._users.value = network._users.value.map { if (it.id == targetUser.id) updatedUser else it }
+                                network.saveSimulatorUsers()
+                                if (network._currentUser.value?.id == targetUser.id) {
+                                    network._currentUser.value = updatedUser
+                                }
+                                if (network.isConfigured) {
+                                    val body = "{\"username\": \"$newName\"}".toRequestBody("application/json".toMediaType())
+                                    val reqName = Request.Builder()
+                                        .url("${network.supabaseUrl}/rest/v1/users?id=eq.${targetUser.id}")
+                                        .headers(network.getHeaders())
+                                        .patch(body)
+                                        .build()
+                                    network.client.newCall(reqName).execute()
+                                }
+                            }
+                        }
+                    }
+                }
                 fetchWorkflowApprovals()
             } catch (e: Exception) { e.printStackTrace() }
         }
     }
 
     fun rejectRequest(requestId: String) {
-        // Implementation for real API call
         network.scope.launch {
             try {
-                val update = mapOf("status" to "rejected")
-                val jsonBody = network.moshi.adapter(Map::class.java).toJson(update)
-                val request = Request.Builder()
-                    .url("${network.supabaseUrl}/rest/v1/approval_requests?id=eq.$requestId")
-                    .headers(network.getHeaders())
-                    .patch(jsonBody.toRequestBody("application/json".toMediaType()))
-                    .build()
-                network.client.newCall(request).execute()
+                val currentList = _approvalRequests.value.toMutableList()
+                val reqIndex = currentList.indexOfFirst { it.id == requestId }
+                if (reqIndex != -1) {
+                    val req = currentList[reqIndex]
+                    val updatedReq = req.copy(status = "rejected")
+                    currentList[reqIndex] = updatedReq
+                    _approvalRequests.value = currentList
+                    
+                    if (network.isConfigured) {
+                        val update = mapOf("status" to "rejected")
+                        val jsonBody = network.moshi.adapter(Map::class.java).toJson(update)
+                        val request = Request.Builder()
+                            .url("${network.supabaseUrl}/rest/v1/approval_requests?id=eq.$requestId")
+                            .headers(network.getHeaders())
+                            .patch(jsonBody.toRequestBody("application/json".toMediaType()))
+                            .build()
+                        network.client.newCall(request).execute()
+                    } else {
+                        saveSimulatorApprovalRequests(currentList)
+                    }
+                }
                 fetchWorkflowApprovals()
             } catch (e: Exception) { e.printStackTrace() }
         }
@@ -2150,6 +2402,106 @@ class SupportRepository(val network: SupabaseManager) {
                 } catch (e: Exception) {}
             }
         }
+
+    fun submitSupportTicket(subject: String, message: String, priority: String, onResult: (Boolean) -> Unit) {
+        val dateStr = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+        val userId = network.currentUser.value?.id ?: "sim_user_id"
+        if (network.isConfigured) {
+            network.scope.launch {
+                try {
+                    val bodyMap = mapOf(
+                        "user_id" to userId,
+                        "subject" to subject,
+                        "message" to message,
+                        "status" to "open",
+                        "priority" to priority,
+                        "assigned_to" to null
+                    )
+                    val json = network.moshi.adapter(Map::class.java).toJson(bodyMap)
+                    val request = Request.Builder()
+                        .url("${network.supabaseUrl}/rest/v1/support_tickets")
+                        .headers(network.getHeaders())
+                        .post(json.toRequestBody("application/json".toMediaType()))
+                        .build()
+                    network.client.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            fetchTickets()
+                            network.runOnMain { onResult(true) }
+                        } else {
+                            network.runOnMain { onResult(false) }
+                        }
+                    }
+                } catch (e: Exception) {
+                    network.runOnMain { onResult(false) }
+                }
+            }
+        } else {
+            val newTkt = SupabaseSupportTicket(
+                id = "TKT-" + (100..999).random(),
+                userId = userId,
+                subject = subject,
+                message = message,
+                status = "open",
+                priority = priority,
+                assignedTo = null,
+                createdAt = dateStr,
+                updatedAt = dateStr
+            )
+            network._tickets.value = listOf(newTkt) + network._tickets.value
+            network.saveSimulatorTickets()
+            onResult(true)
+        }
+    }
+
+    fun updateTicketStatusAndReply(ticketId: String, status: String, replyMessage: String, assignedTo: String?, onResult: (Boolean) -> Unit) {
+        val dateStr = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+        if (network.isConfigured) {
+            network.scope.launch {
+                try {
+                    val bodyMap = mutableMapOf<String, Any?>(
+                        "status" to status,
+                        "updated_at" to dateStr
+                    )
+                    if (assignedTo != null) {
+                        bodyMap["assigned_to"] = assignedTo
+                    }
+                    if (replyMessage.isNotBlank()) {
+                        bodyMap["message"] = replyMessage
+                    }
+                    val json = network.moshi.adapter(Map::class.java).toJson(bodyMap)
+                    val request = Request.Builder()
+                        .url("${network.supabaseUrl}/rest/v1/support_tickets?id=eq.$ticketId")
+                        .headers(network.getHeaders())
+                        .patch(json.toRequestBody("application/json".toMediaType()))
+                        .build()
+                    network.client.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            fetchTickets()
+                            network.logAdminAction("UPDATE_TICKET", "ID: $ticketId, Status: $status")
+                            network.runOnMain { onResult(true) }
+                        } else {
+                            network.runOnMain { onResult(false) }
+                        }
+                    }
+                } catch (e: Exception) {
+                    network.runOnMain { onResult(false) }
+                }
+            }
+        } else {
+            network._tickets.value = network._tickets.value.map {
+                if (it.id == ticketId) {
+                    it.copy(
+                        status = status,
+                        assignedTo = assignedTo ?: it.assignedTo,
+                        message = if (replyMessage.isNotBlank()) replyMessage else it.message,
+                        updatedAt = dateStr
+                    )
+                } else it
+            }
+            network.saveSimulatorTickets()
+            onResult(true)
+        }
+    }
 }
 
 class TournamentRepository(val network: SupabaseManager) {

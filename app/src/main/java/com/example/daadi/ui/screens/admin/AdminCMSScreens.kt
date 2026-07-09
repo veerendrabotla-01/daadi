@@ -36,7 +36,20 @@ fun AdminCMSCenter(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, o
         onBack = if (selectedItem == null) onBack else { { selectedItem = null } },
         actions = {
             if (selectedItem == null) {
-                IconButton(onClick = { /* New Post */ }) {
+                IconButton(onClick = { 
+                    selectedItem = com.example.daadi.data.supabase.SupabaseCMSContent(
+                        id = java.util.UUID.randomUUID().toString(),
+                        slug = "content-${(100..999).random()}",
+                        title = "New Asset",
+                        body = "",
+                        type = "patch_notes",
+                        imageUrl = null,
+                        videoUrl = null,
+                        status = "draft",
+                        publishedAt = null,
+                        createdAt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                    )
+                }) {
                     Icon(Icons.Default.PostAdd, contentDescription = "Create Content", tint = AdminDesign.Primary)
                 }
             }

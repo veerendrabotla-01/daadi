@@ -5,7 +5,7 @@
 -- 1. USERS TABLE
 -- Stores profile information, statistics, and moderation status for all players.
 CREATE TABLE IF NOT EXISTS public.users (
-    id UUID PRIMARY KEY,
+    id TEXT PRIMARY KEY,
     username TEXT NOT NULL,
     email TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'publicuser', -- publicuser, player, admin
@@ -13,16 +13,33 @@ CREATE TABLE IF NOT EXISTS public.users (
     "totalGames" INTEGER DEFAULT 0,
     wins INTEGER DEFAULT 0,
     losses INTEGER DEFAULT 0,
+    coins INTEGER DEFAULT 0,
+    xp INTEGER DEFAULT 0,
+    rating INTEGER DEFAULT 1000,
     "isBanned" BOOLEAN DEFAULT false,
+    "isVerified" BOOLEAN DEFAULT false,
     "isReported" BOOLEAN DEFAULT false,
+    "shadowBanned" BOOLEAN DEFAULT false,
     "reportsCount" INTEGER DEFAULT 0,
+    "internalNotes" TEXT,
+    "deviceId" TEXT,
+    "appVersion" TEXT,
+    avatar_url TEXT,
+    country TEXT,
+    country_code TEXT,
     mfa_enabled BOOLEAN DEFAULT false,
     last_login TIMESTAMP WITH TIME ZONE,
     ip_address TEXT,
-    country_code TEXT,
     device_info JSONB,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    permissions JSONB DEFAULT '[]'::jsonb NOT NULL,
+    roles JSONB DEFAULT '[]'::jsonb NOT NULL,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    deleted_at TIMESTAMP WITH TIME ZONE
 );
+
+-- Ensure users.id is TEXT
+ALTER TABLE public.users ALTER COLUMN id TYPE TEXT USING id::text;
 
 -- 2. MATCHES TABLE
 -- Stores history of all games played online.
@@ -79,8 +96,8 @@ CREATE TABLE IF NOT EXISTS public.feedback (
 
 -- 7. AUDIT TRAIL (Enhanced)
 CREATE TABLE IF NOT EXISTS public.audit_logs (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    actor_id UUID REFERENCES public.users(id),
+    id TEXT DEFAULT (gen_random_uuid())::text PRIMARY KEY,
+    actor_id TEXT REFERENCES public.users(id),
     action_type TEXT NOT NULL, -- CREATE, UPDATE, DELETE, BAN, LOGIN, etc.
     target_table TEXT,
     target_id TEXT,
@@ -92,16 +109,16 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
     country TEXT,
     device_info TEXT,
     screen_name TEXT,
-    session_id UUID,
-    rollback_id UUID,
+    session_id TEXT,
+    rollback_id TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- 7.1 ADMIN SESSIONS
 CREATE TABLE IF NOT EXISTS public.admin_sessions (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
-    admin_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+    id TEXT DEFAULT (gen_random_uuid())::text PRIMARY KEY,
+    user_id TEXT REFERENCES public.users(id) ON DELETE CASCADE,
+    admin_id TEXT REFERENCES public.users(id) ON DELETE CASCADE,
     ip_address TEXT,
     user_agent TEXT,
     last_active TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
@@ -150,41 +167,35 @@ ON CONFLICT DO NOTHING;
 
 -- 1. RBAC SYSTEM TABLES
 CREATE TABLE IF NOT EXISTS public.roles (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
     name TEXT UNIQUE NOT NULL,
     description TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS public.permissions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
     name TEXT UNIQUE NOT NULL,
     description TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS public.role_permissions (
-    role_id UUID REFERENCES public.roles(id) ON DELETE CASCADE,
-    permission_id UUID REFERENCES public.permissions(id) ON DELETE CASCADE,
+    role_id TEXT REFERENCES public.roles(id) ON DELETE CASCADE,
+    permission_id TEXT REFERENCES public.permissions(id) ON DELETE CASCADE,
     PRIMARY KEY (role_id, permission_id)
 );
 
 CREATE TABLE IF NOT EXISTS public.user_roles (
-    user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
-    role_id UUID REFERENCES public.roles(id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES public.users(id) ON DELETE CASCADE,
+    role_id TEXT REFERENCES public.roles(id) ON DELETE CASCADE,
     PRIMARY KEY (user_id, role_id)
 );
 
 -- 2. EXTEND EXISTING TABLES
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP WITH TIME ZONE;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS country_code TEXT;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
-
-ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS host_id UUID;
-ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS opponent_id UUID;
+-- (Redundant columns removed as they are now in the initial definition)
+ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS host_id TEXT;
+ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS opponent_id TEXT;
 ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
 
 ALTER TABLE public.announcements ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
@@ -194,7 +205,7 @@ CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS BOOLEAN AS $$
 BEGIN
   RETURN (
-    SELECT (role IN ('admin', 'superadmin', 'super_admin')) FROM public.users WHERE id = auth.uid()
+    SELECT (role IN ('admin', 'superadmin', 'super_admin')) FROM public.users WHERE id = auth.uid()::text
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
@@ -203,7 +214,7 @@ CREATE OR REPLACE FUNCTION public.is_moderator()
 RETURNS BOOLEAN AS $$
 BEGIN
   RETURN (
-    SELECT (role IN ('admin', 'superadmin', 'super_admin')) FROM public.users WHERE id = auth.uid()
+    SELECT (role IN ('admin', 'superadmin', 'super_admin')) FROM public.users WHERE id = auth.uid()::text
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
@@ -212,7 +223,7 @@ CREATE OR REPLACE FUNCTION public.is_support()
 RETURNS BOOLEAN AS $$
 BEGIN
   RETURN (
-    SELECT (role IN ('admin', 'superadmin', 'super_admin')) FROM public.users WHERE id = auth.uid()
+    SELECT (role IN ('admin', 'superadmin', 'super_admin')) FROM public.users WHERE id = auth.uid()::text
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
@@ -225,9 +236,9 @@ BEGIN
     SELECT 1 FROM public.user_roles ur
     JOIN public.role_permissions rp ON ur.role_id = rp.role_id
     JOIN public.permissions p ON rp.permission_id = p.id
-    WHERE ur.user_id = auth.uid() AND p.name = perm_name
+    WHERE ur.user_id = auth.uid()::text AND p.name = perm_name
   ) OR (
-    SELECT (role IN ('admin', 'superadmin', 'super_admin')) FROM public.users WHERE id = auth.uid()
+    SELECT (role IN ('admin', 'superadmin', 'super_admin')) FROM public.users WHERE id = auth.uid()::text
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
@@ -235,9 +246,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 -- 4. RBAC SEED DATA
 DO $$
 DECLARE
-    role_admin_id UUID;
-    role_player_id UUID;
-    role_publicuser_id UUID;
+    role_admin_id TEXT;
+    role_player_id TEXT;
+    role_publicuser_id TEXT;
     p TEXT;
     perms TEXT[] := ARRAY[
         'manage_users', 'manage_matches', 'manage_reports', 'manage_ads', 
@@ -287,10 +298,10 @@ DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON public.users
 CREATE POLICY "Public profiles are viewable by everyone" ON public.users FOR SELECT USING (deleted_at IS NULL);
 
 DROP POLICY IF EXISTS "Users can update own profile" ON public.users;
-CREATE POLICY "Users can update own profile" ON public.users FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON public.users FOR UPDATE USING (auth.uid()::text = id);
 
 DROP POLICY IF EXISTS "Users can insert own profile" ON public.users;
-CREATE POLICY "Users can insert own profile" ON public.users FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY "Users can insert own profile" ON public.users FOR INSERT WITH CHECK (auth.uid()::text = id);
 
 DROP POLICY IF EXISTS "Admins can manage all profiles" ON public.users;
 CREATE POLICY "Admins can manage all profiles" ON public.users FOR ALL USING (public.is_admin());
@@ -337,7 +348,7 @@ CREATE POLICY "Users can create feedback" ON public.feedback FOR INSERT WITH CHE
 
 DROP POLICY IF EXISTS "Users view own feedback" ON public.feedback;
 CREATE POLICY "Users view own feedback" ON public.feedback FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.users u WHERE u.username = public.feedback.username AND u.id = auth.uid()) 
+    EXISTS (SELECT 1 FROM public.users u WHERE u.username = public.feedback.username AND u.id = auth.uid()::text) 
     OR public.is_support()
 );
 
@@ -347,8 +358,8 @@ CREATE POLICY "Admins can view audit logs" ON public.audit_logs FOR SELECT USING
 
 -- 7. AUDIT LOGGING SYSTEM (V2)
 CREATE TABLE IF NOT EXISTS public.audit_event_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    actor_id UUID,
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
+    actor_id TEXT,
     table_name TEXT NOT NULL,
     action_type TEXT NOT NULL,
     record_id TEXT NOT NULL,
@@ -385,7 +396,7 @@ BEGIN
     END CASE;
 
     INSERT INTO public.audit_event_logs (actor_id, table_name, action_type, record_id, old_data, new_data)
-    VALUES (auth.uid(), TG_TABLE_NAME, TG_OP, rec_id, old_val, new_val);
+    VALUES (auth.uid()::text, TG_TABLE_NAME, TG_OP, rec_id, old_val, new_val);
 
     RETURN NULL;
 END;
@@ -514,31 +525,31 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_table ON public.audit_event_logs(table
 
 -- 1. ADVANCED MODERATION TABLES
 CREATE TABLE IF NOT EXISTS public.bans (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
+    user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     reason TEXT NOT NULL,
     expires_at TIMESTAMP WITH TIME ZONE, -- NULL for permanent
-    created_by UUID REFERENCES public.users(id),
+    created_by TEXT REFERENCES public.users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     is_active BOOLEAN DEFAULT true
 );
 
 CREATE TABLE IF NOT EXISTS public.reports (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    reporter_id UUID NOT NULL REFERENCES public.users(id) ON DELETE SET NULL,
-    reported_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
+    reporter_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE SET NULL,
+    reported_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     reason TEXT NOT NULL,
     evidence_url TEXT,
     status TEXT DEFAULT 'pending', -- 'pending', 'reviewed', 'resolved', 'dismissed'
-    moderator_id UUID REFERENCES public.users(id),
+    moderator_id TEXT REFERENCES public.users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- 2. SECURITY & TRACKING TABLES
 CREATE TABLE IF NOT EXISTS public.device_info (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
+    user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     device_id TEXT NOT NULL,
     model TEXT,
     os_version TEXT,
@@ -564,7 +575,7 @@ CREATE TABLE IF NOT EXISTS public.app_versions (
 );
 
 CREATE TABLE IF NOT EXISTS public.maintenance_schedule (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
     start_time TIMESTAMP WITH TIME ZONE NOT NULL,
     end_time TIMESTAMP WITH TIME ZONE NOT NULL,
     reason TEXT,
@@ -573,8 +584,8 @@ CREATE TABLE IF NOT EXISTS public.maintenance_schedule (
 );
 
 CREATE TABLE IF NOT EXISTS public.data_export_requests (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
+    user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     status TEXT DEFAULT 'pending', -- 'pending', 'processing', 'completed', 'expired'
     download_url TEXT,
     expires_at TIMESTAMP WITH TIME ZONE,
@@ -587,7 +598,7 @@ RETURNS TRIGGER AS $$
 BEGIN
     IF EXISTS (
         SELECT 1 FROM public.bans 
-        WHERE user_id = auth.uid() 
+        WHERE user_id = auth.uid()::text 
         AND is_active = true 
         AND (expires_at IS NULL OR expires_at > NOW())
     ) THEN
@@ -604,7 +615,7 @@ BEGIN
     UPDATE public.users 
     SET deleted_at = NOW() + INTERVAL '30 days',
         metadata = metadata || jsonb_build_object('deletion_requested_at', NOW())
-    WHERE id = auth.uid();
+    WHERE id = auth.uid()::text;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -614,7 +625,7 @@ BEGIN
     UPDATE public.users 
     SET deleted_at = NULL,
         metadata = metadata - 'deletion_requested_at'
-    WHERE id = auth.uid();
+    WHERE id = auth.uid()::text;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -633,21 +644,21 @@ ALTER TABLE public.data_export_requests ENABLE ROW LEVEL SECURITY;
 
 -- BANS: Users view own, Moderators manage
 DROP POLICY IF EXISTS "Users can view own bans" ON public.bans;
-CREATE POLICY "Users can view own bans" ON public.bans FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "Users can view own bans" ON public.bans FOR SELECT USING (user_id = auth.uid()::text);
 DROP POLICY IF EXISTS "Moderators manage bans" ON public.bans;
 CREATE POLICY "Moderators manage bans" ON public.bans FOR ALL USING (public.is_moderator());
 
 -- REPORTS: Reporter views own, Moderators manage
 DROP POLICY IF EXISTS "Users can create reports" ON public.reports;
-CREATE POLICY "Users can create reports" ON public.reports FOR INSERT WITH CHECK (auth.uid() = reporter_id);
+CREATE POLICY "Users can create reports" ON public.reports FOR INSERT WITH CHECK (auth.uid()::text = reporter_id);
 DROP POLICY IF EXISTS "Reporters can view own reports" ON public.reports;
-CREATE POLICY "Reporters can view own reports" ON public.reports FOR SELECT USING (reporter_id = auth.uid());
+CREATE POLICY "Reporters can view own reports" ON public.reports FOR SELECT USING (reporter_id = auth.uid()::text);
 DROP POLICY IF EXISTS "Moderators manage reports" ON public.reports;
 CREATE POLICY "Moderators manage reports" ON public.reports FOR ALL USING (public.is_moderator());
 
 -- DEVICE INFO: Users manage own, Admins view
 DROP POLICY IF EXISTS "Users manage own device info" ON public.device_info;
-CREATE POLICY "Users manage own device info" ON public.device_info FOR ALL USING (user_id = auth.uid());
+CREATE POLICY "Users manage own device info" ON public.device_info FOR ALL USING (user_id = auth.uid()::text);
 DROP POLICY IF EXISTS "Admins view device info" ON public.device_info;
 CREATE POLICY "Admins view device info" ON public.device_info FOR SELECT USING (public.is_admin());
 
@@ -663,7 +674,7 @@ CREATE POLICY "Admins manage maintenance" ON public.maintenance_schedule FOR ALL
 
 -- DATA EXPORTS: Users view own, Admins manage
 DROP POLICY IF EXISTS "Users view own data exports" ON public.data_export_requests;
-CREATE POLICY "Users view own data exports" ON public.data_export_requests FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "Users view own data exports" ON public.data_export_requests FOR SELECT USING (user_id = auth.uid()::text);
 DROP POLICY IF EXISTS "Admins manage data exports" ON public.data_export_requests;
 CREATE POLICY "Admins manage data exports" ON public.data_export_requests FOR ALL USING (public.is_admin());
 
@@ -690,36 +701,31 @@ CREATE INDEX IF NOT EXISTS idx_matches_status ON public.matches(status);
 -- ==========================================
 
 -- 1. EXTEND USERS TABLE FOR ECONOMY & VERIFICATION
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS coins INTEGER DEFAULT 0;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS xp INTEGER DEFAULT 0;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS rating INTEGER DEFAULT 1000;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT false;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS internal_notes TEXT;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS shadow_banned BOOLEAN DEFAULT false;
+-- (Redundant columns removed as they are now in the initial definition)
 
 -- 2. SUPPORT TICKETS TABLE
 CREATE TABLE IF NOT EXISTS public.support_tickets (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
+    user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     subject TEXT NOT NULL,
     message TEXT NOT NULL,
     status TEXT DEFAULT 'open', -- 'open', 'in_progress', 'resolved', 'closed'
     priority TEXT DEFAULT 'medium', -- 'low', 'medium', 'high', 'critical'
-    assigned_to UUID REFERENCES public.users(id),
+    assigned_to TEXT REFERENCES public.users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- 3. FEEDBACK V2 TABLE (Expanded for Sentiment & Assignment)
 CREATE TABLE IF NOT EXISTS public.feedback_v2 (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
+    user_id TEXT REFERENCES public.users(id) ON DELETE SET NULL,
     content TEXT NOT NULL,
     category TEXT NOT NULL, -- 'bug', 'suggestion', 'feature_request', 'complaint'
     rating INTEGER CHECK (rating >= 1 AND rating <= 5),
     sentiment TEXT, -- 'positive', 'neutral', 'negative'
     status TEXT DEFAULT 'pending', -- 'pending', 'under_review', 'planned', 'fixed', 'closed'
-    assigned_developer_id UUID REFERENCES public.users(id),
+    assigned_developer_id TEXT REFERENCES public.users(id),
     internal_reply TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -727,8 +733,8 @@ CREATE TABLE IF NOT EXISTS public.feedback_v2 (
 
 -- 4. USER LOGIN HISTORY
 CREATE TABLE IF NOT EXISTS public.login_history (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
+    user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     ip_address TEXT,
     device_id TEXT,
     user_agent TEXT,
@@ -742,7 +748,7 @@ ALTER TABLE public.feedback_v2 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.login_history ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users manage own tickets" ON public.support_tickets;
-CREATE POLICY "Users manage own tickets" ON public.support_tickets FOR ALL USING (user_id = auth.uid());
+CREATE POLICY "Users manage own tickets" ON public.support_tickets FOR ALL USING (user_id = auth.uid()::text);
 DROP POLICY IF EXISTS "Support views all tickets" ON public.support_tickets;
 CREATE POLICY "Support views all tickets" ON public.support_tickets FOR ALL USING (public.is_support());
 
@@ -752,7 +758,7 @@ DROP POLICY IF EXISTS "Admins manage feedback v2" ON public.feedback_v2;
 CREATE POLICY "Admins manage feedback v2" ON public.feedback_v2 FOR ALL USING (public.is_admin());
 
 DROP POLICY IF EXISTS "Users view own login history" ON public.login_history;
-CREATE POLICY "Users view own login history" ON public.login_history FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "Users view own login history" ON public.login_history FOR SELECT USING (user_id = auth.uid()::text);
 DROP POLICY IF EXISTS "Admins view all login history" ON public.login_history;
 CREATE POLICY "Admins view all login history" ON public.login_history FOR SELECT USING (public.is_admin());
 
@@ -789,7 +795,7 @@ ON CONFLICT DO NOTHING;
 -- 1. EXTEND MATCHES TABLE
 ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS match_type TEXT DEFAULT 'multiplayer'; -- 'multiplayer', 'ai', 'ranked', 'practice'
 ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS latency_ms INTEGER DEFAULT 0;
-ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS abandoned_by UUID REFERENCES public.users(id);
+ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS abandoned_by TEXT REFERENCES public.users(id);
 ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS is_ranked BOOLEAN DEFAULT false;
 ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS replay_data JSONB;
 ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS chat_history JSONB;
@@ -812,9 +818,9 @@ CREATE TABLE IF NOT EXISTS public.tournaments (
 
 -- 3. TOURNAMENT PARTICIPANTS
 CREATE TABLE IF NOT EXISTS public.tournament_participants (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
     tournament_id UUID NOT NULL REFERENCES public.tournaments(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     rank INTEGER,
     score INTEGER DEFAULT 0,
     joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -835,8 +841,8 @@ CREATE TABLE IF NOT EXISTS public.game_events (
 
 -- 5. ANTI-CHEAT LOGS
 CREATE TABLE IF NOT EXISTS public.anti_cheat_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
+    user_id TEXT REFERENCES public.users(id) ON DELETE CASCADE,
     match_id TEXT REFERENCES public.matches(id) ON DELETE SET NULL,
     violation_type TEXT NOT NULL, -- 'root_detected', 'emulator_detected', 'packet_tamper', 'speed_hack'
     severity TEXT DEFAULT 'low', -- 'low', 'medium', 'high', 'critical'
@@ -898,7 +904,7 @@ CREATE TABLE IF NOT EXISTS public.bi_daily_metrics (
 
 -- 2. PUSH NOTIFICATIONS
 CREATE TABLE IF NOT EXISTS public.bi_notifications (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
     title TEXT NOT NULL,
     body TEXT NOT NULL,
     target_segment TEXT DEFAULT 'all', -- 'all', 'active', 'inactive', 'new_users'
@@ -913,8 +919,8 @@ CREATE TABLE IF NOT EXISTS public.bi_notifications (
 
 -- 3. LOGS EXPLORER (CENTRALIZED)
 CREATE TABLE IF NOT EXISTS public.bi_app_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
+    user_id TEXT REFERENCES public.users(id) ON DELETE SET NULL,
     level TEXT NOT NULL, -- 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
     category TEXT NOT NULL, -- 'NETWORK', 'ADS', 'SECURITY', 'CRASH', 'UI'
     message TEXT NOT NULL,
@@ -925,7 +931,7 @@ CREATE TABLE IF NOT EXISTS public.bi_app_logs (
 
 -- 4. MONITORING & HEALTH
 CREATE TABLE IF NOT EXISTS public.bi_health_metrics (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
     service_name TEXT NOT NULL,
     status TEXT NOT NULL,
     latency_ms INTEGER,
@@ -971,23 +977,16 @@ ON CONFLICT DO NOTHING;
 -- ==========================================
 
 -- 1. USER CAMELCASE ATTRIBUTES FOR PARSER COMPATIBILITY
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS "isVerified" BOOLEAN DEFAULT false;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS "shadowBanned" BOOLEAN DEFAULT false;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS "internalNotes" TEXT;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS "deviceId" TEXT;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS "appVersion" TEXT;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS country TEXT;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS permissions JSONB DEFAULT '[]'::jsonb NOT NULL;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS roles JSONB DEFAULT '[]'::jsonb NOT NULL;
-ALTER TABLE public.admin_sessions ADD COLUMN IF NOT EXISTS admin_id UUID REFERENCES public.users(id) ON DELETE CASCADE;
+-- (Redundant columns removed as they are now in the initial definition)
+ALTER TABLE public.admin_sessions ADD COLUMN IF NOT EXISTS admin_id TEXT REFERENCES public.users(id) ON DELETE CASCADE;
 
 -- 2. ADMIN INVITATIONS TABLE
 CREATE TABLE IF NOT EXISTS public.admin_invitations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
     email TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'admin',
     permissions JSONB DEFAULT '[]'::jsonb NOT NULL,
-    invited_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+    invited_by TEXT REFERENCES public.users(id) ON DELETE SET NULL,
     status TEXT DEFAULT 'pending' NOT NULL, -- 'pending', 'accepted', 'revoked'
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
@@ -995,16 +994,16 @@ CREATE TABLE IF NOT EXISTS public.admin_invitations (
 
 -- 3. ADMIN ACTIVITY TABLE
 CREATE TABLE IF NOT EXISTS public.admin_activity (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    admin_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
+    admin_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     action TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
 -- 4. ECONOMY TRANSACTIONS TABLE
 CREATE TABLE IF NOT EXISTS public.economy_transactions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
+    user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     amount INTEGER NOT NULL,
     currency TEXT NOT NULL, -- 'coins', 'xp'
     type TEXT NOT NULL, -- 'reward', 'purchase', 'penalty', 'adjustment'
@@ -1131,10 +1130,10 @@ CREATE TABLE IF NOT EXISTS public.bi_metrics (
 
 -- 14. CRASH LOGS TABLE
 CREATE TABLE IF NOT EXISTS public.crash_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
     exception TEXT NOT NULL,
     stacktrace TEXT NOT NULL,
-    user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+    user_id TEXT REFERENCES public.users(id) ON DELETE SET NULL,
     device_model TEXT,
     os_version TEXT,
     app_version TEXT,
@@ -1144,8 +1143,8 @@ CREATE TABLE IF NOT EXISTS public.crash_logs (
 
 -- 15. FRAUD ALERTS TABLE
 CREATE TABLE IF NOT EXISTS public.fraud_alerts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
+    user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     type TEXT NOT NULL, -- 'coin_farming', 'bot_detection', 'referral_abuse', 'smurf'
     confidence DECIMAL(5, 2) NOT NULL,
     status TEXT DEFAULT 'pending' NOT NULL, -- 'pending', 'confirmed', 'dismissed'
@@ -1177,7 +1176,7 @@ CREATE TABLE IF NOT EXISTS public.queue_metrics (
 
 -- 18. DEVICE RECORDS TABLE
 CREATE TABLE IF NOT EXISTS public.device_records (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
     device_id TEXT NOT NULL,
     is_rooted BOOLEAN DEFAULT false,
     is_vpn BOOLEAN DEFAULT false,
@@ -1188,7 +1187,7 @@ CREATE TABLE IF NOT EXISTS public.device_records (
 
 -- 19. AI CONFIGURATIONS TABLE
 CREATE TABLE IF NOT EXISTS public.ai_configs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id TEXT PRIMARY KEY DEFAULT (gen_random_uuid())::text,
     model TEXT DEFAULT 'gemini-1.5-flash' NOT NULL,
     temperature DECIMAL(3, 2) DEFAULT 0.70 NOT NULL,
     max_tokens INTEGER DEFAULT 256 NOT NULL,
@@ -1250,7 +1249,7 @@ DROP POLICY IF EXISTS "Public read ai configs" ON public.ai_configs;
 CREATE POLICY "Public read ai configs" ON public.ai_configs FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "Users read own economy transactions" ON public.economy_transactions;
-CREATE POLICY "Users read own economy transactions" ON public.economy_transactions FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "Users read own economy transactions" ON public.economy_transactions FOR SELECT USING (user_id = auth.uid()::text);
 
 DROP POLICY IF EXISTS "Users read own device records" ON public.device_records;
 CREATE POLICY "Users read own device records" ON public.device_records FOR SELECT USING (true);
@@ -1348,5 +1347,37 @@ ON CONFLICT DO NOTHING;
 INSERT INTO public.ai_configs (model, temperature, max_tokens, system_prompt, personality, is_staged, version) VALUES
 ('gemini-1.5-flash', 0.70, 256, 'You are an expert strategic commentator guiding the Daadi Multiplayer Arena.', 'strategic', false, 1)
 ON CONFLICT DO NOTHING;
+
+
+-- ==========================================
+-- SEED USERS FOR LEADERBOARD LADDER (COMMUNITY FEEL)
+-- ==========================================
+INSERT INTO public.users (id, username, email, role, rating, wins, losses, xp, coins, "isVerified", "createdAt") VALUES
+('u_seed_01', 'Grandmaster_Sage', 'sage@daadi.fake', 'publicuser', 2850, 450, 12, 15000, 50000, true, NOW()::text),
+('u_seed_02', 'Mystic_Weaver', 'weaver@daadi.fake', 'publicuser', 2420, 310, 45, 8500, 12000, true, NOW()::text),
+('u_seed_03', 'Shadow_Blade', 'shadow@daadi.fake', 'publicuser', 2150, 180, 60, 4200, 5000, true, NOW()::text),
+('u_seed_04', 'Crimson_Viper', 'viper@daadi.fake', 'publicuser', 1980, 145, 88, 3800, 3500, true, NOW()::text),
+('u_seed_05', 'Storm_Bringer', 'storm@daadi.fake', 'publicuser', 1850, 120, 95, 3100, 2800, true, NOW()::text),
+('u_seed_06', 'Iron_Grip', 'iron@daadi.fake', 'publicuser', 1720, 95, 80, 2500, 1500, false, NOW()::text),
+('u_seed_07', 'Silent_Owl', 'owl@daadi.fake', 'publicuser', 1680, 88, 72, 2200, 1200, false, NOW()::text),
+('u_seed_08', 'Lunar_Wolf', 'wolf@daadi.fake', 'publicuser', 1590, 75, 65, 1900, 900, false, NOW()::text),
+('u_seed_09', 'Ember_Phoenix', 'ember@daadi.fake', 'publicuser', 1510, 68, 55, 1750, 850, false, NOW()::text),
+('u_seed_10', 'Swift_Falcon', 'swift@daadi.fake', 'publicuser', 1420, 55, 50, 1500, 700, false, NOW()::text),
+('u_seed_11', 'Cobalt_Knight', 'cobalt@daadi.fake', 'publicuser', 1380, 48, 45, 1300, 600, false, NOW()::text),
+('u_seed_12', 'Azure_Dream', 'azure@daadi.fake', 'publicuser', 1320, 42, 40, 1100, 500, false, NOW()::text),
+('u_seed_13', 'Ruby_Rogue', 'ruby@daadi.fake', 'publicuser', 1280, 38, 35, 950, 450, false, NOW()::text),
+('u_seed_14', 'Onyx_Titan', 'onyx@daadi.fake', 'publicuser', 1240, 32, 28, 800, 400, false, NOW()::text),
+('u_seed_15', 'Jade_Oracle', 'jade@daadi.fake', 'publicuser', 1210, 28, 25, 750, 380, false, NOW()::text),
+('u_seed_16', 'Amber_Fox', 'amberf@daadi.fake', 'publicuser', 1180, 22, 20, 600, 300, false, NOW()::text),
+('u_seed_17', 'Topaz_Eagle', 'topaz@daadi.fake', 'publicuser', 1150, 18, 15, 500, 250, false, NOW()::text),
+('u_seed_18', 'Quartz_Seeker', 'quartz@daadi.fake', 'publicuser', 1120, 15, 12, 450, 220, false, NOW()::text),
+('u_seed_19', 'Opal_Wanderer', 'opal@daadi.fake', 'publicuser', 1090, 12, 10, 380, 200, false, NOW()::text),
+('u_seed_20', 'Slate_Sentry', 'slate@daadi.fake', 'publicuser', 1060, 8, 8, 300, 150, false, NOW()::text),
+('u_seed_21', 'Clay_Crafter', 'clay@daadi.fake', 'publicuser', 1040, 6, 5, 250, 120, false, NOW()::text),
+('u_seed_22', 'Brick_Breaker', 'brick@daadi.fake', 'publicuser', 1020, 4, 3, 180, 100, false, NOW()::text),
+('u_seed_23', 'Sand_Shifter', 'sand@daadi.fake', 'publicuser', 1010, 2, 2, 120, 80, false, NOW()::text),
+('u_seed_24', 'Dust_Devil', 'dust@daadi.fake', 'publicuser', 1005, 1, 1, 80, 50, false, NOW()::text),
+('u_seed_25', 'Zen_Archer', 'zen@daadi.fake', 'publicuser', 1000, 0, 0, 50, 50, false, NOW()::text)
+ON CONFLICT (id) DO NOTHING;
 
 

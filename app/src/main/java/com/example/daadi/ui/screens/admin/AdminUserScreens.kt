@@ -122,7 +122,10 @@ fun AdminWideUserManagement(
                     isSyncing = isSyncing,
                     searchQuery = searchQuery,
                     onUserClick = onUserSelect,
-                    selectedUserId = selectedUser?.id
+                    selectedUserId = selectedUser?.id,
+                    onBulkBan = { ids ->
+                        ids.forEach { id -> adminViewModel.userRepository.toggleUserBan(id) }
+                    }
                 )
             }
             VerticalDivider(color = AdminDesign.OnSurfaceVariant.copy(alpha = 0.1f), thickness = 1.dp)
@@ -166,7 +169,10 @@ fun AdminUserListScreen(
                 users = users,
                 isSyncing = isSyncing,
                 searchQuery = searchQuery,
-                onUserClick = onUserClick
+                onUserClick = onUserClick,
+                onBulkBan = { ids ->
+                    ids.forEach { id -> adminViewModel.userRepository.toggleUserBan(id) }
+                }
             )
         }
     }
@@ -178,7 +184,8 @@ fun UserListContent(
     isSyncing: Boolean,
     searchQuery: String,
     onUserClick: (SupabaseUser) -> Unit,
-    selectedUserId: String? = null
+    selectedUserId: String? = null,
+    onBulkBan: (Set<String>) -> Unit
 ) {
     var isBulkMode by remember { mutableStateOf(false) }
     var bulkSelectedIds by remember { mutableStateOf(setOf<String>()) }
@@ -203,9 +210,13 @@ fun UserListContent(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick = { bulkSelectedIds = filteredUsers.map { it.id }.toSet() }) { Text("Select All") }
                         Button(
-                            onClick = { /* Handle Bulk Ban/Action */ isBulkMode = false; bulkSelectedIds = emptySet() },
+                            onClick = { 
+                                onBulkBan(bulkSelectedIds)
+                                isBulkMode = false
+                                bulkSelectedIds = emptySet()
+                            },
                             shape = AdminDesign.ButtonShape
-                        ) { Text("Apply Action") }
+                        ) { Text("Apply Ban") }
                     }
                 } else {
                     Text("${filteredUsers.size} Users", fontWeight = FontWeight.Bold, color = AdminDesign.OnSurfaceVariant)

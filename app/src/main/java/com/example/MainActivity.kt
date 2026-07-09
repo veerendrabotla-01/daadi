@@ -381,6 +381,7 @@ fun DaadiAppNavigation(onPlaySound: (SoundEvent) -> Unit) {
                 onResumeGame = { navController.navigate("game") },
                 onStatsClick = { navController.navigate("stats") },
                 onSettingsClick = { navController.navigate("settings") },
+                onLeaderboardClick = { navController.navigate("leaderboard") },
                 onSignInClick = {
                     val user = application.authRepository.currentUser.value
                     if (user == null) {
@@ -570,6 +571,15 @@ fun DaadiAppNavigation(onPlaySound: (SoundEvent) -> Unit) {
                 stats = statsState,
                 onResetStats = { statsViewModel.resetStats() },
                 onBack = { navController.popBackStack() }
+            )
+        }
+
+        // 5.5. Leaderboard / Global Ladder
+        composable("leaderboard") {
+            com.example.daadi.ui.screens.LeaderboardScreen(
+                gameViewModel = sharedGameViewModel,
+                onBack = { navController.popBackStack() },
+                onSignInClick = { navController.navigate("supabase_auth") }
             )
         }
 

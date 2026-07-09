@@ -58,6 +58,7 @@ fun AdminNavigator(
                 onNavigateToScheduler = { adminNavController.navigate("scheduler") },
                 onNavigateToRollbacks = { adminNavController.navigate("rollbacks") },
                 onNavigateToAIEngine = { adminNavController.navigate("ai_engine") },
+                onNavigateToLeaderboards = { adminNavController.navigate("leaderboards") },
                 onBack = onExitAdmin
             )
         }
@@ -295,6 +296,13 @@ fun AdminNavigator(
 
         composable("ai_engine") {
             AdminAIEngineScreen(
+                adminViewModel = adminViewModel,
+                onBack = { adminNavController.popBackStack() }
+            )
+        }
+
+        composable("leaderboards") {
+            AdminLeaderboardManagerScreen(
                 adminViewModel = adminViewModel,
                 onBack = { adminNavController.popBackStack() }
             )

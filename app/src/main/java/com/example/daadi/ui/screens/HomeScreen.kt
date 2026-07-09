@@ -42,6 +42,7 @@ fun HomeScreen(
     onResumeGame: () -> Unit,
     onStatsClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onLeaderboardClick: () -> Unit,
     onSignInClick: () -> Unit,
     onFeedbackClick: () -> Unit,
     onDiscardSave: () -> Unit
@@ -398,6 +399,116 @@ fun HomeScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // 🌐 LIVE COMMUNITY PULSE
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(20.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .background(Color(0xFF4CAF50), CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "COMMUNITY PULSE",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFFC75D27),
+                                letterSpacing = 1.sp
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text(
+                                "LIVE",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF4CAF50)
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            CommunityStatItem("Online", "${(150..300).random()}", Icons.Default.Public)
+                            CommunityStatItem("Active Battles", "${(40..85).random()}", Icons.Default.Bolt)
+                            CommunityStatItem("Global Elo", "Avg 1420", Icons.Default.TrendingUp)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 🏆 GLOBAL LADDER & LEADERBOARD CARD
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7EA)),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                        .border(1.dp, Color(0xFFE5A93B).copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                        .clickable { onLeaderboardClick() }
+                        .testTag("leaderboard_menu_card")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .background(Color(0xFFE5A93B).copy(alpha = 0.15f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.EmojiEvents,
+                                contentDescription = null,
+                                tint = Color(0xFFE5A93B),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "GLOBAL LADDER & RANKS",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFC75D27),
+                                letterSpacing = 1.sp
+                            )
+                            Text(
+                                text = if (currentUser != null) {
+                                    "Your Elo Rating: ${currentUser.rating} • View your global rank!"
+                                } else {
+                                    "See top players and climb the ratings!"
+                                },
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF5C2D0A)
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = Color(0xFF5C2D0A).copy(alpha = 0.5f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
                 // Stats & Settings Grid
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -459,6 +570,32 @@ fun HomeScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun CommunityStatItem(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = Color(0xFF5C2D0A).copy(alpha = 0.4f),
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = value,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Black,
+            color = Color(0xFF5C2D0A)
+        )
+        Text(
+            text = label,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF8B5E3C).copy(alpha = 0.7f),
+            letterSpacing = 0.5.sp
+        )
     }
 }
 

@@ -1389,30 +1389,45 @@ fun GameStatusChip(
     modifier: Modifier = Modifier
 ) {
     Card(
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBFA)),
-        modifier = modifier.border(1.dp, color.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = modifier.border(1.5.dp, color.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
     ) {
         Column(
-            modifier = Modifier.padding(6.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 label,
-                fontSize = 10.sp,
+                fontSize = 11.sp,
                 color = color,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+                textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(2.dp))
-            Row(horizontalArrangement = Arrangement.SpaceAround, modifier = Modifier.fillMaxWidth()) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Hand", fontSize = 8.sp, color = Color.Gray)
-                    Text("$handCount", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5C2D0A))
+            
+            Divider(
+                modifier = Modifier.padding(vertical = 6.dp),
+                thickness = 0.5.dp,
+                color = color.copy(alpha = 0.15f)
+            )
+            
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                    Text("Hand", fontSize = 9.sp, color = Color.Gray, fontWeight = FontWeight.Medium)
+                    Text("$handCount", fontSize = 14.sp, fontWeight = FontWeight.Black, color = color)
                 }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Board", fontSize = 8.sp, color = Color.Gray)
-                    Text("$boardCount", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5C2D0A))
+                
+                Box(modifier = Modifier.width(1.dp).height(20.dp).background(color.copy(alpha = 0.1f)))
+                
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                    Text("Board", fontSize = 9.sp, color = Color.Gray, fontWeight = FontWeight.Medium)
+                    Text("$boardCount", fontSize = 14.sp, fontWeight = FontWeight.Black, color = color)
                 }
             }
         }

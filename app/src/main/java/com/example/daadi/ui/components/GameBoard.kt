@@ -103,16 +103,25 @@ fun GameBoard(
     val boardLineColor = when (boardTheme) {
         "classic_wood" -> Color(0xFF5C2D0A)
         "emerald_jade" -> Color(0xFFD4AF37) // Gold connections
+        "marble" -> Color(0xFF7F8C8D) // Polished silver-gray connections
+        "charcoal" -> Color(0xFFF1C40F) // Bright golden accents on dark slate
+        "saffron" -> Color(0xFFD35400) // Rich vermilion connections
         else -> Color(0xFF2C3E50) // Slate-stone graphite connections
     }
     val boardFillColor = when (boardTheme) {
         "classic_wood" -> Color(0xFFEAA65D)
         "emerald_jade" -> Color(0xFF064E3B) // Immersive emerald green jade board
+        "marble" -> Color(0xFFECF0F1) // Pure white marble surface
+        "charcoal" -> Color(0xFF2C3E50) // Stealth midnight-charcoal surface
+        "saffron" -> Color(0xFFF39C12) // Golden saffron Indian festival surface
         else -> Color(0xFF34495E) // Matte dark slate canvas
     }
     val emptyNodeColor = when (boardTheme) {
         "classic_wood" -> Color(0xFF8B5E3C)
         "emerald_jade" -> Color(0xFFA7F3D0) // Mint-toned placeholders
+        "marble" -> Color(0xFFBDC3C7) // Cool gray slots
+        "charcoal" -> Color(0xFF7F8C8D) // Slate slots
+        "saffron" -> Color(0xFFE67E22) // Burnt orange slots
         else -> Color(0xFFBDC3C7)
     }
 

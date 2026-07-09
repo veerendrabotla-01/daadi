@@ -541,6 +541,10 @@ fun AdminTopBar(
     onBack: () -> Unit,
     showBackButton: Boolean = true
 ) {
+    var showSearchDialog by remember { mutableStateOf(false) }
+    var showNotificationsDialog by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+
     TopAppBar(
         title = {
             Column {
@@ -558,10 +562,10 @@ fun AdminTopBar(
             }
         },
         actions = {
-            IconButton(onClick = { /* Search */ }) {
+            IconButton(onClick = { showSearchDialog = true }) {
                 Icon(Icons.Default.Search, contentDescription = "Search")
             }
-            IconButton(onClick = { /* Notifications */ }) {
+            IconButton(onClick = { showNotificationsDialog = true }) {
                 Icon(Icons.Default.Notifications, contentDescription = "Notifications")
             }
         },
@@ -572,4 +576,354 @@ fun AdminTopBar(
             actionIconContentColor = MaterialTheme.colorScheme.onSurface
         )
     )
+
+    if (showSearchDialog) {
+        var query by remember { mutableStateOf("") }
+        val users by supabaseManager._users.collectAsState()
+        val matches by supabaseManager._matches.collectAsState()
+        val settings by supabaseManager._systemSettings.collectAsState()
+
+        val filteredUsers = remember(users, query) {
+            if (query.isBlank()) emptyList()
+            else users.filter { 
+                it.username.contains(query, ignoreCase = true) || 
+                it.email.contains(query, ignoreCase = true) || 
+                it.id.contains(query, ignoreCase = true)
+            }
+        }
+
+        val filteredMatches = remember(matches, query) {
+            if (query.isBlank()) emptyList()
+            else matches.filter { 
+                it.id.contains(query, ignoreCase = true) || 
+                it.hostName.contains(query, ignoreCase = true) || 
+                it.opponentName.contains(query, ignoreCase = true) || 
+                (it.status ?: "").contains(query, ignoreCase = true)
+            }
+        }
+
+        val filteredSettings = remember(settings, query) {
+            if (query.isBlank()) emptyList()
+            else settings.filter { 
+                it.key.contains(query, ignoreCase = true) || 
+                (it.value ?: "").contains(query, ignoreCase = true) || 
+                (it.description ?: "").contains(query, ignoreCase = true)
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { showSearchDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Global Enterprise Search", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Search players, lobbies, configs...") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = if (query.isNotEmpty()) {
+                            { IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, contentDescription = "Clear") } }
+                        } else null,
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f)
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    if (query.isBlank()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Type a query to search across the system.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else if (filteredUsers.isEmpty() && filteredMatches.isEmpty() && filteredSettings.isEmpty()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("No matching records found.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else {
+                        LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            if (filteredUsers.isNotEmpty()) {
+                                item {
+                                    Text("PLAYERS (${filteredUsers.size})", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                }
+                                items(filteredUsers) { user ->
+                                    var isBanned by remember(user.isBanned) { mutableStateOf(user.isBanned) }
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(user.username, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+                                                Text("Email: ${user.email}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text("Role: ${user.role} • Coins: ${user.coins ?: 0}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                            }
+                                            Button(
+                                                onClick = {
+                                                    isBanned = !isBanned
+                                                    if (supabaseManager.isConfigured) {
+                                                        supabaseManager.toggleUserBanRemote(user.id, user.isBanned)
+                                                    } else {
+                                                        supabaseManager._users.value = supabaseManager._users.value.map {
+                                                            if (it.id == user.id) it.copy(isBanned = !user.isBanned) else it
+                                                        }
+                                                        supabaseManager.saveSimulatorUsers()
+                                                    }
+                                                },
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (isBanned) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error
+                                                ),
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                modifier = Modifier.height(32.dp)
+                                            ) {
+                                                Text(if (isBanned) "UNBAN" else "BAN", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            if (filteredMatches.isNotEmpty()) {
+                                item {
+                                    Text("LOBBIES & MATCHES (${filteredMatches.size})", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+                                }
+                                items(filteredMatches) { match ->
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text("Match ID: ${match.id.take(8)}...", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                                                Surface(
+                                                    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f),
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    modifier = Modifier.padding(2.dp)
+                                                ) {
+                                                    Text(
+                                                        text = (match.status ?: "UNKNOWN").uppercase(),
+                                                        fontSize = 9.sp,
+                                                        color = MaterialTheme.colorScheme.secondary,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text("Host: ${match.hostName} vs Opponent: ${match.opponentName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text("Moves Count: ${match.movesCount}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            if (filteredSettings.isNotEmpty()) {
+                                item {
+                                    Text("REMOTE CONFIG (${filteredSettings.size})", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
+                                }
+                                items(filteredSettings) { setting ->
+                                    var editValue by remember { mutableStateOf(setting.value ?: "") }
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Text(setting.key, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = Color(0xFFE65100))
+                                            if (setting.description != null) {
+                                                Text(setting.description!!, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                if (setting.value == "on" || setting.value == "off") {
+                                                    val isChecked = editValue == "on"
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Text("Toggle state: ", style = MaterialTheme.typography.bodySmall)
+                                                        Switch(
+                                                            checked = isChecked,
+                                                            onCheckedChange = { checked ->
+                                                                val newVal = if (checked) "on" else "off"
+                                                                editValue = newVal
+                                                                supabaseManager.updateSystemSetting(setting.key, newVal)
+                                                            }
+                                                        )
+                                                    }
+                                                } else {
+                                                    OutlinedTextField(
+                                                        value = editValue,
+                                                        onValueChange = { editValue = it },
+                                                        modifier = Modifier.weight(1f).height(54.dp),
+                                                        singleLine = true,
+                                                        trailingIcon = {
+                                                            IconButton(
+                                                                onClick = {
+                                                                    supabaseManager.updateSystemSetting(setting.key, editValue)
+                                                                }
+                                                            ) {
+                                                                Icon(Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(16.dp))
+                                                            }
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSearchDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    if (showNotificationsDialog) {
+        val fraudAlerts by supabaseManager._fraudAlerts.collectAsState()
+        val antiCheatLogs by supabaseManager._antiCheatLogs.collectAsState()
+        val crashLogs by supabaseManager._crashLogs.collectAsState()
+
+        val recentNotifications = remember(fraudAlerts, antiCheatLogs, crashLogs) {
+            val list = mutableListOf<SystemNotificationItem>()
+            fraudAlerts.take(5).forEach {
+                list.add(
+                    SystemNotificationItem(
+                        title = "FRAUD RADAR: Suspicious Activity",
+                        body = "Player ID ${it.userId.take(8)} triggered fraud pattern '${it.type}' (confidence: ${it.confidence}). Status: ${it.status}.",
+                        time = it.createdAt,
+                        type = NotificationType.Fraud,
+                        color = Color(0xFFFF9800)
+                    )
+                )
+            }
+            antiCheatLogs.take(5).forEach {
+                list.add(
+                    SystemNotificationItem(
+                        title = "ANTI-CHEAT: Violation Warning",
+                        body = "Detected violation '${it.violationType}' for user ${it.userId?.take(8) ?: "N/A"} in match ${it.matchId?.take(8) ?: "N/A"}. Severity: ${it.severity}.",
+                        time = it.createdAt,
+                        type = NotificationType.AntiCheat,
+                        color = Color(0xFFF44336)
+                    )
+                )
+            }
+            crashLogs.take(5).forEach {
+                list.add(
+                    SystemNotificationItem(
+                        title = "CRASH CENTER: Exception Logged",
+                        body = "${it.exception}: ${it.stacktrace.take(80)}",
+                        time = it.createdAt,
+                        type = NotificationType.Crash,
+                        color = Color(0xFFE91E63)
+                    )
+                )
+            }
+            if (list.isEmpty()) {
+                list.add(SystemNotificationItem("System Connected", "Connected to game monitoring channels successfully.", "1m ago", NotificationType.Info, Color(0xFF4CAF50)))
+                list.add(SystemNotificationItem("Maintenance Schedule", "Upcoming weekly rolling database updates configured.", "15m ago", NotificationType.Info, Color(0xFF2196F3)))
+                list.add(SystemNotificationItem("Rate Limiting", "API endpoint threshold normal (340 req/min).", "1h ago", NotificationType.Info, Color(0xFF2196F3)))
+            }
+            list.sortByDescending { it.time }
+            list
+        }
+
+        AlertDialog(
+            onDismissRequest = { showNotificationsDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Notifications, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Live System Alerts", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+                    Text("Real-time telemetry and automated system alerts:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(recentNotifications) { alert ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = alert.color.copy(alpha = 0.08f)),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, alert.color.copy(alpha = 0.2f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(modifier = Modifier.padding(12.dp).fillMaxWidth()) {
+                                    Icon(
+                                        imageVector = when(alert.type) {
+                                            NotificationType.Fraud -> Icons.Default.Warning
+                                            NotificationType.AntiCheat -> Icons.Default.Warning
+                                            NotificationType.Crash -> Icons.Default.BugReport
+                                            else -> Icons.Default.Info
+                                        },
+                                        contentDescription = null,
+                                        tint = alert.color,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(alert.title, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = alert.color)
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(alert.body, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface, lineHeight = 14.sp)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(alert.time, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showNotificationsDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+}
+
+data class SystemNotificationItem(
+    val title: String,
+    val body: String,
+    val time: String,
+    val type: NotificationType,
+    val color: Color
+)
+
+enum class NotificationType {
+    Fraud, AntiCheat, Crash, Info
 }

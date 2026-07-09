@@ -613,13 +613,17 @@ fun MultiplayerLobbyScreen(
 
                     val realUsers by sharedGameViewModel.authRepository.network._users.collectAsStateWithLifecycle()
                     val activePlayers = remember(realUsers) {
-                        if (realUsers.isNotEmpty()) {
-                            realUsers.filter { !it.isBanned && !it.username.startsWith("u_sim") && !it.username.startsWith("u_oauth") }
-                                .shuffled().take(4)
-                                .map { Triple(it.username, it.role.replaceFirstChar { c -> c.uppercase() }, it.rating) }
+                        // Mix real users with seed shadow users for a populated feel
+                        val seedShadows = realUsers.filter { it.username.startsWith("Grandmaster") || it.username.startsWith("Mystic") || it.username.contains("_") }
+                        val realHumans = realUsers.filter { !it.username.startsWith("u_sim") && !it.username.startsWith("u_seed") }
+                        
+                        val pool = if (realHumans.size < 5) {
+                            (realHumans + seedShadows.shuffled().take(6 - realHumans.size)).shuffled()
                         } else {
-                            emptyList()
+                            realHumans.shuffled().take(6)
                         }
+
+                        pool.map { Triple(it.username, it.role.replaceFirstChar { c -> c.uppercase() }, it.rating) }
                     }
 
                     if (activePlayers.isEmpty()) {
@@ -696,12 +700,20 @@ fun MultiplayerLobbyScreen(
                         letterSpacing = 1.sp
                     )
 
-                    // Live Battles updating in real time
-                    val battles = remember {
-                        listOf(
-                            Triple("Kabir_Gamer (1540)", "Sneha_Warrior (1610)", "Turn 14 • PLACEMENT"),
-                            Triple("Chanakya_Pro (1980)", "Rani_99 (1920)", "Turn 26 • MOVEMENT")
-                        )
+                    // Live Battles updating in real time using shadow users for atmosphere
+                    val battles = remember(realUsers) {
+                        val names = realUsers.filter { it.username.contains("_") }.map { "${it.username} (${it.rating})" }.shuffled()
+                        if (names.size >= 4) {
+                            listOf(
+                                Triple(names[0], names[1], "Turn ${ (5..15).random() } • PLACEMENT"),
+                                Triple(names[2], names[3], "Turn ${ (16..30).random() } • MOVEMENT")
+                            )
+                        } else {
+                            listOf(
+                                Triple("Kabir_Gamer (1540)", "Sneha_Warrior (1610)", "Turn 14 • PLACEMENT"),
+                                Triple("Chanakya_Pro (1980)", "Rani_99 (1920)", "Turn 26 • MOVEMENT")
+                            )
+                        }
                     }
 
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

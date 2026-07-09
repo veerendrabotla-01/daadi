@@ -495,11 +495,37 @@ internal fun Call.enqueueWithRetry(
 
 // Reactive UI States
 
+    internal fun getLeaderboardSeedUsers(): List<SupabaseUser> {
+        val dateStr = "2024-01-01 00:00"
+        return listOf(
+            SupabaseUser(id = "u_seed_01", username = "Grandmaster_Sage", email = "sage@daadi.fake", role = "publicuser", createdAt = dateStr, wins = 450, losses = 12, coins = 50000, xp = 15000, rating = 2850, isVerified = true),
+            SupabaseUser(id = "u_seed_02", username = "Mystic_Weaver", email = "weaver@daadi.fake", role = "publicuser", createdAt = dateStr, wins = 310, losses = 45, coins = 12000, xp = 8500, rating = 2420, isVerified = true),
+            SupabaseUser(id = "u_seed_03", username = "Shadow_Blade", email = "shadow@daadi.fake", role = "publicuser", createdAt = dateStr, wins = 180, losses = 60, coins = 5000, xp = 4200, rating = 2150, isVerified = true),
+            SupabaseUser(id = "u_seed_04", username = "Crimson_Viper", email = "viper@daadi.fake", role = "publicuser", createdAt = dateStr, wins = 145, losses = 88, coins = 3500, xp = 3800, rating = 1980, isVerified = true),
+            SupabaseUser(id = "u_seed_05", username = "Storm_Bringer", email = "storm@daadi.fake", role = "publicuser", createdAt = dateStr, wins = 120, losses = 95, coins = 2800, xp = 3100, rating = 1850, isVerified = true),
+            SupabaseUser(id = "u_seed_06", username = "Iron_Grip", email = "iron@daadi.fake", role = "publicuser", createdAt = dateStr, wins = 95, losses = 80, coins = 1500, xp = 2500, rating = 1720, isVerified = false),
+            SupabaseUser(id = "u_seed_07", username = "Silent_Owl", email = "owl@daadi.fake", role = "publicuser", createdAt = dateStr, wins = 88, losses = 72, coins = 1200, xp = 2200, rating = 1680, isVerified = false),
+            SupabaseUser(id = "u_seed_08", username = "Lunar_Wolf", email = "wolf@daadi.fake", role = "publicuser", createdAt = dateStr, wins = 75, losses = 65, coins = 900, xp = 1900, rating = 1590, isVerified = false),
+            SupabaseUser(id = "u_seed_09", username = "Ember_Phoenix", email = "ember@daadi.fake", role = "publicuser", createdAt = dateStr, wins = 68, losses = 55, coins = 850, xp = 1750, rating = 1510, isVerified = false),
+            SupabaseUser(id = "u_seed_10", username = "Swift_Falcon", email = "swift@daadi.fake", role = "publicuser", createdAt = dateStr, wins = 55, losses = 50, coins = 700, xp = 1500, rating = 1420, isVerified = false),
+            SupabaseUser(id = "u_seed_11", username = "Cobalt_Knight", email = "cobalt@daadi.fake", role = "publicuser", createdAt = dateStr, wins = 48, losses = 45, coins = 600, xp = 1300, rating = 1380, isVerified = false),
+            SupabaseUser(id = "u_seed_12", username = "Azure_Dream", email = "azure@daadi.fake", role = "publicuser", createdAt = dateStr, wins = 42, losses = 40, coins = 500, xp = 1100, rating = 1320, isVerified = false),
+            SupabaseUser(id = "u_seed_13", username = "Ruby_Rogue", email = "ruby@daadi.fake", role = "publicuser", createdAt = dateStr, wins = 38, losses = 35, coins = 450, xp = 950, rating = 1280, isVerified = false),
+            SupabaseUser(id = "u_seed_14", username = "Onyx_Titan", email = "onyx@daadi.fake", role = "publicuser", createdAt = dateStr, wins = 32, losses = 28, coins = 400, xp = 800, rating = 1240, isVerified = false),
+            SupabaseUser(id = "u_seed_15", username = "Jade_Oracle", email = "jade@daadi.fake", role = "publicuser", createdAt = dateStr, wins = 28, losses = 25, coins = 380, xp = 750, rating = 1210, isVerified = false),
+            SupabaseUser(id = "u_seed_16", username = "Amber_Fox", email = "amberf@daadi.fake", role = "publicuser", createdAt = dateStr, wins = 22, losses = 20, coins = 300, xp = 600, rating = 1180, isVerified = false),
+            SupabaseUser(id = "u_seed_17", username = "Topaz_Eagle", email = "topaz@daadi.fake", role = "publicuser", createdAt = dateStr, wins = 18, losses = 15, coins = 250, xp = 500, rating = 1150, isVerified = false),
+            SupabaseUser(id = "u_seed_18", username = "Quartz_Seeker", email = "quartz@daadi.fake", role = "publicuser", createdAt = dateStr, wins = 15, losses = 12, coins = 220, xp = 450, rating = 1120, isVerified = false),
+            SupabaseUser(id = "u_seed_19", username = "Opal_Wanderer", email = "opal@daadi.fake", role = "publicuser", createdAt = dateStr, wins = 12, losses = 10, coins = 200, xp = 380, rating = 1090, isVerified = false),
+            SupabaseUser(id = "u_seed_20", username = "Slate_Sentry", email = "slate@daadi.fake", role = "publicuser", createdAt = dateStr, wins = 8, losses = 8, coins = 150, xp = 300, rating = 1060, isVerified = false)
+        )
+    }
+
 internal val _isSyncing = MutableStateFlow(false)
 
 val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
-internal val _users = MutableStateFlow<List<SupabaseUser>>(emptyList())
+internal val _users = MutableStateFlow<List<SupabaseUser>>(getLeaderboardSeedUsers())
 
 val users: StateFlow<List<SupabaseUser>> = _users.asStateFlow()
 
@@ -797,7 +823,21 @@ fun fetchReports() {
     }
 
 fun fetchAuditLogsV2() {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            val auditSaved = prefs.getString("sim_audit_logs", null)
+            if (auditSaved != null) {
+                try {
+                    val list = auditListAdapter.fromJson(auditSaved)
+                    if (list != null) {
+                        _auditLogsV2.value = list
+                        _auditLogs.value = list
+                    }
+                } catch (e: Exception) {}
+            } else {
+                _auditLogsV2.value = _auditLogs.value
+            }
+            return
+        }
         scope.launch {
             val request = Request.Builder()
                 .url("$supabaseUrl/rest/v1/audit_event_logs?select=*&order=created_at.desc&limit=100")
@@ -820,7 +860,15 @@ fun fetchAuditLogsV2() {
     }
 
 fun fetchAppVersions() {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            val versionsSaved = prefs.getString("sim_app_versions", null)
+            if (versionsSaved != null) {
+                try {
+                    _appVersions.value = appVersionListAdapter.fromJson(versionsSaved) ?: emptyList()
+                } catch (e: Exception) {}
+            }
+            return
+        }
         scope.launch {
             val request = Request.Builder()
                 .url("$supabaseUrl/rest/v1/app_versions?select=*&order=versionCode.desc")
@@ -851,7 +899,15 @@ fun fetchAppVersions() {
     }
 
 fun fetchMaintenanceSchedules() {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            val maintSaved = prefs.getString("sim_maintenance_schedules", null)
+            if (maintSaved != null) {
+                try {
+                    _maintenanceSchedules.value = maintenanceListAdapter.fromJson(maintSaved) ?: emptyList()
+                } catch (e: Exception) {}
+            }
+            return
+        }
         scope.launch {
             val request = Request.Builder()
                 .url("$supabaseUrl/rest/v1/maintenance_schedule?select=*&order=startTime.desc")
@@ -1212,6 +1268,7 @@ fun processUserAndPromoteIfAdmin(user: SupabaseUser): SupabaseUser {
                             val list = moshi.adapter<List<Map<String, Any>>>(listType).fromJson(body)
                             val roles = mutableSetOf<String>()
                             val perms = mutableSetOf<String>()
+                            @Suppress("UNCHECKED_CAST")
                             list?.forEach { entry ->
                                 val role = entry["role"] as? Map<String, Any>
                                 val roleName = role?.get("name") as? String
@@ -1439,6 +1496,7 @@ fun login(email: String, pass: String, onResult: (Boolean, String?) -> Unit) {
                                         val uBody = r.body?.string()
                                         if (r.isSuccessful && uBody != null) {
                                             try {
+                                                @Suppress("UNCHECKED_CAST")
                                                 val list = userListAdapter.fromJson(uBody)
                                                 if (!list.isNullOrEmpty()) {
                                                     val matchedUser = list[0]
@@ -1986,7 +2044,7 @@ fun loadInitialData() {
 
     internal suspend fun fetchRemoteUsers() = withContext(Dispatchers.IO) {
         val request = Request.Builder()
-            .url("$supabaseUrl/rest/v1/users?select=*&order=createdAt.desc&limit=100")
+            .url("$supabaseUrl/rest/v1/users?select=*&order=rating.desc&limit=200")
             .headers(getHeaders())
             .get()
             .build()
@@ -2000,7 +2058,11 @@ fun loadInitialData() {
                 if (response.isSuccessful && body != null) {
                     try {
                         val parsed = userListAdapter.fromJson(body)
-                        if (parsed != null) _users.value = parsed
+                        if (parsed != null) {
+                            // Merge with local seed users to ensure the leaderboard always looks populated and competitive
+                            val seeds = getLeaderboardSeedUsers()
+                            _users.value = (parsed + seeds).distinctBy { it.id }
+                        }
                     } catch (e: Exception) {
                         Log.e(tag, "Parsed users error", e)
                     }
@@ -2217,33 +2279,8 @@ fun deleteUserRemote(userId: String) {
             }
         } else {
             val dateStr = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
-            _users.value = listOf(
-                SupabaseUser(
-                    id = "u_sim_tester",
-                    username = "DaadiPlayer",
-                    email = "player@daadi.com",
-                    role = "publicuser",
-                    createdAt = dateStr,
-                    totalGames = 10,
-                    wins = 6,
-                    losses = 4,
-                    coins = 500,
-                    xp = 1500,
-                    rating = 1120
-                ),
-                SupabaseUser(
-                    id = "u_sim_admin",
-                    username = "DaadiAdmin",
-                    email = "admin@daadi.com",
-                    role = "admin",
-                    createdAt = dateStr,
-                    totalGames = 25,
-                    wins = 18,
-                    losses = 7,
-                    coins = 10000,
-                    xp = 5000,
-                    rating = 1500
-                )
+            _users.value = getLeaderboardSeedUsers() + listOf(
+                SupabaseUser(id = "u_sim_admin", username = "DaadiAdmin", email = "admin@daadi.com", role = "admin", createdAt = dateStr, totalGames = 25, wins = 18, losses = 7, coins = 10000, xp = 5000, rating = 1500, isVerified = true)
             )
             saveSimulatorUsers()
         }
@@ -2288,7 +2325,52 @@ fun deleteUserRemote(userId: String) {
         }
 
         // Audit Logs
-        _auditLogs.value = emptyList()
+        val auditSaved = prefs.getString("sim_audit_logs", null)
+        if (auditSaved != null) {
+            try {
+                _auditLogs.value = auditListAdapter.fromJson(auditSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _auditLogs.value = emptyList()
+            }
+        } else {
+            _auditLogs.value = listOf(
+                SupabaseAuditLog(
+                    id = "AUD-1",
+                    actorId = "sim_admin_1",
+                    actionType = "TOGGLE_MAINTENANCE",
+                    targetTable = "system_settings",
+                    targetId = "maintenance_mode",
+                    oldValue = null,
+                    newValue = null,
+                    reason = "Scheduled bi-weekly system upgrade and integrity check",
+                    ipAddress = "192.168.1.1",
+                    userAgent = "Admin Console v1.2",
+                    country = "US",
+                    deviceInfo = "Offline Simulator Mode",
+                    screenName = "AdminSettings",
+                    sessionId = "SESS-1",
+                    createdAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(Date(System.currentTimeMillis() - 7200000))
+                ),
+                SupabaseAuditLog(
+                    id = "AUD-2",
+                    actorId = "sim_admin_1",
+                    actionType = "ADJUST_ECONOMY",
+                    targetTable = "user_profiles",
+                    targetId = "u_sim_tester",
+                    oldValue = null,
+                    newValue = null,
+                    reason = "System correction reward for offline performance testing",
+                    ipAddress = "192.168.1.1",
+                    userAgent = "Admin Console v1.2",
+                    country = "US",
+                    deviceInfo = "Offline Simulator Mode",
+                    screenName = "UserManagement",
+                    sessionId = "SESS-1",
+                    createdAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(Date(System.currentTimeMillis() - 3600000))
+                )
+            )
+            saveSimulatorAuditLogs()
+        }
 
         // Matches
         val matchesSaved = prefs.getString("sim_matches", null)
@@ -2333,6 +2415,814 @@ fun deleteUserRemote(userId: String) {
             )
             saveSimulatorSettings()
         }
+
+        // Support Tickets
+        val ticketsSaved = prefs.getString("sim_support_tickets_global", null)
+        if (ticketsSaved != null) {
+            try {
+                _tickets.value = ticketListAdapter.fromJson(ticketsSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _tickets.value = emptyList()
+            }
+        } else {
+            val dateStr = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+            _tickets.value = listOf(
+                SupabaseSupportTicket(
+                    id = "TKT-312",
+                    userId = "u_sim_tester",
+                    subject = "Welcome Refund Coins",
+                    message = "My coins weren't synced.",
+                    status = "open",
+                    priority = "high",
+                    assignedTo = null,
+                    createdAt = dateStr,
+                    updatedAt = dateStr
+                )
+            )
+            saveSimulatorTickets()
+        }
+
+        // Store Items
+        val storeSaved = prefs.getString("sim_store_items", null)
+        if (storeSaved != null) {
+            try {
+                _storeItems.value = storeItemListAdapter.fromJson(storeSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _storeItems.value = emptyList()
+            }
+        } else {
+            _storeItems.value = listOf(
+                SupabaseStoreItem(
+                    id = "STORE-1",
+                    name = "Chanakya's Wisdom Pack",
+                    description = "Gain 500 Gold Coins and 100 XP to boost your initial standing.",
+                    type = "pack",
+                    priceUsd = 1.99,
+                    priceCoins = null,
+                    content = mapOf("coins" to 500.0, "xp" to 100.0),
+                    imageUrl = null,
+                    isFeatured = true,
+                    discountPercentage = 0,
+                    expiryAt = null,
+                    createdAt = "2026-07-08 12:00"
+                ),
+                SupabaseStoreItem(
+                    id = "STORE-2",
+                    name = "Grandmaster Fortune Bundle",
+                    description = "Unlock the ultimate standard package with 2,500 Coins and premium status.",
+                    type = "bundle",
+                    priceUsd = 9.99,
+                    priceCoins = null,
+                    content = mapOf("coins" to 2500.0, "xp" to 1000.0),
+                    imageUrl = null,
+                    isFeatured = true,
+                    discountPercentage = 20,
+                    expiryAt = null,
+                    createdAt = "2026-07-08 12:00"
+                ),
+                SupabaseStoreItem(
+                    id = "STORE-3",
+                    name = "Elite Avatar Border Accent",
+                    description = "Decorate your player icon with a shiny majestic gold trim.",
+                    type = "pack",
+                    priceUsd = null,
+                    priceCoins = 400,
+                    content = mapOf("xp" to 50.0),
+                    imageUrl = null,
+                    isFeatured = false,
+                    discountPercentage = 0,
+                    expiryAt = null,
+                    createdAt = "2026-07-08 12:00"
+                )
+            )
+            saveSimulatorStoreItems()
+        }
+
+        // Coupons
+        val couponsSaved = prefs.getString("sim_coupons", null)
+        if (couponsSaved != null) {
+            try {
+                _coupons.value = couponListAdapter.fromJson(couponsSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _coupons.value = emptyList()
+            }
+        } else {
+            _coupons.value = listOf(
+                SupabaseCoupon(
+                    id = "COUPON-1",
+                    code = "WELCOME100",
+                    discountType = "fixed",
+                    value = 100.0,
+                    maxUses = 500,
+                    usedCount = 24,
+                    expiresAt = null,
+                    isActive = true,
+                    createdAt = "2026-07-08 12:00"
+                ),
+                SupabaseCoupon(
+                    id = "COUPON-2",
+                    code = "DAADIPRO",
+                    discountType = "percentage",
+                    value = 15.0,
+                    maxUses = null,
+                    usedCount = 142,
+                    expiresAt = null,
+                    isActive = true,
+                    createdAt = "2026-07-08 12:00"
+                )
+            )
+            saveSimulatorCoupons()
+        }
+
+        // Daily Rewards
+        val dailySaved = prefs.getString("sim_daily_rewards", null)
+        if (dailySaved != null) {
+            try {
+                _dailyRewards.value = dailyRewardListAdapter.fromJson(dailySaved) ?: emptyList()
+            } catch (e: Exception) {
+                _dailyRewards.value = emptyList()
+            }
+        } else {
+            _dailyRewards.value = listOf(
+                SupabaseDailyReward(1, "coins", 50, null, null),
+                SupabaseDailyReward(2, "xp", 100, null, null),
+                SupabaseDailyReward(3, "coins", 100, null, null),
+                SupabaseDailyReward(4, "xp", 200, null, null),
+                SupabaseDailyReward(5, "coins", 150, null, null),
+                SupabaseDailyReward(6, "xp", 300, null, null),
+                SupabaseDailyReward(7, "coins", 500, null, null)
+            )
+            saveSimulatorDailyRewards()
+        }
+
+        // Spin Wheel Rewards
+        val spinSaved = prefs.getString("sim_spin_wheel_rewards", null)
+        if (spinSaved != null) {
+            try {
+                _spinWheelRewards.value = spinWheelRewardListAdapter.fromJson(spinSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _spinWheelRewards.value = emptyList()
+            }
+        } else {
+            _spinWheelRewards.value = listOf(
+                SupabaseSpinWheelReward("SPIN-1", "coins", 50, 40, null, "#FFCDD2"),
+                SupabaseSpinWheelReward("SPIN-2", "coins", 100, 30, null, "#F8BBD0"),
+                SupabaseSpinWheelReward("SPIN-3", "coins", 500, 5, null, "#E1BEE7"),
+                SupabaseSpinWheelReward("SPIN-4", "xp", 100, 25, null, "#D1C4E9")
+            )
+            saveSimulatorSpinWheelRewards()
+        }
+
+        // LiveOps Events
+        val liveOpsSaved = prefs.getString("sim_liveops_events", null)
+        if (liveOpsSaved != null) {
+            try {
+                _liveOpsEvents.value = liveOpsEventListAdapter.fromJson(liveOpsSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _liveOpsEvents.value = emptyList()
+            }
+        } else {
+            _liveOpsEvents.value = listOf(
+                SupabaseLiveOpsEvent(
+                    id = "LIVEOPS-1",
+                    title = "Monsoon Double Coins",
+                    description = "Get double coins on all Pass & Play and VS AI matches!",
+                    type = "coin_rush",
+                    xpMultiplier = 1.0,
+                    coinMultiplier = 2.0,
+                    startTime = "2026-07-01T00:00:00",
+                    endTime = "2026-07-31T23:59:59",
+                    isActive = true,
+                    metadata = null
+                ),
+                SupabaseLiveOpsEvent(
+                    id = "LIVEOPS-2",
+                    title = "Strategic Grind Weekend",
+                    description = "Form mills to earn triple experience XP!",
+                    type = "xp_weekend",
+                    xpMultiplier = 3.0,
+                    coinMultiplier = 1.0,
+                    startTime = "2026-07-10T00:00:00",
+                    endTime = "2026-07-12T23:59:59",
+                    isActive = false,
+                    metadata = null
+                )
+            )
+            saveSimulatorLiveOpsEvents()
+        }
+
+        // Season Passes
+        val seasonSaved = prefs.getString("sim_season_passes", null)
+        if (seasonSaved != null) {
+            try {
+                _seasonPasses.value = seasonPassListAdapter.fromJson(seasonSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _seasonPasses.value = emptyList()
+            }
+        } else {
+            _seasonPasses.value = listOf(
+                SupabaseSeasonPass(
+                    id = "SEASON-1",
+                    title = "Season 1: Maurya Dynasty",
+                    startTime = "2026-07-01T00:00:00",
+                    endTime = "2026-09-30T23:59:59",
+                    isActive = true
+                )
+            )
+            saveSimulatorSeasonPasses()
+        }
+
+        // CMS Content
+        val cmsSaved = prefs.getString("sim_cms_content", null)
+        if (cmsSaved != null) {
+            try {
+                _cmsContent.value = cmsContentListAdapter.fromJson(cmsSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _cmsContent.value = emptyList()
+            }
+        } else {
+            _cmsContent.value = listOf(
+                SupabaseCMSContent(
+                    id = "CMS-1",
+                    slug = "faq-how-to-play",
+                    title = "How to Play Daadi (Nine Men's Morris)",
+                    body = "### Rules of Daadi\n1. **Placing Phase**: Players take turns placing their 9 pieces on empty nodes.\n2. **Moving Phase**: Players move pieces to adjacent empty nodes.\n3. **Flying Phase**: When down to 3 pieces, a player can fly their piece to any vacant node.",
+                    type = "faq",
+                    imageUrl = null,
+                    videoUrl = null,
+                    status = "published",
+                    publishedAt = "2026-07-01T12:00:00",
+                    createdAt = "2026-07-01T12:00:00"
+                ),
+                SupabaseCMSContent(
+                    id = "CMS-2",
+                    slug = "patch-v1.2.0",
+                    title = "Daadi Pro Patch Notes v1.2.0",
+                    body = "### Updates & Fixes\n* Added Advanced AI difficulty engine with depth look-ahead up to 6 turns.\n* Integrated enterprise BI analytics dashboard for admins.\n* Added system wide performance enhancements.",
+                    type = "patch_notes",
+                    imageUrl = null,
+                    videoUrl = null,
+                    status = "published",
+                    publishedAt = "2026-07-05T15:30:00",
+                    createdAt = "2026-07-05T15:30:00"
+                )
+            )
+            saveSimulatorCMSContent()
+        }
+
+        // Tournaments
+        val tournamentsSaved = prefs.getString("sim_tournaments", null)
+        if (tournamentsSaved != null) {
+            try {
+                _tournaments.value = tournamentListAdapter.fromJson(tournamentsSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _tournaments.value = emptyList()
+            }
+        } else {
+            _tournaments.value = listOf(
+                SupabaseTournament(
+                    id = "TOURN-1",
+                    title = "Championship Blitz",
+                    description = "High stakes strategic Morris clash",
+                    status = "scheduled",
+                    startTime = "2026-07-09T18:00:00",
+                    endTime = "2026-07-09T22:00:00",
+                    minRank = 1,
+                    entryFee = 250,
+                    prizePoolCoins = 5000,
+                    maxParticipants = 128,
+                    bracketData = null,
+                    createdAt = "2026-07-08T00:00:00"
+                ),
+                SupabaseTournament(
+                    id = "TOURN-2",
+                    title = "Daily Arena",
+                    description = "Casual daily tournament",
+                    status = "active",
+                    startTime = "2026-07-08T10:00:00",
+                    endTime = "2026-07-08T22:00:00",
+                    minRank = 1,
+                    entryFee = 50,
+                    prizePoolCoins = 500,
+                    maxParticipants = 64,
+                    bracketData = null,
+                    createdAt = "2026-07-08T00:00:00"
+                )
+            )
+            saveSimulatorTournaments()
+        }
+
+        // Game Events
+        val gameEventsSaved = prefs.getString("sim_game_events", null)
+        if (gameEventsSaved != null) {
+            try {
+                _gameEvents.value = eventListAdapter.fromJson(gameEventsSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _gameEvents.value = emptyList()
+            }
+        } else {
+            _gameEvents.value = listOf(
+                SupabaseGameEvent(
+                    id = "GEVT-1",
+                    title = "Independence Day Clash",
+                    type = "Tournament",
+                    multiplier = 1.5,
+                    startTime = "2026-08-15T00:00:00",
+                    endTime = "2026-08-15T23:59:59",
+                    isActive = true,
+                    createdAt = "2026-07-08T00:00:00"
+                )
+            )
+            saveSimulatorGameEvents()
+        }
+
+        // Economy Transactions
+        val txnsSaved = prefs.getString("sim_economy_transactions", null)
+        if (txnsSaved != null) {
+            try {
+                _economyTransactions.value = economyTransactionListAdapter.fromJson(txnsSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _economyTransactions.value = emptyList()
+            }
+        } else {
+            _economyTransactions.value = listOf(
+                SupabaseEconomyTransaction(
+                    id = "TXN-1",
+                    userId = "u_sim_tester",
+                    amount = 100,
+                    currency = "coins",
+                    type = "reward",
+                    source = "daily_reward",
+                    reason = "Day 1 Reward",
+                    createdAt = "2026-07-08T06:00:00Z"
+                ),
+                SupabaseEconomyTransaction(
+                    id = "TXN-2",
+                    userId = "u_sim_tester",
+                    amount = 200,
+                    currency = "xp",
+                    type = "reward",
+                    source = "match",
+                    reason = "Pass & Play Win",
+                    createdAt = "2026-07-08T07:12:00Z"
+                )
+            )
+            saveSimulatorEconomyTransactions()
+        }
+
+        // BI Metrics
+        val biSaved = prefs.getString("sim_bi_metrics", null)
+        if (biSaved != null) {
+            try {
+                _biMetrics.value = biMetricsListAdapter.fromJson(biSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _biMetrics.value = emptyList()
+            }
+        } else {
+            _biMetrics.value = listOf(
+                SupabaseBIMetrics(
+                    id = "BI-1",
+                    dau = 1420,
+                    wau = 6800,
+                    mau = 24500,
+                    retentionD1 = 68.5,
+                    retentionD7 = 42.1,
+                    retentionD30 = 21.4,
+                    totalRevenue = 1429.50,
+                    arpu = 0.05,
+                    arppu = 4.80,
+                    churnRate = 4.2,
+                    countryDistribution = mapOf("India" to 12500, "USA" to 4200, "UK" to 1800, "Other" to 6000),
+                    deviceDistribution = mapOf("Android" to 21500, "iOS" to 3000),
+                    versionDistribution = mapOf("v1.2.0" to 18000, "v1.1.0" to 5500, "v1.0.0" to 1000),
+                    recordedAt = "2026-07-08T00:00:00"
+                )
+            )
+            saveSimulatorBIMetrics()
+        }
+
+        // BI Daily Metrics
+        val biDailySaved = prefs.getString("sim_bi_daily_metrics", null)
+        if (biDailySaved != null) {
+            try {
+                _biDailyMetrics.value = biDailyMetricListAdapter.fromJson(biDailySaved) ?: emptyList()
+            } catch (e: Exception) {
+                _biDailyMetrics.value = emptyList()
+            }
+        } else {
+            _biDailyMetrics.value = listOf(
+                SupabaseBIDailyMetric("2026-07-06", 1380, 6600, 24000, 3100, 1380.0, 5200, 240, 67.2, "2026-07-06T23:59:00"),
+                SupabaseBIDailyMetric("2026-07-07", 1400, 6700, 24300, 3150, 1410.5, 5400, 260, 68.0, "2026-07-07T23:59:00"),
+                SupabaseBIDailyMetric("2026-07-08", 1420, 6800, 24500, 3200, 1429.5, 5500, 270, 68.5, "2026-07-08T23:59:00")
+            )
+            saveSimulatorBIDailyMetrics()
+        }
+
+        // BI Notifications
+        val biNotifsSaved = prefs.getString("sim_bi_notifications", null)
+        if (biNotifsSaved != null) {
+            try {
+                _biNotifications.value = biNotificationListAdapter.fromJson(biNotifsSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _biNotifications.value = emptyList()
+            }
+        } else {
+            _biNotifications.value = listOf(
+                SupabaseBINotification(
+                    id = "NOTIF-1",
+                    title = "Weekend Tournament Launch",
+                    body = "Championship Blitz starts tonight! Register now for a chance to win 5000 coins.",
+                    targetSegment = "all_active",
+                    targetRegion = "global",
+                    scheduleTime = "2026-07-08T18:00:00",
+                    sentAt = "2026-07-08T18:00:15",
+                    status = "sent",
+                    openCount = 890,
+                    failureCount = 12,
+                    createdAt = "2026-07-08T10:00:00"
+                ),
+                SupabaseBINotification(
+                    id = "NOTIF-2",
+                    title = "XP Booster Active",
+                    body = "Play any game in the next 2 hours for a 1.5x multiplier on all XP earned.",
+                    targetSegment = "churn_risk",
+                    targetRegion = "asia",
+                    scheduleTime = "2026-07-09T12:00:00",
+                    sentAt = null,
+                    status = "scheduled",
+                    openCount = 0,
+                    failureCount = 0,
+                    createdAt = "2026-07-08T15:30:00"
+                )
+            )
+            saveSimulatorBINotifications()
+        }
+
+        // BI App Logs
+        val biLogsSaved = prefs.getString("sim_bi_app_logs", null)
+        if (biLogsSaved != null) {
+            try {
+                _biAppLogs.value = biAppLogListAdapter.fromJson(biLogsSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _biAppLogs.value = emptyList()
+            }
+        } else {
+            _biAppLogs.value = listOf(
+                SupabaseBIAppLog(
+                    id = "LOG-1",
+                    userId = "u_sim_tester",
+                    level = "INFO",
+                    category = "auth",
+                    message = "User DaadiPlayer successfully authenticated via offline-simulator.",
+                    stackTrace = null,
+                    deviceInfo = mapOf("model" to "Pixel 7 Pro", "os" to "Android 14"),
+                    createdAt = "2026-07-08T07:45:00"
+                ),
+                SupabaseBIAppLog(
+                    id = "LOG-2",
+                    userId = null,
+                    level = "WARN",
+                    category = "network",
+                    message = "Primary connection timeout. Falling back to local robust simulator mode.",
+                    stackTrace = null,
+                    deviceInfo = mapOf("model" to "Samsung Galaxy S23", "os" to "Android 13"),
+                    createdAt = "2026-07-08T07:46:12"
+                )
+            )
+            saveSimulatorBIAppLogs()
+        }
+
+        // Crash Logs
+        val crashesSaved = prefs.getString("sim_crash_logs", null)
+        if (crashesSaved != null) {
+            try {
+                _crashLogs.value = crashLogListAdapter.fromJson(crashesSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _crashLogs.value = emptyList()
+            }
+        } else {
+            _crashLogs.value = listOf(
+                SupabaseCrashLog(
+                    id = "CRASH-1",
+                    exception = "NullPointerException",
+                    stacktrace = "java.lang.NullPointerException: Attempt to invoke virtual method on a null object reference\n\tat com.example.daadi.ui.screens.GameScreenKt.GameScreen(GameScreen.kt:42)",
+                    userId = "u_sim_tester",
+                    deviceModel = "Pixel 7 Pro",
+                    osVersion = "Android 14",
+                    appVersion = "v1.2.0",
+                    status = "open",
+                    createdAt = "2026-07-08T02:15:00"
+                ),
+                SupabaseCrashLog(
+                    id = "CRASH-2",
+                    exception = "IllegalArgumentException",
+                    stacktrace = "java.lang.IllegalArgumentException: Invalid position coordinate requested\n\tat com.example.daadi.engine.Board.getNode(Board.kt:112)",
+                    userId = null,
+                    deviceModel = "Samsung Galaxy S23",
+                    osVersion = "Android 13",
+                    appVersion = "v1.1.0",
+                    status = "resolved",
+                    createdAt = "2026-07-07T18:40:00"
+                )
+            )
+            saveSimulatorCrashLogs()
+        }
+
+        // Fraud Alerts
+        val fraudSaved = prefs.getString("sim_fraud_alerts", null)
+        if (fraudSaved != null) {
+            try {
+                _fraudAlerts.value = fraudAlertListAdapter.fromJson(fraudSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _fraudAlerts.value = emptyList()
+            }
+        } else {
+            _fraudAlerts.value = listOf(
+                SupabaseFraudAlert(
+                    id = "FRAUD-1",
+                    userId = "u_sim_tester",
+                    type = "coin_farming",
+                    confidence = 0.94,
+                    status = "pending",
+                    evidence = mapOf("speed" to "10 moves per second", "pattern" to "identical click coordinates"),
+                    createdAt = "2026-07-08T05:22:00"
+                ),
+                SupabaseFraudAlert(
+                    id = "FRAUD-2",
+                    userId = "u_sim_admin",
+                    type = "referral_abuse",
+                    confidence = 0.81,
+                    status = "confirmed",
+                    evidence = mapOf("ip_address" to "192.168.1.42", "account_count" to 12.0),
+                    createdAt = "2026-07-07T21:10:00"
+                )
+            )
+            saveSimulatorFraudAlerts()
+        }
+
+        // Finance Reports
+        val finSaved = prefs.getString("sim_finance_reports", null)
+        if (finSaved != null) {
+            try {
+                _financeReports.value = financeReportListAdapter.fromJson(finSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _financeReports.value = emptyList()
+            }
+        } else {
+            _financeReports.value = listOf(
+                SupabaseFinanceReport(
+                    id = "FIN-1",
+                    revenue = 2450.0,
+                    ads = 1250.0,
+                    purchases = 1200.0,
+                    refunds = 50.0,
+                    chargebacks = 15.0,
+                    forecastNextMonth = 2800.0,
+                    recordedAt = "2026-07-08T00:00:00"
+                )
+            )
+            saveSimulatorFinanceReports()
+        }
+
+        // Queue Metrics
+        val queueSaved = prefs.getString("sim_queue_metrics", null)
+        if (queueSaved != null) {
+            try {
+                _queueMetrics.value = queueMetricListAdapter.fromJson(queueSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _queueMetrics.value = emptyList()
+            }
+        } else {
+            _queueMetrics.value = listOf(
+                SupabaseQueueMetric("QM-1", "Blitz Queue", 12, 1, 0, "2026-07-08T07:30:00"),
+                SupabaseQueueMetric("QM-2", "Ranked Standard", 45, 3, 0, "2026-07-08T07:30:00")
+            )
+            saveSimulatorQueueMetrics()
+        }
+
+        // Device Records
+        val deviceSaved = prefs.getString("sim_device_records", null)
+        if (deviceSaved != null) {
+            try {
+                _deviceRecords.value = deviceRecordListAdapter.fromJson(deviceSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _deviceRecords.value = emptyList()
+            }
+        } else {
+            _deviceRecords.value = listOf(
+                SupabaseDeviceRecord("DEV-1", "8f7c9e0d1a2b3c4f", false, false, false, false, "2026-07-08T07:35:00"),
+                SupabaseDeviceRecord("DEV-2", "a1b2c3d4e5f67890", true, true, true, true, "2026-07-07T14:22:00")
+            )
+            saveSimulatorDeviceRecords()
+        }
+
+        // Health Metrics
+        val healthSaved = prefs.getString("sim_health_metrics", null)
+        if (healthSaved != null) {
+            try {
+                _biHealthMetrics.value = healthMetricListAdapter.fromJson(healthSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _biHealthMetrics.value = emptyList()
+            }
+        } else {
+            _biHealthMetrics.value = listOf(
+                SupabaseBIHealthMetric(
+                    id = "HM-1",
+                    serviceName = "Database Service",
+                    status = "HEALTHY",
+                    latencyMs = 45,
+                    cpuUsage = 12.5,
+                    ramUsageMb = 512,
+                    activeConnections = 120,
+                    recordedAt = "2026-07-08T07:30:00"
+                )
+            )
+            saveSimulatorBIHealthMetrics()
+        }
+
+        // Anti-Cheat Logs
+        val antiCheatSaved = prefs.getString("sim_anti_cheat_logs", null)
+        if (antiCheatSaved != null) {
+            try {
+                _antiCheatLogs.value = antiCheatSaved.let { antiCheatListAdapter.fromJson(it) } ?: emptyList()
+            } catch (e: Exception) {
+                _antiCheatLogs.value = emptyList()
+            }
+        } else {
+            _antiCheatLogs.value = listOf(
+                SupabaseAntiCheatLog(
+                    id = "AC-1",
+                    userId = "u_sim_tester",
+                    matchId = "M-992",
+                    violationType = "memory_tampering",
+                    severity = "high",
+                    metadata = mapOf("details" to "memory_tampering"),
+                    createdAt = "2026-07-08T04:30:00"
+                )
+            )
+            saveSimulatorAntiCheatLogs()
+        }
+
+        // App Versions
+        val versionsSaved = prefs.getString("sim_app_versions", null)
+        if (versionsSaved != null) {
+            try {
+                _appVersions.value = appVersionListAdapter.fromJson(versionsSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _appVersions.value = emptyList()
+            }
+        } else {
+            _appVersions.value = listOf(
+                SupabaseAppVersion(
+                    versionCode = 12,
+                    versionName = "v1.2.0",
+                    isMandatory = true,
+                    minSupportedVersion = 10,
+                    releaseNotes = "Major stability patch & new AI strategic module.",
+                    createdAt = "2026-07-05T00:00:00"
+                )
+            )
+            saveSimulatorAppVersions()
+        }
+
+        // Maintenance Schedules
+        val maintSaved = prefs.getString("sim_maintenance_schedules", null)
+        if (maintSaved != null) {
+            try {
+                _maintenanceSchedules.value = maintenanceListAdapter.fromJson(maintSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _maintenanceSchedules.value = emptyList()
+            }
+        } else {
+            _maintenanceSchedules.value = listOf(
+                SupabaseMaintenanceSchedule(
+                    id = "MAINT-1",
+                    startTime = "2026-07-15T02:00:00",
+                    endTime = "2026-07-15T04:00:00",
+                    reason = "Server Scalability Upgrade: Database scaling and memory optimizations.",
+                    isActive = true,
+                    createdAt = "2026-07-08T00:00:00"
+                )
+            )
+            saveSimulatorMaintenanceSchedules()
+        }
+
+        // Data Export Requests
+        val exportsSaved = prefs.getString("sim_data_export_requests", null)
+        if (exportsSaved != null) {
+            try {
+                _dataExportRequests.value = dataExportListAdapter.fromJson(exportsSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _dataExportRequests.value = emptyList()
+            }
+        } else {
+            _dataExportRequests.value = listOf(
+                SupabaseDataExportRequest(
+                    id = "EXP-1",
+                    userId = "u_sim_admin",
+                    status = "completed",
+                    downloadUrl = "https://example.com/exports/users_20260708.csv",
+                    expiresAt = "2026-07-15T00:00:00",
+                    createdAt = "2026-07-08T05:00:00"
+                )
+            )
+            saveSimulatorDataExportRequests()
+        }
+
+        // Admin Sessions
+        val sessionsSaved = prefs.getString("sim_admin_sessions", null)
+        if (sessionsSaved != null) {
+            try {
+                _adminSessions.value = sessionListAdapter.fromJson(sessionsSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _adminSessions.value = emptyList()
+            }
+        } else {
+            _adminSessions.value = listOf(
+                SupabaseAdminSession(
+                    id = "SESS-1",
+                    adminId = "u_sim_admin",
+                    ipAddress = "192.168.1.100",
+                    userAgent = "macOS Chrome",
+                    lastActive = "2026-07-08T07:40:00",
+                    isSuspicious = false,
+                    terminatedAt = null
+                )
+            )
+            saveSimulatorAdminSessions()
+        }
+
+        // Roles
+        val rolesSaved = prefs.getString("sim_roles", null)
+        if (rolesSaved != null) {
+            try {
+                _roles.value = roleListAdapter.fromJson(rolesSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _roles.value = emptyList()
+            }
+        } else {
+            _roles.value = listOf(
+                SupabaseRole("R-1", "PublicUser", "General public user who can play casual games"),
+                SupabaseRole("R-2", "Player", "Verified system players with profile access"),
+                SupabaseRole("R-3", "Admin", "Full system administration and data control")
+            )
+            saveSimulatorRoles()
+        }
+
+        // Permissions
+        val permsSaved = prefs.getString("sim_permissions", null)
+        if (permsSaved != null) {
+            try {
+                _permissions.value = permissionListAdapter.fromJson(permsSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _permissions.value = emptyList()
+            }
+        } else {
+            _permissions.value = listOf(
+                SupabasePermission("P-1", "admin_dashboard", "Access the main administration dashboard panel"),
+                SupabasePermission("P-2", "view_analytics", "View business intelligence daily stats and metrics"),
+                SupabasePermission("P-3", "view_logs", "Access system diagnostic logs and crash reports"),
+                SupabasePermission("P-4", "view_system_health", "Monitor real-time system performance & latency metrics"),
+                SupabasePermission("P-5", "moderate_users", "Perform system moderation including user bans & reporting checks"),
+                SupabasePermission("P-6", "view_audit_logs", "Inspect security audit trails and administrator activity histories"),
+                SupabasePermission("P-7", "manage_matches", "Create, complete, or terminate game match records"),
+                SupabasePermission("P-8", "manage_config", "Update application remote config & content delivery variables"),
+                SupabasePermission("P-9", "manage_users", "Create, update, or adjust individual user accounts"),
+                SupabasePermission("P-10", "assign_roles", "Alter the authorization levels of system actors"),
+                SupabasePermission("P-11", "manage_admins", "Add or remove structural administrative accounts"),
+                SupabasePermission("P-12", "manage_notifications", "Draft and dispatch real-time system push notifications"),
+                SupabasePermission("P-13", "manage_tournaments", "Create, edit, delete, or structure tournament schedules")
+            )
+            saveSimulatorPermissions()
+        }
+
+        // Role Permissions
+        val rolePermsSaved = prefs.getString("sim_role_permissions", null)
+        if (rolePermsSaved != null) {
+            try {
+                _rolePermissions.value = rolePermissionListAdapter.fromJson(rolePermsSaved) ?: emptyList()
+            } catch (e: Exception) {
+                _rolePermissions.value = emptyList()
+            }
+        } else {
+            _rolePermissions.value = listOf(
+                SupabaseRolePermission("R-2", "P-1"),
+                SupabaseRolePermission("R-3", "P-1"),
+                SupabaseRolePermission("R-3", "P-2"),
+                SupabaseRolePermission("R-3", "P-3"),
+                SupabaseRolePermission("R-3", "P-4"),
+                SupabaseRolePermission("R-3", "P-5"),
+                SupabaseRolePermission("R-3", "P-6"),
+                SupabaseRolePermission("R-3", "P-7"),
+                SupabaseRolePermission("R-3", "P-8"),
+                SupabaseRolePermission("R-3", "P-9"),
+                SupabaseRolePermission("R-3", "P-10"),
+                SupabaseRolePermission("R-3", "P-11"),
+                SupabaseRolePermission("R-3", "P-12"),
+                SupabaseRolePermission("R-3", "P-13")
+            )
+            saveSimulatorRolePermissions()
+        }
     }
 
     internal fun saveSimulatorUsers() {
@@ -2355,12 +3245,136 @@ fun deleteUserRemote(userId: String) {
         prefs.edit().putString("sim_feedback", feedbackListAdapter.toJson(_feedback.value)).apply()
     }
 
+    internal fun saveSimulatorFeedbackV2() {
+        prefs.edit().putString("sim_feedback_v2", feedbackV2ListAdapter.toJson(_feedbackV2.value)).apply()
+    }
+
+    internal fun saveSimulatorAuditLogs() {
+        prefs.edit().putString("sim_audit_logs", auditListAdapter.toJson(_auditLogs.value)).apply()
+    }
+
     internal fun saveSimulatorReports() {
         prefs.edit().putString("sim_reports", reportListAdapter.toJson(_reports.value)).apply()
     }
 
     internal fun saveSimulatorBans() {
         prefs.edit().putString("sim_bans", banListAdapter.toJson(_bans.value)).apply()
+    }
+
+    internal fun saveSimulatorTickets() {
+        prefs.edit().putString("sim_support_tickets_global", ticketListAdapter.toJson(_tickets.value)).apply()
+    }
+
+    internal fun saveSimulatorStoreItems() {
+        prefs.edit().putString("sim_store_items", storeItemListAdapter.toJson(_storeItems.value)).apply()
+    }
+
+    internal fun saveSimulatorCoupons() {
+        prefs.edit().putString("sim_coupons", couponListAdapter.toJson(_coupons.value)).apply()
+    }
+
+    internal fun saveSimulatorDailyRewards() {
+        prefs.edit().putString("sim_daily_rewards", dailyRewardListAdapter.toJson(_dailyRewards.value)).apply()
+    }
+
+    internal fun saveSimulatorSpinWheelRewards() {
+        prefs.edit().putString("sim_spin_wheel_rewards", spinWheelRewardListAdapter.toJson(_spinWheelRewards.value)).apply()
+    }
+
+    internal fun saveSimulatorLiveOpsEvents() {
+        prefs.edit().putString("sim_liveops_events", liveOpsEventListAdapter.toJson(_liveOpsEvents.value)).apply()
+    }
+
+    internal fun saveSimulatorSeasonPasses() {
+        prefs.edit().putString("sim_season_passes", seasonPassListAdapter.toJson(_seasonPasses.value)).apply()
+    }
+
+    internal fun saveSimulatorCMSContent() {
+        prefs.edit().putString("sim_cms_content", cmsContentListAdapter.toJson(_cmsContent.value)).apply()
+    }
+
+    internal fun saveSimulatorTournaments() {
+        prefs.edit().putString("sim_tournaments", tournamentListAdapter.toJson(_tournaments.value)).apply()
+    }
+
+    internal fun saveSimulatorGameEvents() {
+        prefs.edit().putString("sim_game_events", eventListAdapter.toJson(_gameEvents.value)).apply()
+    }
+
+    internal fun saveSimulatorEconomyTransactions() {
+        prefs.edit().putString("sim_economy_transactions", economyTransactionListAdapter.toJson(_economyTransactions.value)).apply()
+    }
+
+    internal fun saveSimulatorBIMetrics() {
+        prefs.edit().putString("sim_bi_metrics", biMetricsListAdapter.toJson(_biMetrics.value)).apply()
+    }
+
+    internal fun saveSimulatorBIDailyMetrics() {
+        prefs.edit().putString("sim_bi_daily_metrics", biDailyMetricListAdapter.toJson(_biDailyMetrics.value)).apply()
+    }
+
+    internal fun saveSimulatorBINotifications() {
+        prefs.edit().putString("sim_bi_notifications", biNotificationListAdapter.toJson(_biNotifications.value)).apply()
+    }
+
+    internal fun saveSimulatorBIAppLogs() {
+        prefs.edit().putString("sim_bi_app_logs", biAppLogListAdapter.toJson(_biAppLogs.value)).apply()
+    }
+
+    internal fun saveSimulatorCrashLogs() {
+        prefs.edit().putString("sim_crash_logs", crashLogListAdapter.toJson(_crashLogs.value)).apply()
+    }
+
+    internal fun saveSimulatorFraudAlerts() {
+        prefs.edit().putString("sim_fraud_alerts", fraudAlertListAdapter.toJson(_fraudAlerts.value)).apply()
+    }
+
+    internal fun saveSimulatorFinanceReports() {
+        prefs.edit().putString("sim_finance_reports", financeReportListAdapter.toJson(_financeReports.value)).apply()
+    }
+
+    internal fun saveSimulatorQueueMetrics() {
+        prefs.edit().putString("sim_queue_metrics", queueMetricListAdapter.toJson(_queueMetrics.value)).apply()
+    }
+
+    internal fun saveSimulatorDeviceRecords() {
+        prefs.edit().putString("sim_device_records", deviceRecordListAdapter.toJson(_deviceRecords.value)).apply()
+    }
+
+    internal fun saveSimulatorBIHealthMetrics() {
+        prefs.edit().putString("sim_health_metrics", healthMetricListAdapter.toJson(_biHealthMetrics.value)).apply()
+    }
+
+    internal fun saveSimulatorAntiCheatLogs() {
+        prefs.edit().putString("sim_anti_cheat_logs", antiCheatListAdapter.toJson(_antiCheatLogs.value)).apply()
+    }
+
+    internal fun saveSimulatorAppVersions() {
+        prefs.edit().putString("sim_app_versions", appVersionListAdapter.toJson(_appVersions.value)).apply()
+    }
+
+    internal fun saveSimulatorMaintenanceSchedules() {
+        prefs.edit().putString("sim_maintenance_schedules", maintenanceListAdapter.toJson(_maintenanceSchedules.value)).apply()
+    }
+
+    internal fun saveSimulatorDataExportRequests() {
+        prefs.edit().putString("sim_data_export_requests", dataExportListAdapter.toJson(_dataExportRequests.value)).apply()
+    }
+
+    internal fun saveSimulatorAdminSessions() {
+        prefs.edit().putString("sim_admin_sessions", sessionListAdapter.toJson(_adminSessions.value)).apply()
+    }
+
+    internal fun saveSimulatorRoles() {
+        prefs.edit().putString("sim_roles", roleListAdapter.toJson(_roles.value)).apply()
+    }
+
+    internal fun saveSimulatorPermissions() {
+        prefs.edit().putString("sim_permissions", permissionListAdapter.toJson(_permissions.value)).apply()
+    }
+
+    internal fun saveSimulatorRolePermissions() {
+        prefs.edit().putString("sim_role_permissions", rolePermissionListAdapter.toJson(_rolePermissions.value)).apply()
     }
 
     internal fun getSimulatorUsers(): List<SupabaseUser> {
@@ -2954,7 +3968,30 @@ fun logAudit(
         reason: String? = null,
         screenName: String? = null
     ) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            val logId = "AUD-${_auditLogs.value.size + 1}"
+            val newLog = SupabaseAuditLog(
+                id = logId,
+                actorId = _currentUser.value?.id ?: "sim_admin_123",
+                actionType = action,
+                targetTable = targetTable,
+                targetId = targetId,
+                oldValue = oldValue,
+                newValue = newValue,
+                reason = reason ?: "Action logged via simulator fallback",
+                ipAddress = "127.0.0.1",
+                userAgent = "Android SDK Emulator (Simulator)",
+                country = "US",
+                deviceInfo = "Offline Simulator Mode",
+                screenName = screenName,
+                sessionId = "SESS-1",
+                createdAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(Date())
+            )
+            _auditLogs.value = listOf(newLog) + _auditLogs.value
+            _auditLogsV2.value = _auditLogs.value
+            saveSimulatorAuditLogs()
+            return
+        }
         val user = _currentUser.value ?: return
         
         scope.launch {
@@ -3637,7 +4674,15 @@ fun fetchUsers() {
     }
 
 fun fetchTickets() {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            val ticketsSaved = prefs.getString("sim_support_tickets_global", null)
+            if (ticketsSaved != null) {
+                try {
+                    _tickets.value = ticketListAdapter.fromJson(ticketsSaved) ?: emptyList()
+                } catch (e: Exception) {}
+            }
+            return
+        }
         scope.launch {
             try {
                 val request = Request.Builder()
@@ -3656,7 +4701,15 @@ fun fetchTickets() {
     }
 
 fun fetchFeedbackV2() {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            val fbSaved = prefs.getString("sim_feedback_v2", null)
+            if (fbSaved != null) {
+                try {
+                    _feedbackV2.value = feedbackV2ListAdapter.fromJson(fbSaved) ?: emptyList()
+                } catch (e: Exception) {}
+            }
+            return
+        }
         scope.launch {
             try {
                 val request = Request.Builder()
@@ -3675,7 +4728,38 @@ fun fetchFeedbackV2() {
     }
 
 fun fetchLoginHistory(userId: String) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            val loginSaved = prefs.getString("sim_login_history_$userId", null)
+            if (loginSaved != null) {
+                try {
+                    _userLoginHistory.value = loginHistoryListAdapter.fromJson(loginSaved) ?: emptyList()
+                } catch (e: Exception) {}
+            } else {
+                val dummyHistory = listOf(
+                    SupabaseLoginHistory(
+                        id = "LH-1",
+                        userId = userId,
+                        ipAddress = "192.168.1.105",
+                        deviceId = "sim-device-0",
+                        userAgent = "Android SDK Emulator (Simulator)",
+                        location = "US",
+                        createdAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date())
+                    ),
+                    SupabaseLoginHistory(
+                        id = "LH-2",
+                        userId = userId,
+                        ipAddress = "192.168.1.100",
+                        deviceId = "sim-device-1",
+                        userAgent = "Web Browser (Chrome)",
+                        location = "US",
+                        createdAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date(System.currentTimeMillis() - 86400000))
+                    )
+                )
+                _userLoginHistory.value = dummyHistory
+                prefs.edit().putString("sim_login_history_$userId", loginHistoryListAdapter.toJson(dummyHistory)).apply()
+            }
+            return
+        }
         scope.launch {
             try {
                 val request = Request.Builder()
@@ -3694,7 +4778,15 @@ fun fetchLoginHistory(userId: String) {
     }
 
 fun fetchTournaments() {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            val tournSaved = prefs.getString("sim_tournaments", null)
+            if (tournSaved != null) {
+                try {
+                    _tournaments.value = tournamentListAdapter.fromJson(tournSaved) ?: emptyList()
+                } catch (e: Exception) {}
+            }
+            return
+        }
         scope.launch {
             try {
                 val request = Request.Builder()
@@ -3713,6 +4805,27 @@ fun fetchTournaments() {
     }
 
 fun createTournament(title: String, description: String, entryFee: Int, prize: Int) {
+        if (!isConfigured) {
+            val nextId = "TOURN-" + (1000..9999).random()
+            val newTourn = SupabaseTournament(
+                id = nextId,
+                title = title,
+                description = description,
+                status = "scheduled",
+                startTime = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date(System.currentTimeMillis() + 86400000)),
+                endTime = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date(System.currentTimeMillis() + 2 * 86400000)),
+                minRank = 1,
+                entryFee = entryFee,
+                prizePoolCoins = prize,
+                maxParticipants = 128,
+                bracketData = null,
+                createdAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date())
+            )
+            _tournaments.value = _tournaments.value + newTourn
+            saveSimulatorTournaments()
+            logAdminAction("CREATE_TOURNAMENT", title)
+            return
+        }
         if (!userHasPermission("manage_tournaments")) return
         scope.launch {
             try {
@@ -3760,7 +4873,23 @@ fun fetchGameEvents() {
     }
 
 fun createGameEvent(title: String, type: String, multiplier: Double, startTime: String, endTime: String) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            val nextId = "GEVT-" + (1000..9999).random()
+            val newEvent = SupabaseGameEvent(
+                id = nextId,
+                title = title,
+                type = type,
+                multiplier = multiplier,
+                startTime = startTime,
+                endTime = endTime,
+                isActive = true,
+                createdAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date())
+            )
+            _gameEvents.value = _gameEvents.value + newEvent
+            saveSimulatorGameEvents()
+            logAdminAction("CREATE_GAME_EVENT", title)
+            return
+        }
         scope.launch {
             val event = mapOf(
                 "title" to title,
@@ -3786,7 +4915,14 @@ fun createGameEvent(title: String, type: String, multiplier: Double, startTime: 
     }
 
 fun toggleGameEvent(eventId: String, isActive: Boolean) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            _gameEvents.value = _gameEvents.value.map {
+                if (it.id == eventId) it.copy(isActive = isActive) else it
+            }
+            saveSimulatorGameEvents()
+            logAdminAction("TOGGLE_GAME_EVENT", "ID: $eventId, Active: $isActive")
+            return
+        }
         scope.launch {
             val update = mapOf("isActive" to isActive)
             val json = moshi.adapter(Map::class.java).toJson(update)
@@ -3805,7 +4941,12 @@ fun toggleGameEvent(eventId: String, isActive: Boolean) {
     }
 
     fun deleteGameEvent(eventId: String) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            _gameEvents.value = _gameEvents.value.filter { it.id != eventId }
+            saveSimulatorGameEvents()
+            logAdminAction("DELETE_GAME_EVENT", eventId)
+            return
+        }
         scope.launch {
             val request = Request.Builder()
                 .url("$supabaseUrl/rest/v1/game_events?id=eq.$eventId")
@@ -3868,7 +5009,15 @@ fun toggleGameEvent(eventId: String, isActive: Boolean) {
     }
 
     fun addRolePermission(roleId: String, permissionId: String) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            val alreadyHas = _rolePermissions.value.any { it.roleId == roleId && it.permissionId == permissionId }
+            if (!alreadyHas) {
+                _rolePermissions.value = _rolePermissions.value + SupabaseRolePermission(roleId, permissionId)
+                saveSimulatorRolePermissions()
+                logAdminAction("ADD_ROLE_PERMISSION", "Role: $roleId, Permission: $permissionId")
+            }
+            return
+        }
         scope.launch {
             val payload = mapOf("role_id" to roleId, "permission_id" to permissionId)
             val json = moshi.adapter(Map::class.java).toJson(payload)
@@ -3887,7 +5036,12 @@ fun toggleGameEvent(eventId: String, isActive: Boolean) {
     }
 
     fun removeRolePermission(roleId: String, permissionId: String) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            _rolePermissions.value = _rolePermissions.value.filterNot { it.roleId == roleId && it.permissionId == permissionId }
+            saveSimulatorRolePermissions()
+            logAdminAction("REMOVE_ROLE_PERMISSION", "Role: $roleId, Permission: $permissionId")
+            return
+        }
         scope.launch {
             val request = Request.Builder()
                 .url("$supabaseUrl/rest/v1/role_permissions?role_id=eq.$roleId&permission_id=eq.$permissionId")
@@ -3924,6 +5078,14 @@ fun fetchAntiCheatLogs() {
 
 fun updateMatchStatus(matchId: String, newStatus: String) {
         if (!userHasPermission("manage_matches")) return
+        if (!isConfigured) {
+            _matches.value = _matches.value.map {
+                if (it.id == matchId) it.copy(status = newStatus) else it
+            }
+            saveSimulatorMatches()
+            logAdminAction("MATCH_UPDATE", "$matchId -> $newStatus")
+            return
+        }
         scope.launch {
             try {
                 val body = "{\"status\": \"$newStatus\"}".toRequestBody("application/json".toMediaType())
@@ -3982,6 +5144,26 @@ fun fetchBINotifications() {
 
 fun scheduleNotification(title: String, body: String, segment: String) {
         if (!userHasPermission("manage_notifications")) return
+        if (!isConfigured) {
+            val nextId = "NOTIF-${_biNotifications.value.size + 1}"
+            val newNotif = SupabaseBINotification(
+                id = nextId,
+                title = title,
+                body = body,
+                targetSegment = segment,
+                targetRegion = "global",
+                scheduleTime = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date(System.currentTimeMillis() + 3600000)),
+                sentAt = null,
+                status = "scheduled",
+                openCount = 0,
+                failureCount = 0,
+                createdAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date())
+            )
+            _biNotifications.value = listOf(newNotif) + _biNotifications.value
+            saveSimulatorBINotifications()
+            logAdminAction("SCHEDULE_NOTIFICATION", title)
+            return
+        }
         scope.launch {
             try {
                 val bodyMap = mapOf(
@@ -4289,6 +5471,16 @@ fun updateRemoteConfig(key: String, value: String) {
     }
 
 fun saveCMSContent(content: SupabaseCMSContent) {
+        if (!isConfigured) {
+            val list = _cmsContent.value.map {
+                if (it.id == content.id) content else it
+            }
+            val finalCms = if (list.none { it.id == content.id }) list + content else list
+            _cmsContent.value = finalCms
+            saveSimulatorCMSContent()
+            logAdminAction("SAVE_CMS_CONTENT", "ID: ${content.id}, Title: ${content.title}")
+            return
+        }
         scope.launch {
             val json = moshi.adapter(SupabaseCMSContent::class.java).toJson(content)
             val request = Request.Builder()
@@ -4307,6 +5499,34 @@ fun saveCMSContent(content: SupabaseCMSContent) {
     }
 
 fun adjustUserEconomy(userId: String, amount: Int, currency: String, reason: String) {
+        if (!isConfigured) {
+            _users.value = _users.value.map {
+                if (it.id == userId) {
+                    if (currency.lowercase() == "coins") {
+                        it.copy(coins = it.coins + amount)
+                    } else {
+                        it.copy(xp = it.xp + amount)
+                    }
+                } else it
+            }
+            saveSimulatorUsers()
+
+            val nextId = "TXN-" + (1000..9999).random()
+            val transaction = SupabaseEconomyTransaction(
+                id = nextId,
+                userId = userId,
+                amount = amount,
+                currency = currency,
+                type = "adjustment",
+                source = "admin",
+                reason = reason,
+                createdAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(Date())
+            )
+            _economyTransactions.value = listOf(transaction) + _economyTransactions.value
+            saveSimulatorEconomyTransactions()
+            logAdminAction("ECONOMY_ADJUST", "$userId: $amount $currency")
+            return
+        }
         scope.launch {
             val transaction = mapOf(
                 "user_id" to userId,
@@ -4337,7 +5557,12 @@ fun adjustUserEconomy(userId: String, amount: Int, currency: String, reason: Str
     }
 
     fun deleteTournament(id: String) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            _tournaments.value = _tournaments.value.filter { it.id != id }
+            saveSimulatorTournaments()
+            logAdminAction("DELETE_TOURNAMENT", id)
+            return
+        }
         scope.launch {
             try {
                 val request = Request.Builder()
@@ -4356,7 +5581,14 @@ fun adjustUserEconomy(userId: String, amount: Int, currency: String, reason: Str
     }
 
     fun updateTournamentStatus(id: String, status: String) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            _tournaments.value = _tournaments.value.map {
+                if (it.id == id) it.copy(status = status) else it
+            }
+            saveSimulatorTournaments()
+            logAdminAction("UPDATE_TOURNAMENT_STATUS", "ID: $id, Status: $status")
+            return
+        }
         scope.launch {
             try {
                 val bodyMap = mapOf("status" to status)
@@ -4377,7 +5609,25 @@ fun adjustUserEconomy(userId: String, amount: Int, currency: String, reason: Str
     }
 
     fun createLiveOpsEvent(title: String, description: String, type: String, xpMultiplier: Double, coinMultiplier: Double, startTime: String, endTime: String, isActive: Boolean) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            val nextId = "LIVEOPS-" + (1000..9999).random()
+            val newEvent = SupabaseLiveOpsEvent(
+                id = nextId,
+                title = title,
+                description = description,
+                type = type,
+                xpMultiplier = xpMultiplier,
+                coinMultiplier = coinMultiplier,
+                startTime = startTime,
+                endTime = endTime,
+                isActive = isActive,
+                metadata = null
+            )
+            _liveOpsEvents.value = listOf(newEvent) + _liveOpsEvents.value
+            saveSimulatorLiveOpsEvents()
+            logAdminAction("CREATE_LIVEOPS_EVENT", title)
+            return
+        }
         scope.launch {
             try {
                 val bodyMap = mapOf(
@@ -4407,7 +5657,12 @@ fun adjustUserEconomy(userId: String, amount: Int, currency: String, reason: Str
     }
 
     fun deleteLiveOpsEvent(id: String) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            _liveOpsEvents.value = _liveOpsEvents.value.filter { it.id != id }
+            saveSimulatorLiveOpsEvents()
+            logAdminAction("DELETE_LIVEOPS_EVENT", id)
+            return
+        }
         scope.launch {
             try {
                 val request = Request.Builder()
@@ -4426,7 +5681,14 @@ fun adjustUserEconomy(userId: String, amount: Int, currency: String, reason: Str
     }
 
     fun toggleLiveOpsEventActive(id: String, isActive: Boolean) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            _liveOpsEvents.value = _liveOpsEvents.value.map {
+                if (it.id == id) it.copy(isActive = isActive) else it
+            }
+            saveSimulatorLiveOpsEvents()
+            logAdminAction("TOGGLE_LIVEOPS_EVENT", "ID: $id, Active: $isActive")
+            return
+        }
         scope.launch {
             try {
                 val bodyMap = mapOf("is_active" to isActive)
@@ -4447,7 +5709,27 @@ fun adjustUserEconomy(userId: String, amount: Int, currency: String, reason: Str
     }
 
     fun createStoreItem(name: String, description: String, type: String, priceCoins: Int?, priceUsd: Double?, isFeatured: Boolean, discountPercentage: Int) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            val nextId = "STORE-" + (1000..9999).random()
+            val newItem = SupabaseStoreItem(
+                id = nextId,
+                name = name,
+                description = description,
+                type = type,
+                priceUsd = priceUsd,
+                priceCoins = priceCoins,
+                content = emptyMap(),
+                imageUrl = null,
+                isFeatured = isFeatured,
+                discountPercentage = discountPercentage,
+                expiryAt = null,
+                createdAt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+            )
+            _storeItems.value = listOf(newItem) + _storeItems.value
+            saveSimulatorStoreItems()
+            logAdminAction("CREATE_STORE_ITEM", name)
+            return
+        }
         scope.launch {
             try {
                 val bodyMap = mutableMapOf<String, Any>(
@@ -4477,7 +5759,12 @@ fun adjustUserEconomy(userId: String, amount: Int, currency: String, reason: Str
     }
 
     fun deleteStoreItem(id: String) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            _storeItems.value = _storeItems.value.filter { it.id != id }
+            saveSimulatorStoreItems()
+            logAdminAction("DELETE_STORE_ITEM", id)
+            return
+        }
         scope.launch {
             try {
                 val request = Request.Builder()
@@ -4496,7 +5783,24 @@ fun adjustUserEconomy(userId: String, amount: Int, currency: String, reason: Str
     }
 
     fun createCoupon(code: String, discountType: String, value: Double, maxUses: Int?) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            val nextId = "COUPON-" + (1000..9999).random()
+            val newCoupon = SupabaseCoupon(
+                id = nextId,
+                code = code,
+                discountType = discountType,
+                value = value,
+                maxUses = maxUses,
+                usedCount = 0,
+                expiresAt = null,
+                isActive = true,
+                createdAt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+            )
+            _coupons.value = listOf(newCoupon) + _coupons.value
+            saveSimulatorCoupons()
+            logAdminAction("CREATE_COUPON", code)
+            return
+        }
         scope.launch {
             try {
                 val bodyMap = mutableMapOf<String, Any>(
@@ -4524,7 +5828,12 @@ fun adjustUserEconomy(userId: String, amount: Int, currency: String, reason: Str
     }
 
     fun deleteCoupon(id: String) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            _coupons.value = _coupons.value.filter { it.id != id }
+            saveSimulatorCoupons()
+            logAdminAction("DELETE_COUPON", id)
+            return
+        }
         scope.launch {
             try {
                 val request = Request.Builder()
@@ -4543,7 +5852,16 @@ fun adjustUserEconomy(userId: String, amount: Int, currency: String, reason: Str
     }
 
     fun saveDailyReward(day: Int, type: String, amount: Int) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            val updated = _dailyRewards.value.map {
+                if (it.day == day) it.copy(type = type, amount = amount) else it
+            }
+            val finalDaily = if (updated.none { it.day == day }) updated + SupabaseDailyReward(day, type, amount, null, null) else updated
+            _dailyRewards.value = finalDaily.sortedBy { it.day }
+            saveSimulatorDailyRewards()
+            logAdminAction("SAVE_DAILY_REWARD", "Day: $day, Type: $type, Amount: $amount")
+            return
+        }
         scope.launch {
             try {
                 val bodyMap = mapOf(
@@ -4569,7 +5887,14 @@ fun adjustUserEconomy(userId: String, amount: Int, currency: String, reason: Str
     }
 
     fun saveSpinWheelReward(id: String, type: String, amount: Int, weight: Int) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            _spinWheelRewards.value = _spinWheelRewards.value.map {
+                if (it.id == id) it.copy(type = type, amount = amount, weight = weight) else it
+            }
+            saveSimulatorSpinWheelRewards()
+            logAdminAction("SAVE_SPIN_WHEEL_REWARD", "ID: $id, Type: $type, Amount: $amount, Weight: $weight")
+            return
+        }
         scope.launch {
             try {
                 val bodyMap = mapOf(
@@ -4594,7 +5919,20 @@ fun adjustUserEconomy(userId: String, amount: Int, currency: String, reason: Str
     }
 
     fun createSeasonPass(title: String, startTime: String, endTime: String, isActive: Boolean) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            val nextId = "SEASON-" + (1000..9999).random()
+            val newPass = SupabaseSeasonPass(
+                id = nextId,
+                title = title,
+                startTime = startTime,
+                endTime = endTime,
+                isActive = isActive
+            )
+            _seasonPasses.value = listOf(newPass) + _seasonPasses.value
+            saveSimulatorSeasonPasses()
+            logAdminAction("CREATE_SEASON_PASS", title)
+            return
+        }
         scope.launch {
             try {
                 val bodyMap = mapOf(
@@ -4620,7 +5958,12 @@ fun adjustUserEconomy(userId: String, amount: Int, currency: String, reason: Str
     }
 
     fun deleteSeasonPass(id: String) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            _seasonPasses.value = _seasonPasses.value.filter { it.id != id }
+            saveSimulatorSeasonPasses()
+            logAdminAction("DELETE_SEASON_PASS", id)
+            return
+        }
         scope.launch {
             try {
                 val request = Request.Builder()
@@ -4639,7 +5982,14 @@ fun adjustUserEconomy(userId: String, amount: Int, currency: String, reason: Str
     }
 
     fun toggleSeasonPassActive(id: String, isActive: Boolean) {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            _seasonPasses.value = _seasonPasses.value.map {
+                if (it.id == id) it.copy(isActive = isActive) else it
+            }
+            saveSimulatorSeasonPasses()
+            logAdminAction("TOGGLE_SEASON_PASS", "ID: $id, Active: $isActive")
+            return
+        }
         scope.launch {
             try {
                 val bodyMap = mapOf("is_active" to isActive)

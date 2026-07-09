@@ -66,6 +66,7 @@ fun AdminDashboardScreen(
     onNavigateToScheduler: () -> Unit,
     onNavigateToRollbacks: () -> Unit,
     onNavigateToAIEngine: () -> Unit,
+    onNavigateToLeaderboards: () -> Unit,
     onBack: () -> Unit
 ) {
     val users by adminViewModel.userRepository.users.collectAsStateWithLifecycle()
@@ -101,6 +102,7 @@ fun AdminDashboardScreen(
             if (adminViewModel.authRepository.userHasPermission("view_audit_logs")) AdminMenuItem("Audit Trail", "Security logs", Icons.Default.ListAlt, onNavigateToAuditTrail, Color(0xFF455A64)) else null,
             if (adminViewModel.authRepository.userHasPermission("view_logs")) AdminMenuItem("Admin Sessions", "Active logins", Icons.Default.DeviceUnknown, onNavigateToSessions, Color(0xFF7B1FA2)) else null,
             if (adminViewModel.authRepository.userHasPermission("manage_matches")) AdminMenuItem("Tournaments", "Schedule & brackets", Icons.Default.EmojiEvents, onNavigateToTournaments, Color(0xFFFBC02D)) else null,
+            if (adminViewModel.authRepository.userHasPermission("view_analytics")) AdminMenuItem("Elo Rankings", "Leaderboard snapshots", Icons.Default.TrendingUp, onNavigateToLeaderboards, Color(0xFFFBC02D)) else null,
             if (adminViewModel.authRepository.userHasPermission("manage_matches")) AdminMenuItem("Global Events", "Seasonal events", Icons.Default.Celebration, onNavigateToEvents, Color(0xFF8E24AA)) else null,
             if (adminViewModel.authRepository.userHasPermission("manage_config")) AdminMenuItem("AI Strategy", "Behavior & Logic", Icons.Default.PrecisionManufacturing, onNavigateToAIEngine, Color(0xFF673AB7)) else null
         )

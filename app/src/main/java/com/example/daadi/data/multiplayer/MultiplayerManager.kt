@@ -45,14 +45,16 @@ data class BotProfile(
 )
 
 val botProfiles = listOf(
-    BotProfile("Chanakya_Pro", "Grandmaster", 1980, "85%", "Online", "Let the battle of minds begin!", 2350),
-    BotProfile("Kabir_Gamer", "Expert", 1540, "62%", "In Match", "I love a fast, strategic game.", 680),
-    BotProfile("Rajesh_99", "Tactician", 1720, "71%", "Idle", "Can you break my defense?", 1120),
-    BotProfile("Sonia_Prasad", "Elite", 1680, "69%", "Active Now", "Ready for a friendly match!", 940),
-    BotProfile("Samrat_Raj", "Master", 1850, "76%", "Online", "I play to win. Good luck!", 1560),
-    BotProfile("Rani_99", "Champion", 1920, "81%", "In Match", "Victory belongs to the patient.", 1890),
-    BotProfile("Amit_K", "Expert", 1490, "56%", "Looking for Match", "Daadi is my favorite pastime.", 410),
-    BotProfile("Sneha_Warrior", "Warrior", 1610, "64%", "Active Now", "Prepare for a tough match!", 820)
+    BotProfile("Grandmaster_Sage", "Grandmaster", 2850, "98%", "Online", "Let the battle of minds begin! I have been waiting for a worthy strategist.", 25000),
+    BotProfile("Mystic_Weaver", "Master", 2420, "88%", "In Match", "Victory is woven from the threads of patience.", 8500),
+    BotProfile("Shadow_Blade", "Elite", 2150, "78%", "Idle", "Strike from the shadows. Good luck!", 4200),
+    BotProfile("Crimson_Viper", "Elite", 1980, "72%", "Active Now", "My defense is as sharp as a viper's fangs.", 3800),
+    BotProfile("Storm_Bringer", "Tactician", 1850, "70%", "Online", "I bring the thunder to the Daadi arena!", 3100),
+    BotProfile("Iron_Grip", "Expert", 1720, "65%", "In Match", "Can you break my legendary defense?", 2500),
+    BotProfile("Silent_Owl", "Expert", 1680, "63%", "Idle", "Watching your every move. Ready?", 2200),
+    BotProfile("Lunar_Wolf", "Warrior", 1590, "60%", "Active Now", "I play better under pressure. Let's go!", 1900),
+    BotProfile("Ember_Phoenix", "Warrior", 1510, "58%", "Looking for Match", "Rising from the ashes of every defeat.", 1750),
+    BotProfile("Swift_Falcon", "Adept", 1420, "55%", "Online", "Speed and strategy are my weapons.", 1500)
 )
 
 @JsonClass(generateAdapter = true)
