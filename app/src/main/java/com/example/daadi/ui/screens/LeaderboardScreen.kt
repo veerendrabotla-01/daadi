@@ -41,6 +41,7 @@ fun LeaderboardScreen(
     onBack: () -> Unit,
     onSignInClick: () -> Unit
 ) {
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     var selectedTab by remember { mutableIntStateOf(0) }
     val usersState by gameViewModel.userRepository.users.collectAsStateWithLifecycle()
     val currentUser by gameViewModel.authRepository.currentUser.collectAsStateWithLifecycle()
@@ -81,7 +82,10 @@ fun LeaderboardScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack, modifier = Modifier.testTag("leaderboard_back_button")) {
+                    IconButton(onClick = {
+                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        onBack()
+                    }, modifier = Modifier.testTag("leaderboard_back_button")) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
@@ -149,7 +153,10 @@ fun LeaderboardScreen(
                                 .background(
                                     if (selectedTab == index) Color(0xFF5C2D0A) else Color.Transparent
                                 )
-                                .clickable { selectedTab = index }
+                                .clickable { 
+                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                                    selectedTab = index 
+                                }
                                 .padding(vertical = 10.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -311,7 +318,10 @@ fun LeaderboardScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .border(1.dp, Color(0xFF5C2D0A).copy(alpha = 0.1f), RoundedCornerShape(16.dp))
-                            .clickable { onSignInClick() }
+                            .clickable { 
+                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                onSignInClick() 
+                            }
                     ) {
                         Row(
                             modifier = Modifier.padding(16.dp),
@@ -378,12 +388,12 @@ fun LeaderboardRow(
                 contentAlignment = Alignment.Center
             ) {
                 if (rank <= 3) {
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
+                    val emoji = when(rank) {
+                        1 -> "🥇"
+                        2 -> "🥈"
+                        else -> "🥉"
+                    }
+                    Text(emoji, fontSize = 16.sp)
                 } else {
                     Text(
                         text = "#$rank",

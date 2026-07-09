@@ -32,6 +32,9 @@ import com.example.daadi.model.GameState
 import com.example.daadi.ui.components.SimulatedAdBanner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+
 @Composable
 fun HomeScreen(
     savedGameState: GameState?,
@@ -47,6 +50,7 @@ fun HomeScreen(
     onFeedbackClick: () -> Unit,
     onDiscardSave: () -> Unit
 ) {
+    val haptic = LocalHapticFeedback.current
     val systemSettings by sharedGameViewModel.remoteConfigRepository.systemSettings.collectAsStateWithLifecycle()
     val isMaintenanceMode = systemSettings.find { it.key == "maintenance_mode" }?.value == "on"
     val currentUser by sharedGameViewModel.authRepository.currentUser.collectAsStateWithLifecycle()
@@ -217,7 +221,10 @@ fun HomeScreen(
                               ) {
                                 // Resume Button
                                 Button(
-                                    onClick = onResumeGame,
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onResumeGame()
+                                    },
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = Color(0xFF5C2D0A),
                                         contentColor = Color.White
@@ -302,7 +309,10 @@ fun HomeScreen(
 
                 // PRIMARY ACTION: Play vs Computer
                 Button(
-                    onClick = { onPlayVsAi(activeRuleSet) },
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onPlayVsAi(activeRuleSet)
+                    },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C2D0A)),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
@@ -359,7 +369,10 @@ fun HomeScreen(
 
                 // REAL-TIME MULTIPLAYER (NEW)
                 Button(
-                    onClick = { onPlayMultiplayer(activeRuleSet) },
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onPlayMultiplayer(activeRuleSet)
+                    },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC75D27)), // Terracotta crimson
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
@@ -379,7 +392,10 @@ fun HomeScreen(
 
                 // SECONDARY ACTION: Pass & Play
                 Button(
-                    onClick = { onPlayLocal(activeRuleSet) },
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onPlayLocal(activeRuleSet)
+                    },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD4A55A)),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier

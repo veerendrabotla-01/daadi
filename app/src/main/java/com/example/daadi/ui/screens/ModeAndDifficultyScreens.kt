@@ -8,7 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -72,6 +72,7 @@ fun DifficultySelectScreen(
                     title = "Sanyasi (Easy Mode)",
                     desc = "Plays mostly random, playful moves. Excellent for beginners learning Daadi rules.",
                     colorLabel = Color(0xFF2E7D32),
+                    icon = Icons.Default.Face,
                     isSelected = selectedDifficulty == AIDifficulty.EASY,
                     onClick = { selectedDifficulty = AIDifficulty.EASY },
                     modifier = Modifier.testTag("easy_difficulty_card")
@@ -83,6 +84,7 @@ fun DifficultySelectScreen(
                     title = "Mantri (Medium Mode)",
                     desc = "Plays strategic mill blockades and attacks. Highly competitive for casual play.",
                     colorLabel = Color(0xFFE65100),
+                    icon = Icons.Default.Sync,
                     isSelected = selectedDifficulty == AIDifficulty.MEDIUM,
                     onClick = { selectedDifficulty = AIDifficulty.MEDIUM },
                     modifier = Modifier.testTag("medium_difficulty_card")
@@ -94,6 +96,7 @@ fun DifficultySelectScreen(
                     title = "Chanakya (Hard Mode)",
                     desc = "Deep tactical minimax alpha-beta lookaheads. A true test of Indian strategy skill!",
                     colorLabel = Color(0xFFC62828),
+                    icon = Icons.Default.School,
                     isSelected = selectedDifficulty == AIDifficulty.HARD,
                     onClick = { selectedDifficulty = AIDifficulty.HARD },
                     modifier = Modifier.testTag("hard_difficulty_card")
@@ -128,6 +131,7 @@ fun DifficultyCard(
     title: String,
     desc: String,
     colorLabel: Color,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     isSelected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -149,10 +153,13 @@ fun DifficultyCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(24.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(colorLabel)
-            )
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(colorLabel.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = colorLabel, modifier = Modifier.size(22.dp))
+            }
 
             Spacer(modifier = Modifier.width(16.dp))
 

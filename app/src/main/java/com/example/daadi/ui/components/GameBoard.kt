@@ -78,6 +78,7 @@ fun GameBoard(
     }
 
     // Pulsing animations for highlights
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val infiniteTransition = rememberInfiniteTransition(label = "board_pulse")
     val pulseAlpha by infiniteTransition.animateFloat(
         initialValue = 0.4f,
@@ -179,6 +180,7 @@ fun GameBoard(
                     }
 
                     if (nearestNodeId != -1) {
+                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                         onNodeTapped(nearestNodeId)
                     }
                 }
