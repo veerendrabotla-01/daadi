@@ -1,6 +1,7 @@
 package com.example.daadi.ui.screens
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -22,6 +23,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
@@ -30,8 +32,8 @@ import kotlinx.coroutines.launch
 data class OnboardingPage(
     val title: String,
     val description: String,
-    val icon: androidx.compose.ui.graphics.vector.ImageVector,
-    val color: Color
+    val imageRes: Int,
+    val accentColor: Color
 )
 
 @Composable
@@ -40,56 +42,75 @@ fun OnboardingScreen(onFinish: () -> Unit) {
         OnboardingPage(
             "Ancient Origins",
             "Daadi is a strategy board game for two players that dates back centuries. Experience the clash of wits in its purest form.",
-            androidx.compose.material.icons.Icons.Default.Star,
-            Color(0xFF5D4037)
+            R.drawable.img_onboarding_ancient_1783963612016,
+            Color(0xFFFFD700) // Golden accent
         ),
         OnboardingPage(
             "The Power of Three",
             "Form lines of three beads—called Mills—to capture your opponent's pieces. Strategy is your only weapon.",
-            androidx.compose.material.icons.Icons.Default.PlayArrow,
-            Color(0xFF2E7D32)
+            R.drawable.img_onboarding_mills_1783963624342,
+            Color(0xFF00E5FF) // Cyan accent
         ),
         OnboardingPage(
-            "Online Duals",
+            "Online Duels",
             "Challenge masters worldwide or sharpen your skills against Chanakya, our tactical AI engine.",
-            androidx.compose.material.icons.Icons.Default.Person,
-            Color(0xFF1565C0)
+            R.drawable.img_onboarding_duals_1783963642639,
+            Color(0xFFBB86FC) // Purple accent
         )
     )
 
     val pagerState = rememberPagerState(pageCount = { pages.size })
     val scope = rememberCoroutineScope()
 
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0F111A))) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF1A1C2C),
+                        Color(0xFF0F111A)
+                    )
+                )
+            )
+    ) {
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize()
         ) { page ->
-            OnboardingPageContent(pages[page])
+            OnboardingPageContent(pages[page], pagerState.currentPage == page)
         }
 
+        // Bottom Controls
         Column(
-            modifier = Modifier.align(Alignment.BottomCenter).padding(32.dp),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 48.dp, start = 32.dp, end = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Page Indicator
             Row(
-                Modifier.height(50.dp).fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
+                modifier = Modifier.padding(bottom = 40.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 repeat(pages.size) { iteration ->
-                    val color = if (pagerState.currentPage == iteration) Color.Cyan else Color.Gray.copy(alpha = 0.5f)
+                    val isSelected = pagerState.currentPage == iteration
+                    val width by animateDpAsState(targetValue = if (isSelected) 32.dp else 8.dp, label = "")
+                    val color by animateColorAsState(targetValue = if (isSelected) pages[pagerState.currentPage].accentColor else Color.White.copy(alpha = 0.2f), label = "")
+                    
                     Box(
                         modifier = Modifier
-                            .padding(4.dp)
+                            .height(8.dp)
+                            .width(width)
                             .clip(CircleShape)
                             .background(color)
-                            .size(if (pagerState.currentPage == iteration) 12.dp else 8.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
-
+            // Primary Action Button
             Button(
                 onClick = {
                     if (pagerState.currentPage < pages.size - 1) {
@@ -98,74 +119,123 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                         onFinish()
                     }
                 },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Cyan, contentColor = Color.Black)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp)
+                    .clip(RoundedCornerShape(20.dp)),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = pages[pagerState.currentPage].accentColor,
+                    contentColor = Color.Black
+                ),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp)
             ) {
                 Text(
-                    text = if (pagerState.currentPage == pages.size - 1) "GET STARTED" else "NEXT",
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 2.sp
+                    text = if (pagerState.currentPage == pages.size - 1) "ENTER THE ARENA" else "CONTINUE",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.5.sp
                 )
-                if (pagerState.currentPage < pages.size - 1) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
-                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
             }
             
             TextButton(
                 onClick = onFinish,
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier.padding(top = 16.dp)
             ) {
-                Text("SKIP", color = Color.Gray, fontWeight = FontWeight.Bold)
+                Text(
+                    "SKIP TOUR",
+                    color = Color.White.copy(alpha = 0.5f),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
             }
         }
     }
 }
 
 @Composable
-fun OnboardingPageContent(page: OnboardingPage) {
+fun OnboardingPageContent(page: OnboardingPage, isVisible: Boolean) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = 80.dp, start = 40.dp, end = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Surface(
-            modifier = Modifier.size(120.dp),
-            shape = CircleShape,
-            color = page.color.copy(alpha = 0.2f),
-            border = androidx.compose.foundation.BorderStroke(2.dp, page.color)
+        // Illustration with floating animation
+        val infiniteTransition = rememberInfiniteTransition(label = "")
+        val offsetY by infiniteTransition.animateValue(
+            initialValue = 0.dp,
+            targetValue = 15.dp,
+            typeConverter = Dp.VectorConverter,
+            animationSpec = infiniteRepeatable(
+                animation = tween(2000, easing = LinearOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = ""
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(0.85f)
+                .aspectRatio(3f / 4f)
+                .offset(y = offsetY)
+                .clip(RoundedCornerShape(32.dp))
+                .background(page.accentColor.copy(alpha = 0.05f))
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = page.icon,
-                    contentDescription = null,
-                    tint = page.color,
-                    modifier = Modifier.size(64.dp)
+            Image(
+                painter = painterResource(id = page.imageRes),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+            
+            // Subtle Glow Overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color(0xFF0F111A).copy(alpha = 0.3f)
+                            )
+                        )
+                    )
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(60.dp))
+        
+        AnimatedVisibility(
+            visible = isVisible,
+            enter = fadeIn(tween(600)) + slideInVertically(initialOffsetY = { 40 }, animationSpec = tween(600))
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = page.title,
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White,
+                    textAlign = TextAlign.Center
+                )
+                
+                Spacer(modifier = Modifier.height(20.dp))
+                
+                Text(
+                    text = page.description,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color.White.copy(alpha = 0.7f),
+                    textAlign = TextAlign.Center,
+                    lineHeight = 28.sp,
+                    modifier = Modifier.padding(horizontal = 8.dp)
                 )
             }
         }
-        
-        Spacer(modifier = Modifier.height(48.dp))
-        
-        Text(
-            text = page.title.uppercase(),
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Black,
-            color = Color.White,
-            textAlign = TextAlign.Center
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        Text(
-            text = page.description,
-            fontSize = 16.sp,
-            color = Color.Gray,
-            textAlign = TextAlign.Center,
-            lineHeight = 24.sp
-        )
-        
-        Spacer(modifier = Modifier.height(100.dp)) // Padding for buttons
     }
 }

@@ -29,6 +29,7 @@ fun AdminFoundationScaffold(
     title: String,
     adminViewModel: com.example.daadi.viewmodel.AdminViewModel? = null,
     onBack: () -> Unit,
+    onHelpClick: (() -> Unit)? = null,
     searchQuery: String = "",
     onSearchQueryChange: (String) -> Unit = {},
     showSearch: Boolean = false,
@@ -57,6 +58,11 @@ fun AdminFoundationScaffold(
                             },
                             actions = {
                                 actions()
+                                if (onHelpClick != null) {
+                                    IconButton(onClick = onHelpClick) {
+                                        Icon(Icons.Default.HelpOutline, contentDescription = "Help", tint = MaterialTheme.colorScheme.onSurface)
+                                    }
+                                }
                                 if (supabaseManager != null) {
                                     IconButton(onClick = { supabaseManager.loadInitialData() }) {
                                         Icon(Icons.Default.Refresh, contentDescription = "Refresh Data", tint = MaterialTheme.colorScheme.onSurface)
@@ -120,6 +126,7 @@ fun AdminFoundationScaffold(
     title: String,
     supabaseManager: com.example.daadi.data.supabase.SupabaseManager?,
     onBack: () -> Unit,
+    onHelpClick: (() -> Unit)? = null,
     searchQuery: String = "",
     onSearchQueryChange: (String) -> Unit = {},
     showSearch: Boolean = false,
@@ -130,6 +137,7 @@ fun AdminFoundationScaffold(
         title = title,
         adminViewModel = null,
         onBack = onBack,
+        onHelpClick = onHelpClick,
         searchQuery = searchQuery,
         onSearchQueryChange = onSearchQueryChange,
         showSearch = showSearch,
@@ -264,7 +272,11 @@ fun AuditLogItem(log: SupabaseAuditLog) {
 }
 
 @Composable
-fun AdminPermissionMatrixScreen(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onBack: () -> Unit) {
+fun AdminPermissionMatrixScreen(
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
+    onBack: () -> Unit,
+    onHelpClick: (() -> Unit)? = null
+) {
     val roles by supabaseManager.roles.collectAsStateWithLifecycle()
     val permissions by supabaseManager.permissions.collectAsStateWithLifecycle()
     val rolePermissions by supabaseManager.rolePermissions.collectAsStateWithLifecycle()
@@ -278,6 +290,7 @@ fun AdminPermissionMatrixScreen(adminViewModel: com.example.daadi.viewmodel.Admi
         title = "Permission Matrix",
         adminViewModel = adminViewModel,
         onBack = onBack,
+        onHelpClick = onHelpClick,
         actions = {
             IconButton(onClick = { supabaseManager.fetchRolesAndPermissions() }) {
                 Icon(Icons.Default.Refresh, contentDescription = "Refresh Matrix", tint = AdminDesign.Primary)
@@ -297,12 +310,20 @@ fun AdminPermissionMatrixScreen(adminViewModel: com.example.daadi.viewmodel.Admi
                 description = "Role-based access matrix records could not be retrieved from the cloud services. Please initialize your roles table.",
                 icon = { Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(64.dp), tint = AdminDesign.Error) },
                 actionButton = {
-                    Button(
-                        onClick = { supabaseManager.fetchRolesAndPermissions() },
-                        colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Primary),
-                        shape = AdminDesign.ButtonShape
-                    ) {
-                        Text("RETRY CONNECTION")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { supabaseManager.fetchRolesAndPermissions() },
+                            colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Primary),
+                            shape = AdminDesign.ButtonShape
+                        ) {
+                            Text("RETRY CONNECTION")
+                        }
+                        OutlinedButton(
+                            onClick = { supabaseManager.initializeSystemRoles() },
+                            shape = AdminDesign.ButtonShape
+                        ) {
+                            Text("SEED SYSTEM DATA")
+                        }
                     }
                 }
             )
@@ -539,6 +560,7 @@ fun AdminTopBar(
     title: String,
     currentUser: SupabaseUser?,
     onBack: () -> Unit,
+    onHelpClick: (() -> Unit)? = null,
     showBackButton: Boolean = true
 ) {
     var showSearchDialog by remember { mutableStateOf(false) }
@@ -567,6 +589,11 @@ fun AdminTopBar(
             }
             IconButton(onClick = { showNotificationsDialog = true }) {
                 Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+            }
+            if (onHelpClick != null) {
+                IconButton(onClick = onHelpClick) {
+                    Icon(Icons.Default.HelpOutline, contentDescription = "Help")
+                }
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(

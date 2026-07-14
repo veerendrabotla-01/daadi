@@ -18,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
@@ -31,7 +32,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun AdminUserManagementScreen(
     adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onHelpClick: (() -> Unit)? = null
 ) {
     val users by adminViewModel.userRepository.users.collectAsStateWithLifecycle()
     val isOnline by adminViewModel.authRepository.network.isOnline.collectAsStateWithLifecycle()
@@ -39,9 +41,10 @@ fun AdminUserManagementScreen(
     val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
     var selectedUser by remember { mutableStateOf<SupabaseUser?>(null) }
     var searchQuery by remember { mutableStateOf("") }
+    var showBots by remember { mutableStateOf(true) }
     
     // Display logic: Prefer live users if online, otherwise cached
-    val displayUsers = if (isOnline) users else cachedUsers.map { 
+    val displayUsers = (if (isOnline) users else cachedUsers.map { 
         SupabaseUser(
             id = it.id,
             username = it.username,
@@ -57,6 +60,8 @@ fun AdminUserManagementScreen(
             isBanned = it.isBanned,
             isVerified = it.isVerified
         )
+    }).filter { 
+        if (showBots) true else !it.email.endsWith("@daadi.fake")
     }
 
     BoxWithConstraints {
@@ -71,7 +76,8 @@ fun AdminUserManagementScreen(
                 searchQuery = searchQuery,
                 onSearchQueryChange = { searchQuery = it },
                 adminViewModel = adminViewModel,
-                onBack = onBack
+                onBack = onBack,
+                onHelpClick = onHelpClick
             )
         } else {
             if (selectedUser == null) {
@@ -82,13 +88,17 @@ fun AdminUserManagementScreen(
                     searchQuery = searchQuery,
                     onSearchChange = { searchQuery = it },
                     adminViewModel = adminViewModel,
-                    onBack = onBack
+                    onBack = onBack,
+                    onHelpClick = onHelpClick,
+                    showBots = showBots,
+                    onShowBotsChange = { showBots = it }
                 )
             } else {
                 AdminUserDetailsScreen(
                     user = selectedUser!!,
                     adminViewModel = adminViewModel,
-                    onBack = { selectedUser = null }
+                    onBack = { selectedUser = null },
+                    onHelpClick = onHelpClick
                 )
             }
         }
@@ -104,21 +114,34 @@ fun AdminWideUserManagement(
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onHelpClick: (() -> Unit)? = null
 ) {
+    var showBots by remember { mutableStateOf(true) }
+    val filteredUsers = remember(users, showBots) {
+        if (showBots) users else users.filter { !it.email.endsWith("@daadi.fake") }
+    }
+
     AdminFoundationScaffold(
         title = "User Management",
         adminViewModel = adminViewModel,
         onBack = onBack,
+        onHelpClick = onHelpClick,
         showSearch = true,
         searchQuery = searchQuery,
-        onSearchQueryChange = onSearchQueryChange
+        onSearchQueryChange = onSearchQueryChange,
+        actions = {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
+                Text("Bots", style = MaterialTheme.typography.labelSmall)
+                Switch(checked = showBots, onCheckedChange = { showBots = it }, modifier = Modifier.scale(0.6f))
+            }
+        }
     ) { padding ->
         Row(modifier = Modifier.padding(padding).fillMaxSize()) {
             // Left Panel: List
             Box(modifier = Modifier.weight(0.4f).fillMaxHeight()) {
                 UserListContent(
-                    users = users,
+                    users = filteredUsers,
                     isSyncing = isSyncing,
                     searchQuery = searchQuery,
                     onUserClick = onUserSelect,
@@ -154,15 +177,25 @@ fun AdminUserListScreen(
     searchQuery: String,
     onSearchChange: (String) -> Unit,
     adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onHelpClick: (() -> Unit)? = null,
+    showBots: Boolean = true,
+    onShowBotsChange: (Boolean) -> Unit = {}
 ) {
     AdminFoundationScaffold(
         title = "User Directory",
         adminViewModel = adminViewModel,
         onBack = onBack,
+        onHelpClick = onHelpClick,
         showSearch = true,
         searchQuery = searchQuery,
-        onSearchQueryChange = onSearchChange
+        onSearchQueryChange = onSearchChange,
+        actions = {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
+                Text("Bots", style = MaterialTheme.typography.labelSmall)
+                Switch(checked = showBots, onCheckedChange = onShowBotsChange, modifier = Modifier.scale(0.6f))
+            }
+        }
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
             UserListContent(
@@ -297,7 +330,15 @@ fun UserListItem(user: SupabaseUser, onClick: () -> Unit, isSelected: Boolean = 
             }
             Spacer(modifier = Modifier.width(AdminDesign.SpacingMedium))
             Column(modifier = Modifier.weight(1f)) {
-                Text(user.username, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, color = AdminDesign.OnSurface)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(user.username, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, color = AdminDesign.OnSurface)
+                    if (user.email.endsWith("@daadi.fake")) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Badge(containerColor = AdminDesign.Secondary.copy(alpha = 0.2f)) {
+                            Text("BOT", fontSize = 7.sp, color = AdminDesign.Secondary, fontWeight = FontWeight.Black)
+                        }
+                    }
+                }
                 Text(user.email, fontSize = 11.sp, color = AdminDesign.OnSurfaceVariant)
             }
             Column(horizontalAlignment = Alignment.End) {
@@ -324,12 +365,14 @@ fun UserListItem(user: SupabaseUser, onClick: () -> Unit, isSelected: Boolean = 
 fun AdminUserDetailsScreen(
     user: SupabaseUser,
     adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onHelpClick: (() -> Unit)? = null
 ) {
     AdminFoundationScaffold(
         title = "Player Profile",
         adminViewModel = adminViewModel,
-        onBack = onBack
+        onBack = onBack,
+        onHelpClick = onHelpClick
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
             UserDetailsContent(user = user, adminViewModel = adminViewModel)

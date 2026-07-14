@@ -817,6 +817,16 @@ class AdminRepository(val network: SupabaseManager) {
     val adminAuditLogs: StateFlow<List<AdminAuditLog>> = network.adminAuditLogs
 
     fun requestDataExport(modules: List<String>, format: String, onResult: (Boolean, String) -> Unit) {
+        if (!network.isConfigured) {
+            network.scope.launch {
+                delay(1500) // Simulate processing time
+                network.logAdminAction("DATA_EXPORT", "Modules: ${modules.joinToString()}, Format: $format")
+                network.runOnMain {
+                    onResult(true, "SIMULATION: Export request for ${modules.size} modules submitted. Check Audit Logs.")
+                }
+            }
+            return
+        }
         network.scope.launch {
             try {
                 val userId = network.currentUser.value?.id ?: return@launch

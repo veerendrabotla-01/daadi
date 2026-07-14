@@ -412,9 +412,9 @@ val isConfigured: Boolean
             .cache(cache)
             .connectionPool(connectionPool)
             .dispatcher(dispatcher)
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
-            .writeTimeout(15, TimeUnit.SECONDS)
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
 
         if (!parsedHost.isNullOrBlank()) {
             val pinner = CertificatePinner.Builder()
@@ -2010,6 +2010,7 @@ fun loadInitialData() {
                 fetchQueueMetrics()
                 fetchDeviceRecords()
                 fetchHealthMetrics()
+                fetchRolesAndPermissions()
             } else {
                 // Fallback to local storage simulator (fully functional so buttons are active!)
                 Log.d(tag, "Supabase Credentials Missing. Loading robust local database simulation...")
@@ -4963,7 +4964,12 @@ fun toggleGameEvent(eventId: String, isActive: Boolean) {
     }
 
     fun fetchRolesAndPermissions() {
-        if (!isConfigured) return
+        if (!isConfigured) {
+            // Simulator already has them loaded via loadSimulatorData()
+            // but we can ensure they are refreshed if needed
+            if (_roles.value.isEmpty()) loadSimulatorData()
+            return
+        }
         scope.launch {
             try {
                 // Fetch Roles
@@ -5004,6 +5010,60 @@ fun toggleGameEvent(eventId: String, isActive: Boolean) {
                         _rolePermissions.value = rolePermissionListAdapter.fromJson(json) ?: emptyList()
                     }
                 }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun initializeSystemRoles() {
+        if (!isConfigured) {
+            loadSimulatorData()
+            return
+        }
+        scope.launch {
+            try {
+                // Seed Roles
+                val roles = listOf(
+                    mapOf("id" to "R-1", "name" to "PublicUser", "description" to "General public user who can play casual games"),
+                    mapOf("id" to "R-2", "name" to "Player", "description" to "Verified system players with profile access"),
+                    mapOf("id" to "R-3", "name" to "Admin", "description" to "Full system administration and data control")
+                )
+                roles.forEach { role ->
+                    val json = moshi.adapter(Map::class.java).toJson(role)
+                    val request = Request.Builder()
+                        .url("$supabaseUrl/rest/v1/roles")
+                        .headers(getHeaders())
+                        .post(json.toRequestBody("application/json".toMediaType()))
+                        .build()
+                    client.newCall(request).execute()
+                }
+
+                // Seed Permissions
+                val perms = listOf(
+                    mapOf("id" to "P-1", "name" to "admin_dashboard", "description" to "Access the main administration dashboard panel"),
+                    mapOf("id" to "P-2", "name" to "view_analytics", "description" to "View business intelligence daily stats and metrics"),
+                    mapOf("id" to "P-3", "name" to "view_logs", "description" to "Access system diagnostic logs and crash reports"),
+                    mapOf("id" to "P-4", "name" to "view_system_health", "description" to "Monitor real-time system performance & latency metrics"),
+                    mapOf("id" to "P-5", "name" to "moderate_users", "description" to "Perform system moderation including user bans & reporting checks"),
+                    mapOf("id" to "P-6", "name" to "view_audit_logs", "description" to "Inspect security audit trails and administrator activity histories"),
+                    mapOf("id" to "P-7", "name" to "manage_matches", "description" to "Create, complete, or terminate game match records"),
+                    mapOf("id" to "P-8", "name" to "manage_config", "description" to "Update application remote config & content delivery variables"),
+                    mapOf("id" to "P-9", "name" to "manage_users", "description" to "Create, update, or adjust individual user accounts"),
+                    mapOf("id" to "P-10", "name" to "assign_roles", "description" to "Alter the authorization levels of system actors"),
+                    mapOf("id" to "P-11", "name" to "manage_admins", "description" to "Add or remove structural administrative accounts"),
+                    mapOf("id" to "P-12", "name" to "manage_notifications", "description" to "Draft and dispatch real-time system push notifications"),
+                    mapOf("id" to "P-13", "name" to "manage_tournaments", "description" to "Create, edit, delete, or structure tournament schedules")
+                )
+                perms.forEach { perm ->
+                    val json = moshi.adapter(Map::class.java).toJson(perm)
+                    val request = Request.Builder()
+                        .url("$supabaseUrl/rest/v1/permissions")
+                        .headers(getHeaders())
+                        .post(json.toRequestBody("application/json".toMediaType()))
+                        .build()
+                    client.newCall(request).execute()
+                }
+                
+                fetchRolesAndPermissions()
             } catch (e: Exception) {}
         }
     }

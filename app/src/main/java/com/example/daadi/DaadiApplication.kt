@@ -59,26 +59,23 @@ class DaadiApplication : Application() {
                     for (path in webViewDirs) {
                         val dir = java.io.File(path)
                         try {
-                            var isNewlyCreated = false
                             if (!dir.exists()) {
-                                isNewlyCreated = dir.mkdirs()
+                                dir.mkdirs()
                             }
-                            if (dir.exists() && (isNewlyCreated || !dir.canRead() || !dir.canWrite())) {
+                            if (dir.exists()) {
                                 dir.setReadable(true, false)
                                 dir.setWritable(true, false)
                                 dir.setExecutable(true, false)
+                                
+                                // Create a persistent placeholder to ensure directory is non-empty
+                                // and simple_file_enumerator doesn't freak out
+                                val placeholder = java.io.File(dir, ".placeholder")
+                                if (!placeholder.exists()) {
+                                    placeholder.createNewFile()
+                                }
                             }
                         } catch (e: Exception) {
                             android.util.Log.e("DaadiApp", "Failed to ensure webview cache dir: $path", e)
-                        }
-                    }
-
-                    // Clean up placeholder files
-                    listOf("HTTP Cache/Code Cache/js", "HTTP Cache/Code Cache/wasm", "Code Cache/js", "Code Cache/wasm").forEach { subPath ->
-                        val dir = java.io.File(cacheDir, "WebView/Default/$subPath")
-                        if (dir.exists()) {
-                            val placeholder = java.io.File(dir, ".placeholder")
-                            if (placeholder.exists()) placeholder.delete()
                         }
                     }
                 } catch (e: Exception) {
@@ -89,11 +86,51 @@ class DaadiApplication : Application() {
         }
     }
 
+    private fun prepareWebViewCacheSync() {
+        try {
+            val cacheBase = cacheDir.absolutePath
+            val webViewDirs = listOf(
+                "WebView",
+                "WebView/Default",
+                "WebView/Default/HTTP Cache",
+                "WebView/Default/HTTP Cache/Code Cache",
+                "WebView/Default/HTTP Cache/Code Cache/js",
+                "WebView/Default/HTTP Cache/Code Cache/wasm",
+                "WebView/Default/Code Cache",
+                "WebView/Default/Code Cache/js",
+                "WebView/Default/Code Cache/wasm"
+            )
+
+            for (subPath in webViewDirs) {
+                val dir = java.io.File(cacheDir, subPath)
+                if (!dir.exists()) {
+                    dir.mkdirs()
+                }
+                if (dir.exists()) {
+                    dir.setReadable(true, false)
+                    dir.setWritable(true, false)
+                    dir.setExecutable(true, false)
+                    
+                    // Create synchronous placeholder
+                    val placeholder = java.io.File(dir, ".placeholder")
+                    if (!placeholder.exists()) {
+                        placeholder.createNewFile()
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("DaadiApp", "Critical error preparing cache dirs", e)
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         instance = this
         
-        // Start WebView HTTP cache maintenance (handles its own background retries)
+        // Fix for Chromium opendir errors: Create directories synchronously before background passes
+        prepareWebViewCacheSync()
+        
+        // Start background maintenance for redundancy
         ensureWebViewCacheDirs()
     }
 

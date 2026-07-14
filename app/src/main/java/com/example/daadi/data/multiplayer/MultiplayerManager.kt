@@ -81,9 +81,9 @@ class MultiplayerManager(
 ) {
     private val tag = "MultiplayerManager"
     private val client = OkHttpClient.Builder()
-        .readTimeout(15, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
-        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(30, TimeUnit.SECONDS)
         .pingInterval(30, TimeUnit.SECONDS) // Native heartbeat keepalive
         .connectionPool(ConnectionPool(10, 5, TimeUnit.MINUTES))
         .build()

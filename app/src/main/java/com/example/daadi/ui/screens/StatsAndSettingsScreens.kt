@@ -686,6 +686,26 @@ fun SettingsScreen(
                 }
             }
 
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF2F2F2)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "DAADI FOUNDERS", 
+                        style = MaterialTheme.typography.titleSmall, 
+                        color = Color.DarkGray, 
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "This game is founded and developed by Botla Veerendra and Macha Praveen. Dedicated to preserving traditional board gaming culture.", 
+                        fontSize = 11.sp, 
+                        color = Color.Gray
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.weight(1f))
 
             // Version Display

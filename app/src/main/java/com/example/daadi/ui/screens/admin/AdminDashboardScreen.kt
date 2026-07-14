@@ -67,6 +67,7 @@ fun AdminDashboardScreen(
     onNavigateToRollbacks: () -> Unit,
     onNavigateToAIEngine: () -> Unit,
     onNavigateToLeaderboards: () -> Unit,
+    onNavigateToHelp: () -> Unit,
     onBack: () -> Unit
 ) {
     val users by adminViewModel.userRepository.users.collectAsStateWithLifecycle()
@@ -128,6 +129,7 @@ fun AdminDashboardScreen(
                             title = "Admin Control Center",
                             currentUser = currentUser,
                             onBack = onBack,
+                            onHelpClick = onNavigateToHelp,
                             showBackButton = !isWide
                         )
                     },
@@ -259,11 +261,17 @@ fun QuickStatCard(label: String, value: String, modifier: Modifier = Modifier, i
 
 @Composable
 fun QuickStatsRow(users: List<com.example.daadi.data.supabase.SupabaseUser>, matches: List<com.example.daadi.data.supabase.SupabaseMatch>, biMetrics: List<com.example.daadi.data.supabase.SupabaseBIMetrics>) {
+    val humanCount = users.count { !it.email.endsWith("@daadi.fake") }
+    val botCount = users.size - humanCount
+    
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(AdminDesign.SpacingMedium)
     ) {
-        QuickStatCard("Total Users", "${users.size}", Modifier.weight(1f))
+        Column(modifier = Modifier.weight(1f)) {
+            QuickStatCard("Human Users", "$humanCount", Modifier.fillMaxWidth())
+            Text("Total Profiles: ${users.size}", style = MaterialTheme.typography.labelSmall, color = AdminDesign.OnSurfaceVariant, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
+        }
         QuickStatCard("Active Matches", "${matches.count { it.status == "playing" }}", Modifier.weight(1f))
         QuickStatCard("Total Revenue", "$${biMetrics.sumOf { it.totalRevenue }.toInt()}", Modifier.weight(1f))
     }

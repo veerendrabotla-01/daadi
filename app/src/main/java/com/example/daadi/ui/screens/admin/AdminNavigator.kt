@@ -59,14 +59,22 @@ fun AdminNavigator(
                 onNavigateToRollbacks = { adminNavController.navigate("rollbacks") },
                 onNavigateToAIEngine = { adminNavController.navigate("ai_engine") },
                 onNavigateToLeaderboards = { adminNavController.navigate("leaderboards") },
+                onNavigateToHelp = { adminNavController.navigate("help") },
                 onBack = onExitAdmin
+            )
+        }
+
+        composable("help") {
+            AdminHelpScreen(
+                onBack = { adminNavController.popBackStack() }
             )
         }
 
         composable("user_list") {
             AdminUserManagementScreen(
                 adminViewModel = adminViewModel,
-                onBack = { adminNavController.popBackStack() }
+                onBack = { adminNavController.popBackStack() },
+                onHelpClick = { adminNavController.navigate("help") }
             )
         }
 
@@ -170,7 +178,8 @@ fun AdminNavigator(
         composable("permission_matrix") {
             AdminPermissionMatrixScreen(
                 adminViewModel = adminViewModel,
-                onBack = { adminNavController.popBackStack() }
+                onBack = { adminNavController.popBackStack() },
+                onHelpClick = { adminNavController.navigate("help") }
             )
         }
 
