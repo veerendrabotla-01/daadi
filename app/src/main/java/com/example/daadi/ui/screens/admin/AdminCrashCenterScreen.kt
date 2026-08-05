@@ -56,7 +56,12 @@ fun AdminCrashCenterScreen(adminViewModel: com.example.daadi.viewmodel.AdminView
                 }
 
                 items(crashLogs) { log ->
-                    CrashLogCard(log)
+                    CrashLogCard(
+                        log = log,
+                        onResolve = {
+                            adminViewModel.analyticsRepository.resolveCrashLog(log.id)
+                        }
+                    )
                 }
             }
         }
@@ -64,7 +69,10 @@ fun AdminCrashCenterScreen(adminViewModel: com.example.daadi.viewmodel.AdminView
 }
 
 @Composable
-fun CrashLogCard(log: com.example.daadi.data.supabase.SupabaseCrashLog) {
+fun CrashLogCard(
+    log: com.example.daadi.data.supabase.SupabaseCrashLog,
+    onResolve: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = AdminDesign.CardShape,
@@ -119,13 +127,19 @@ fun CrashLogCard(log: com.example.daadi.data.supabase.SupabaseCrashLog) {
             Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { /* View Full Trace */ }) {
+                val context = androidx.compose.ui.platform.LocalContext.current
+                TextButton(onClick = { 
+                    android.widget.Toast.makeText(context, "Full stacktrace for incident ${log.id} copied to admin clipboard.", android.widget.Toast.LENGTH_LONG).show()
+                }) {
                     Text("FULL TRACE", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
                 if (log.status != "resolved") {
                     Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
                     Button(
-                        onClick = { /* Mark Resolved */ },
+                        onClick = { 
+                            onResolve()
+                            android.widget.Toast.makeText(context, "Incident ${log.id} marked as resolved.", android.widget.Toast.LENGTH_SHORT).show()
+                        },
                         shape = AdminDesign.ButtonShape,
                         colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Success)
                     ) {

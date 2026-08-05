@@ -1,7 +1,5 @@
 package com.example.daadi.ui.screens.admin
 
-
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -38,39 +36,98 @@ fun AdminAIAssistantScreen(adminViewModel: com.example.daadi.viewmodel.AdminView
         "Summarize live match & multiplayer stats"
     )
 
-    AdminFoundationScaffold("Insight Engine", supabaseManager, onBack) { padding ->
+    fun executeQuery(prompt: String) {
+        if (prompt.isNotBlank()) {
+            isSearching = true
+            query = prompt
+            scope.launch {
+                response = adminViewModel.analyticsRepository.askAiAssistant(prompt)
+                isSearching = false
+            }
+        }
+    }
+
+    AdminFoundationScaffold("Insight Engine", adminViewModel, onBack) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize().padding(AdminDesign.SpacingMedium)) {
             Box(modifier = Modifier.weight(1f)) {
                 if (response == null) {
                     Column(
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.Center,
+                        verticalArrangement = Arrangement.Top,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        Spacer(modifier = Modifier.height(16.dp))
                         Surface(
-                            modifier = Modifier.size(64.dp),
+                            modifier = Modifier.size(56.dp),
                             shape = CircleShape,
                             color = AdminDesign.Primary.copy(alpha = 0.1f)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.Analytics, contentDescription = null, tint = AdminDesign.Primary, modifier = Modifier.size(32.dp))
+                                Icon(Icons.Default.Analytics, contentDescription = null, tint = AdminDesign.Primary, modifier = Modifier.size(28.dp))
                             }
                         }
-                        Spacer(modifier = Modifier.height(AdminDesign.SpacingLarge))
-                        Text("DAADI LOCAL INTEL ENGINE", fontWeight = FontWeight.Black, fontSize = 20.sp, color = AdminDesign.OnSurface)
+                        Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+                        Text("DAADI LOCAL INTEL ENGINE", fontWeight = FontWeight.Black, fontSize = 18.sp, color = AdminDesign.OnSurface)
                         Text(
-                            text = "Instant, secure diagnostics from active data bounds.", 
-                            fontSize = 14.sp, 
+                            text = "Instant, secure diagnostic scanning and LiveOps recommendations.", 
+                            fontSize = 12.sp, 
                             color = AdminDesign.OnSurfaceVariant,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 24.dp)
                         )
-                        Spacer(modifier = Modifier.height(AdminDesign.SpacingExtraLarge))
+                        Spacer(modifier = Modifier.height(24.dp))
+                        
+                        // EXECUTIVE QUICK COMMAND CARDS
+                        Text("CORE TELEMETRY TRIGGERS", fontWeight = FontWeight.Black, fontSize = 10.sp, color = AdminDesign.OnSurfaceVariant)
+                        Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Card(
+                                modifier = Modifier.weight(1f).height(80.dp),
+                                colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface),
+                                shape = AdminDesign.CardShape,
+                                onClick = { executeQuery("generate report summary") }
+                            ) {
+                                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(Icons.Default.Assignment, contentDescription = null, tint = AdminDesign.Primary, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("Summary Report", fontSize = 10.sp, fontWeight = FontWeight.Black, color = AdminDesign.OnSurface)
+                                }
+                            }
+
+                            Card(
+                                modifier = Modifier.weight(1f).height(80.dp),
+                                colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface),
+                                shape = AdminDesign.CardShape,
+                                onClick = { executeQuery("scan anomalies") }
+                            ) {
+                                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(Icons.Default.ReportProblem, contentDescription = null, tint = AdminDesign.Secondary, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("Anomaly Scan", fontSize = 10.sp, fontWeight = FontWeight.Black, color = AdminDesign.OnSurface)
+                                }
+                            }
+
+                            Card(
+                                modifier = Modifier.weight(1f).height(80.dp),
+                                colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface),
+                                shape = AdminDesign.CardShape,
+                                onClick = { executeQuery("recommend liveops") }
+                            ) {
+                                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(Icons.Default.Lightbulb, contentDescription = null, tint = AdminDesign.Tertiary, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("LiveOps Ideas", fontSize = 10.sp, fontWeight = FontWeight.Black, color = AdminDesign.OnSurface)
+                                }
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(24.dp))
                         
                         Text("DIAGNOSTIC PROBES", fontWeight = FontWeight.Black, fontSize = 10.sp, color = AdminDesign.OnSurfaceVariant)
-                        Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
-                        Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall), horizontalAlignment = Alignment.CenterHorizontally) {
-                            suggestions.forEach { suggestion ->
-                                SuggestionChip(suggestion) { query = suggestion }
+                        Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                            items(suggestions) { suggestion ->
+                                SuggestionChip(suggestion) { executeQuery(suggestion) }
                             }
                         }
                     }
@@ -91,8 +148,8 @@ fun AdminAIAssistantScreen(adminViewModel: com.example.daadi.viewmodel.AdminView
                                 Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
                                 Text(
                                     text = response!!, 
-                                    fontSize = 15.sp, 
-                                    lineHeight = 24.sp, 
+                                    fontSize = 14.sp, 
+                                    lineHeight = 22.sp, 
                                     color = AdminDesign.OnSurface,
                                     fontWeight = FontWeight.Medium
                                 )
@@ -102,7 +159,7 @@ fun AdminAIAssistantScreen(adminViewModel: com.example.daadi.viewmodel.AdminView
                 }
             }
 
-            Spacer(modifier = Modifier.height(AdminDesign.SpacingLarge))
+            Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
 
             if (response != null) {
                 Button(
@@ -113,14 +170,14 @@ fun AdminAIAssistantScreen(adminViewModel: com.example.daadi.viewmodel.AdminView
                 ) {
                     Text("RESET TERMINAL", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
-                Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+                Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
             }
 
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(32.dp),
                 color = AdminDesign.Surface,
-                shadowElevation = 8.dp
+                shadowElevation = 4.dp
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically, 
@@ -138,7 +195,7 @@ fun AdminAIAssistantScreen(adminViewModel: com.example.daadi.viewmodel.AdminView
                             focusedIndicatorColor = Color.Transparent,
                             unfocusedIndicatorColor = Color.Transparent
                         ),
-                        textStyle = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold),
+                        textStyle = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold),
                         singleLine = true
                     )
                     
@@ -146,18 +203,10 @@ fun AdminAIAssistantScreen(adminViewModel: com.example.daadi.viewmodel.AdminView
                         CircularProgressIndicator(modifier = Modifier.padding(8.dp).size(24.dp), strokeWidth = 3.dp, color = AdminDesign.Primary)
                     } else {
                         IconButton(
-                            onClick = {
-                                if (query.isNotBlank()) {
-                                    isSearching = true
-                                    scope.launch {
-                                        response = adminViewModel.analyticsRepository.askAiAssistant(query)
-                                        isSearching = false
-                                    }
-                                }
-                            },
+                            onClick = { executeQuery(query) },
                             modifier = Modifier.background(AdminDesign.Primary, CircleShape)
                         ) {
-                            Icon(Icons.Default.Search, contentDescription = "Ask", tint = Color.White)
+                            Icon(Icons.Default.ArrowForward, contentDescription = "Ask", tint = Color.White)
                         }
                     }
                 }
@@ -173,14 +222,18 @@ fun SuggestionChip(text: String, onClick: () -> Unit) {
         shape = CircleShape,
         color = AdminDesign.Surface,
         border = BorderStroke(1.dp, AdminDesign.OnSurface.copy(alpha = 0.05f)),
-        shadowElevation = 2.dp
+        shadowElevation = 1.dp,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
     ) {
-        Text(
-            text = text, 
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp), 
-            fontSize = 12.sp, 
-            fontWeight = FontWeight.Bold,
-            color = AdminDesign.OnSurface
-        )
+        Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.QuestionAnswer, contentDescription = null, tint = AdminDesign.Primary.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = text, 
+                fontSize = 11.sp, 
+                fontWeight = FontWeight.Bold,
+                color = AdminDesign.OnSurface
+            )
+        }
     }
 }

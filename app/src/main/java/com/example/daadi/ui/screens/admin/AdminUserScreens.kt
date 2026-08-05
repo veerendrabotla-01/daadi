@@ -32,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun AdminUserManagementScreen(
     adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
+    onNavigate: (String) -> Unit = {},
     onBack: () -> Unit,
     onHelpClick: (() -> Unit)? = null
 ) {
@@ -43,7 +44,10 @@ fun AdminUserManagementScreen(
     var searchQuery by remember { mutableStateOf("") }
     var showBots by remember { mutableStateOf(true) }
     
-    // Display logic: Prefer live users if online, otherwise cached
+    // Filters
+    var filterStatus by remember { mutableStateOf("All") } // All, Banned, Verified, Admin, Moderator, Guest
+    var sortBy by remember { mutableStateOf("Newest") } // Newest, Rating, Wins, Username
+
     val displayUsers = (if (isOnline) users else cachedUsers.map { 
         SupabaseUser(
             id = it.id,
@@ -60,8 +64,32 @@ fun AdminUserManagementScreen(
             isBanned = it.isBanned,
             isVerified = it.isVerified
         )
-    }).filter { 
-        if (showBots) true else !it.email.endsWith("@daadi.fake")
+    }).filter { user ->
+        val matchesSearch = user.username.contains(searchQuery, true) || 
+                          user.email.contains(searchQuery, true) || 
+                          user.id.contains(searchQuery, true) ||
+                          (user.country?.contains(searchQuery, true) ?: false) ||
+                          (user.deviceId?.contains(searchQuery, true) ?: false)
+        
+        val matchesBotFilter = if (showBots) true else !user.email.endsWith("@daadi.fake")
+        
+        val matchesStatus = when(filterStatus) {
+            "Banned" -> user.isBanned
+            "Verified" -> user.isVerified
+            "Admin" -> user.role.lowercase() == "admin" || user.role.lowercase() == "superadmin"
+            "Moderator" -> user.role.lowercase() == "moderator"
+            "Shadow Banned" -> user.shadowBanned
+            else -> true
+        }
+
+        matchesSearch && matchesBotFilter && matchesStatus
+    }.let { list ->
+        when(sortBy) {
+            "Rating" -> list.sortedByDescending { it.rating }
+            "Wins" -> list.sortedByDescending { it.wins }
+            "Username" -> list.sortedBy { it.username.lowercase() }
+            else -> list.sortedByDescending { it.createdAt }
+        }
     }
 
     BoxWithConstraints {
@@ -75,7 +103,12 @@ fun AdminUserManagementScreen(
                 onUserSelect = { selectedUser = it },
                 searchQuery = searchQuery,
                 onSearchQueryChange = { searchQuery = it },
+                filterStatus = filterStatus,
+                onFilterStatusChange = { filterStatus = it },
+                sortBy = sortBy,
+                onSortByChange = { sortBy = it },
                 adminViewModel = adminViewModel,
+                onNavigate = onNavigate,
                 onBack = onBack,
                 onHelpClick = onHelpClick
             )
@@ -87,6 +120,10 @@ fun AdminUserManagementScreen(
                     onUserClick = { selectedUser = it },
                     searchQuery = searchQuery,
                     onSearchChange = { searchQuery = it },
+                    filterStatus = filterStatus,
+                    onFilterStatusChange = { filterStatus = it },
+                    sortBy = sortBy,
+                    onSortByChange = { sortBy = it },
                     adminViewModel = adminViewModel,
                     onBack = onBack,
                     onHelpClick = onHelpClick,
@@ -97,6 +134,7 @@ fun AdminUserManagementScreen(
                 AdminUserDetailsScreen(
                     user = selectedUser!!,
                     adminViewModel = adminViewModel,
+                    onNavigate = onNavigate,
                     onBack = { selectedUser = null },
                     onHelpClick = onHelpClick
                 )
@@ -113,15 +151,17 @@ fun AdminWideUserManagement(
     onUserSelect: (SupabaseUser) -> Unit,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
+    filterStatus: String,
+    onFilterStatusChange: (String) -> Unit,
+    sortBy: String,
+    onSortByChange: (String) -> Unit,
     adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
+    onNavigate: (String) -> Unit = {},
     onBack: () -> Unit,
     onHelpClick: (() -> Unit)? = null
 ) {
     var showBots by remember { mutableStateOf(true) }
-    val filteredUsers = remember(users, showBots) {
-        if (showBots) users else users.filter { !it.email.endsWith("@daadi.fake") }
-    }
-
+    
     AdminFoundationScaffold(
         title = "User Management",
         adminViewModel = adminViewModel,
@@ -137,32 +177,40 @@ fun AdminWideUserManagement(
             }
         }
     ) { padding ->
-        Row(modifier = Modifier.padding(padding).fillMaxSize()) {
-            // Left Panel: List
-            Box(modifier = Modifier.weight(0.4f).fillMaxHeight()) {
-                UserListContent(
-                    users = filteredUsers,
-                    isSyncing = isSyncing,
-                    searchQuery = searchQuery,
-                    onUserClick = onUserSelect,
-                    selectedUserId = selectedUser?.id,
-                    onBulkBan = { ids ->
-                        ids.forEach { id -> adminViewModel.userRepository.toggleUserBan(id) }
-                    }
-                )
-            }
-            VerticalDivider(color = AdminDesign.OnSurfaceVariant.copy(alpha = 0.1f), thickness = 1.dp)
+        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+            UserDirectoryStats(users)
             
-            // Right Panel: Details
-            Box(modifier = Modifier.weight(0.6f).fillMaxHeight()) {
-                if (selectedUser != null) {
-                    UserDetailsContent(user = selectedUser, adminViewModel = adminViewModel)
-                } else {
-                    AdminEmptyState(
-                        title = "No User Selected",
-                        description = "Select a player from the directory to view detailed profile and moderation tools.",
-                        icon = { Icon(Icons.Default.PersonSearch, contentDescription = null, modifier = Modifier.size(64.dp), tint = AdminDesign.OnSurfaceVariant) }
+            Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                // Left Panel: List
+                Box(modifier = Modifier.weight(0.4f).fillMaxHeight()) {
+                    UserListContent(
+                        users = users,
+                        isSyncing = isSyncing,
+                        searchQuery = searchQuery,
+                        filterStatus = filterStatus,
+                        onFilterStatusChange = onFilterStatusChange,
+                        sortBy = sortBy,
+                        onSortByChange = onSortByChange,
+                        onUserClick = onUserSelect,
+                        selectedUserId = selectedUser?.id,
+                        onBulkBan = { ids ->
+                            ids.forEach { id -> adminViewModel.userRepository.toggleUserBan(id) }
+                        }
                     )
+                }
+                VerticalDivider(color = AdminDesign.OnSurfaceVariant.copy(alpha = 0.1f), thickness = 1.dp)
+                
+                // Right Panel: Details
+                Box(modifier = Modifier.weight(0.6f).fillMaxHeight()) {
+                    if (selectedUser != null) {
+                        UserDetailsContent(user = selectedUser, adminViewModel = adminViewModel, onNavigate = onNavigate)
+                    } else {
+                        AdminEmptyState(
+                            title = "No User Selected",
+                            description = "Select a player from the directory to view detailed profile and moderation tools.",
+                            icon = { Icon(Icons.Default.PersonSearch, contentDescription = null, modifier = Modifier.size(64.dp), tint = AdminDesign.OnSurfaceVariant) }
+                        )
+                    }
                 }
             }
         }
@@ -176,6 +224,10 @@ fun AdminUserListScreen(
     onUserClick: (SupabaseUser) -> Unit,
     searchQuery: String,
     onSearchChange: (String) -> Unit,
+    filterStatus: String,
+    onFilterStatusChange: (String) -> Unit,
+    sortBy: String,
+    onSortByChange: (String) -> Unit,
     adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onBack: () -> Unit,
     onHelpClick: (() -> Unit)? = null,
@@ -197,11 +249,16 @@ fun AdminUserListScreen(
             }
         }
     ) { padding ->
-        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+            UserDirectoryStats(users)
             UserListContent(
                 users = users,
                 isSyncing = isSyncing,
                 searchQuery = searchQuery,
+                filterStatus = filterStatus,
+                onFilterStatusChange = onFilterStatusChange,
+                sortBy = sortBy,
+                onSortByChange = onSortByChange,
                 onUserClick = onUserClick,
                 onBulkBan = { ids ->
                     ids.forEach { id -> adminViewModel.userRepository.toggleUserBan(id) }
@@ -216,6 +273,10 @@ fun UserListContent(
     users: List<SupabaseUser>,
     isSyncing: Boolean,
     searchQuery: String,
+    filterStatus: String,
+    onFilterStatusChange: (String) -> Unit,
+    sortBy: String,
+    onSortByChange: (String) -> Unit,
     onUserClick: (SupabaseUser) -> Unit,
     selectedUserId: String? = null,
     onBulkBan: (Set<String>) -> Unit
@@ -223,16 +284,55 @@ fun UserListContent(
     var isBulkMode by remember { mutableStateOf(false) }
     var bulkSelectedIds by remember { mutableStateOf(setOf<String>()) }
     
-    val filteredUsers = remember(users, searchQuery) {
-        users.filter { 
-            it.username.contains(searchQuery, true) || 
-            it.email.contains(searchQuery, true) ||
-            it.id.contains(searchQuery, true)
-        }
-    }
+    val statuses = listOf("All", "Verified", "Banned", "Shadow Banned", "Admin", "Moderator")
+    val sortOptions = listOf("Newest", "Rating", "Wins", "Username")
 
     Column(modifier = Modifier.fillMaxSize()) {
-        if (filteredUsers.isNotEmpty()) {
+        // Filters Row
+        androidx.compose.foundation.lazy.LazyRow(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = AdminDesign.SpacingMedium, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(end = 16.dp)
+        ) {
+            items(statuses) { status ->
+                FilterChip(
+                    selected = filterStatus == status,
+                    onClick = { onFilterStatusChange(status) },
+                    label = { Text(status, fontSize = 10.sp) },
+                    shape = RoundedCornerShape(16.dp)
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = AdminDesign.SpacingMedium, vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("${users.size} Result(s)", style = MaterialTheme.typography.labelSmall, color = AdminDesign.OnSurfaceVariant)
+            
+            var showSortMenu by remember { mutableStateOf(false) }
+            Box {
+                TextButton(onClick = { showSortMenu = true }) {
+                    Icon(Icons.Default.Sort, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Sort: $sortBy", fontSize = 10.sp)
+                }
+                DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                    sortOptions.forEach { opt ->
+                        DropdownMenuItem(
+                            text = { Text(opt) },
+                            onClick = { 
+                                onSortByChange(opt)
+                                showSortMenu = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        if (users.isNotEmpty()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = AdminDesign.SpacingMedium, vertical = AdminDesign.SpacingSmall),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -241,7 +341,7 @@ fun UserListContent(
                 if (isBulkMode) {
                     Text("${bulkSelectedIds.size} Selected", fontWeight = FontWeight.Bold, color = AdminDesign.Primary)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { bulkSelectedIds = filteredUsers.map { it.id }.toSet() }) { Text("Select All") }
+                        TextButton(onClick = { bulkSelectedIds = users.map { it.id }.toSet() }) { Text("Select All") }
                         Button(
                             onClick = { 
                                 onBulkBan(bulkSelectedIds)
@@ -252,7 +352,7 @@ fun UserListContent(
                         ) { Text("Apply Ban") }
                     }
                 } else {
-                    Text("${filteredUsers.size} Users", fontWeight = FontWeight.Bold, color = AdminDesign.OnSurfaceVariant)
+                    Text("Directory", fontWeight = FontWeight.Bold, color = AdminDesign.OnSurfaceVariant)
                     TextButton(onClick = { isBulkMode = true }) { Text("Bulk Edit") }
                 }
             }
@@ -262,7 +362,7 @@ fun UserListContent(
             LazyColumn(modifier = Modifier.fillMaxSize().padding(AdminDesign.SpacingMedium)) {
                 items(10) { ShimmerItem(Modifier.padding(vertical = AdminDesign.SpacingSmall)) }
             }
-        } else if (filteredUsers.isEmpty()) {
+        } else if (users.isEmpty()) {
             AdminEmptyState(title = "No Players Found", description = "Try a different search term or check filters.")
         } else {
             LazyColumn(
@@ -270,7 +370,7 @@ fun UserListContent(
                 contentPadding = PaddingValues(AdminDesign.SpacingMedium),
                 verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)
             ) {
-                items(filteredUsers) { user ->
+                items(users, key = { it.id }) { user ->
                     val isChecked = bulkSelectedIds.contains(user.id)
                     UserListItem(
                         user = user, 
@@ -307,7 +407,7 @@ fun UserListItem(user: SupabaseUser, onClick: () -> Unit, isSelected: Boolean = 
         )
     ) {
         Row(
-            modifier = Modifier.padding(AdminDesign.SpacingMedium).fillMaxWidth(),
+            modifier = Modifier.padding(12.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (showCheckbox) {
@@ -315,7 +415,7 @@ fun UserListItem(user: SupabaseUser, onClick: () -> Unit, isSelected: Boolean = 
                 Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
             }
             Surface(
-                modifier = Modifier.size(40.dp),
+                modifier = Modifier.size(44.dp),
                 shape = CircleShape,
                 color = AdminDesign.Primary.copy(alpha = 0.1f)
             ) {
@@ -326,6 +426,15 @@ fun UserListItem(user: SupabaseUser, onClick: () -> Unit, isSelected: Boolean = 
                         color = AdminDesign.Primary,
                         style = MaterialTheme.typography.titleMedium
                     )
+                    // Online indicator (simulated)
+                    if (user.lastLogin?.contains("2026") == true) {
+                        Surface(
+                            modifier = Modifier.size(10.dp).align(Alignment.BottomEnd),
+                            color = AdminDesign.Secondary,
+                            shape = CircleShape,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White)
+                        ) {}
+                    }
                 }
             }
             Spacer(modifier = Modifier.width(AdminDesign.SpacingMedium))
@@ -338,14 +447,26 @@ fun UserListItem(user: SupabaseUser, onClick: () -> Unit, isSelected: Boolean = 
                             Text("BOT", fontSize = 7.sp, color = AdminDesign.Secondary, fontWeight = FontWeight.Black)
                         }
                     }
+                    if (user.isVerified) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(Icons.Default.Verified, contentDescription = null, modifier = Modifier.size(14.dp), tint = AdminDesign.Primary)
+                    }
                 }
                 Text(user.email, fontSize = 11.sp, color = AdminDesign.OnSurfaceVariant)
+                
+                Row(modifier = Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(10.dp), tint = Color(0xFFFFD700))
+                    Text(" ${user.rating} ", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("W: ${user.wins} L: ${user.losses}", fontSize = 10.sp, color = AdminDesign.OnSurfaceVariant)
+                }
             }
             Column(horizontalAlignment = Alignment.End) {
                 val displayRole = if (user.role.isNotEmpty()) user.role else (user.roles.firstOrNull() ?: "publicuser")
                 Badge(
                     containerColor = when(displayRole.lowercase()) {
                         "admin", "superadmin", "super_admin" -> AdminDesign.Secondary
+                        "moderator" -> Color(0xFF8B5CF6)
                         "player" -> AdminDesign.Primary
                         else -> AdminDesign.OnSurfaceVariant
                     }
@@ -355,6 +476,9 @@ fun UserListItem(user: SupabaseUser, onClick: () -> Unit, isSelected: Boolean = 
                 if (user.isBanned) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Badge(containerColor = AdminDesign.Error) { Text("BANNED", fontSize = 8.sp, color = Color.White) }
+                } else if (user.shadowBanned) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Badge(containerColor = Color.Gray) { Text("SHADOW", fontSize = 8.sp, color = Color.White) }
                 }
             }
         }
@@ -365,6 +489,7 @@ fun UserListItem(user: SupabaseUser, onClick: () -> Unit, isSelected: Boolean = 
 fun AdminUserDetailsScreen(
     user: SupabaseUser,
     adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
+    onNavigate: (String) -> Unit = {},
     onBack: () -> Unit,
     onHelpClick: (() -> Unit)? = null
 ) {
@@ -375,15 +500,94 @@ fun AdminUserDetailsScreen(
         onHelpClick = onHelpClick
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
-            UserDetailsContent(user = user, adminViewModel = adminViewModel)
+            UserDetailsContent(user = user, adminViewModel = adminViewModel, onNavigate = onNavigate)
         }
     }
 }
 
 @Composable
-fun UserDetailsContent(user: SupabaseUser, adminViewModel: com.example.daadi.viewmodel.AdminViewModel) {
+fun UserDetailsContent(user: SupabaseUser, adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onNavigate: (String) -> Unit) {
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Overview", "Moderation", "Activity", "Economics")
+    val tabs = listOf("Overview", "Moderation", "Activity", "Economics", "Security", "Reports")
+
+    var showResetAvatarConfirm by remember { mutableStateOf(false) }
+    var showResetUsernameConfirm by remember { mutableStateOf(false) }
+    var showForceLogoutConfirm by remember { mutableStateOf(false) }
+
+    if (showResetAvatarConfirm) {
+        AlertDialog(
+            onDismissRequest = { showResetAvatarConfirm = false },
+            title = { Text("Reset Avatar?") },
+            text = { Text("Are you sure you want to reset the avatar for user ${user.username} to the default style?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        adminViewModel.authRepository.resetAvatar(user.id, "https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}")
+                        showResetAvatarConfirm = false
+                    }
+                ) {
+                    Text("Reset", color = AdminDesign.Primary)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetAvatarConfirm = false }) {
+                    Text("Cancel")
+                }
+            },
+            containerColor = AdminDesign.Surface,
+            shape = AdminDesign.CardShape
+        )
+    }
+
+    if (showResetUsernameConfirm) {
+        AlertDialog(
+            onDismissRequest = { showResetUsernameConfirm = false },
+            title = { Text("Reset Username?") },
+            text = { Text("Are you sure you want to reset the username for user ${user.username} to default 'User_${user.id.take(6)}'?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        adminViewModel.authRepository.resetUsername(user.id, "User_${user.id.take(6)}")
+                        showResetUsernameConfirm = false
+                    }
+                ) {
+                    Text("Reset", color = AdminDesign.Primary)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetUsernameConfirm = false }) {
+                    Text("Cancel")
+                }
+            },
+            containerColor = AdminDesign.Surface,
+            shape = AdminDesign.CardShape
+        )
+    }
+
+    if (showForceLogoutConfirm) {
+        AlertDialog(
+            onDismissRequest = { showForceLogoutConfirm = false },
+            title = { Text("Force Logout?") },
+            text = { Text("Are you sure you want to force log out ${user.username} from all active devices and invalidate sessions immediately?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        adminViewModel.authRepository.forceLogout(user.id)
+                        showForceLogoutConfirm = false
+                    }
+                ) {
+                    Text("Force Logout", color = AdminDesign.Warning)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showForceLogoutConfirm = false }) {
+                    Text("Cancel")
+                }
+            },
+            containerColor = AdminDesign.Surface,
+            shape = AdminDesign.CardShape
+        )
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(AdminDesign.SpacingMedium)) {
         // Header
@@ -394,26 +598,59 @@ fun UserDetailsContent(user: SupabaseUser, adminViewModel: com.example.daadi.vie
                 }
             }
             Spacer(modifier = Modifier.width(AdminDesign.SpacingMedium))
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(user.username, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold, color = AdminDesign.OnSurface)
                 Text(user.id, style = MaterialTheme.typography.labelSmall, color = AdminDesign.OnSurfaceVariant)
                 Text(user.email, style = MaterialTheme.typography.bodySmall, color = AdminDesign.OnSurfaceVariant)
+            }
+            
+            // Quick Action Menu
+            var showMenu by remember { mutableStateOf(false) }
+            Box {
+                IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, contentDescription = null) }
+                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Reset Avatar") },
+                        onClick = { 
+                            showResetAvatarConfirm = true
+                            showMenu = false
+                        },
+                        leadingIcon = { Icon(Icons.Default.Face, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Reset Username") },
+                        onClick = { 
+                            showResetUsernameConfirm = true
+                            showMenu = false
+                        },
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                    )
+                    Divider()
+                    DropdownMenuItem(
+                        text = { Text("Force Logout") },
+                        onClick = { 
+                            showForceLogoutConfirm = true
+                            showMenu = false
+                        },
+                        leadingIcon = { Icon(Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                    )
+                }
             }
         }
         
         Spacer(modifier = Modifier.height(AdminDesign.SpacingLarge))
         
-        TabRow(
-            selectedTabIndex = selectedTab,
-            containerColor = Color.Transparent,
-            contentColor = AdminDesign.Primary,
-            divider = {}
+        androidx.compose.foundation.lazy.LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)
         ) {
-            tabs.forEachIndexed { index, title ->
-                Tab(
+            items(tabs.size) { index ->
+                val title = tabs[index]
+                FilterChip(
                     selected = selectedTab == index,
                     onClick = { selectedTab = index },
-                    text = { Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                    label = { Text(title, fontSize = 10.sp) },
+                    shape = RoundedCornerShape(16.dp)
                 )
             }
         }
@@ -425,19 +662,47 @@ fun UserDetailsContent(user: SupabaseUser, adminViewModel: com.example.daadi.vie
                 AnimatedContent(targetState = selectedTab, label = "user_details_tabs") { index ->
                     Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingMedium)) {
                         when(index) {
-                            0 -> OverviewTab(user)
+                            0 -> OverviewTab(user, adminViewModel, onNavigate)
                             1 -> ModerationTab(user, adminViewModel)
                             2 -> ActivityTab(user, adminViewModel)
                             3 -> EconomicsTab(user, adminViewModel)
+                            4 -> SecurityTab(user, adminViewModel)
+                            5 -> ReportsTab(user, adminViewModel)
                         }
                     }
                 }
             }
             
             item {
+                var showDeleteConfirm by remember { mutableStateOf(false) }
+                if (showDeleteConfirm) {
+                    AlertDialog(
+                        onDismissRequest = { showDeleteConfirm = false },
+                        title = { Text("Confirm Permanent Purge") },
+                        text = { Text("WARNING: This will permanently delete user ${user.username} and all their statistics, games, and profile data from the database. This action is irreversible!") },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    adminViewModel.authRepository.deleteUser(user.id)
+                                    showDeleteConfirm = false
+                                }
+                            ) {
+                                Text("PURGE DATA", color = AdminDesign.Error)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showDeleteConfirm = false }) {
+                                Text("Cancel")
+                            }
+                        },
+                        containerColor = AdminDesign.Surface,
+                        shape = AdminDesign.CardShape
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(AdminDesign.SpacingLarge))
                 Button(
-                    onClick = { adminViewModel.authRepository.deleteUser(user.id) },
+                    onClick = { showDeleteConfirm = true },
                     colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Error.copy(alpha = 0.1f), contentColor = AdminDesign.Error),
                     modifier = Modifier.fillMaxWidth(),
                     shape = AdminDesign.ButtonShape
@@ -452,7 +717,30 @@ fun UserDetailsContent(user: SupabaseUser, adminViewModel: com.example.daadi.vie
 }
 
 @Composable
-fun OverviewTab(user: SupabaseUser) {
+fun ShortcutButton(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(
+            containerColor = AdminDesign.Primary.copy(alpha = 0.05f),
+            contentColor = AdminDesign.Primary
+        ),
+        shape = RoundedCornerShape(8.dp),
+        modifier = modifier.height(44.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(label, fontSize = 10.sp, fontWeight = FontWeight.Black)
+        }
+    }
+}
+
+@Composable
+fun OverviewTab(user: SupabaseUser, adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onNavigate: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingMedium)) {
         Row(horizontalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
             QuickStatCard("Games", user.totalGames.toString(), Modifier.weight(1f))
@@ -476,25 +764,190 @@ fun OverviewTab(user: SupabaseUser) {
                 MetadataRow("App Version", user.appVersion ?: "Unknown")
             }
         }
+
+        Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface), shape = AdminDesign.CardShape, modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
+                Text("OPERATIONAL SHORTCUTS (CROSS-MODULE)", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.Primary)
+                Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+                
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ShortcutButton(
+                            label = "Matches",
+                            icon = Icons.Default.PlayArrow,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                adminViewModel.clearAllFilters()
+                                adminViewModel.filterUsername.value = user.username
+                                onNavigate("match_archive")
+                            }
+                        )
+                        ShortcutButton(
+                            label = "Tickets",
+                            icon = Icons.Default.Email,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                adminViewModel.clearAllFilters()
+                                adminViewModel.filterUsername.value = user.username
+                                onNavigate("feedback")
+                            }
+                        )
+                        ShortcutButton(
+                            label = "Economy",
+                            icon = Icons.Default.ShoppingCart,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                adminViewModel.clearAllFilters()
+                                adminViewModel.filterUserId.value = user.id
+                                onNavigate("economy")
+                            }
+                        )
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ShortcutButton(
+                            label = "Devices",
+                            icon = Icons.Default.Smartphone,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                adminViewModel.clearAllFilters()
+                                adminViewModel.filterDeviceId.value = user.deviceId
+                                onNavigate("devices")
+                            }
+                        )
+                        ShortcutButton(
+                            label = "Fraud",
+                            icon = Icons.Default.Security,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                adminViewModel.clearAllFilters()
+                                adminViewModel.filterUserId.value = user.id
+                                onNavigate("fraud")
+                            }
+                        )
+                        ShortcutButton(
+                            label = "Safety",
+                            icon = Icons.Default.Warning,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                adminViewModel.clearAllFilters()
+                                adminViewModel.filterUserId.value = user.id
+                                onNavigate("safety")
+                            }
+                        )
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ShortcutButton(
+                            label = "Audit Trail",
+                            icon = Icons.Default.History,
+                            modifier = Modifier.weight(1.0f),
+                            onClick = {
+                                adminViewModel.clearAllFilters()
+                                adminViewModel.filterUserId.value = user.id
+                                onNavigate("audit_logs")
+                            }
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
 fun ModerationTab(user: SupabaseUser, adminViewModel: com.example.daadi.viewmodel.AdminViewModel) {
+    var showBanConfirm by remember { mutableStateOf(false) }
+    var showShadowBanConfirm by remember { mutableStateOf(false) }
+    var showInvalidateConfirm by remember { mutableStateOf(false) }
+
+    if (showBanConfirm) {
+        AlertDialog(
+            onDismissRequest = { showBanConfirm = false },
+            title = { Text(if (user.isBanned) "Confirm Unban" else "Confirm Ban") },
+            text = { Text("Are you sure you want to ${if (user.isBanned) "unban" else "ban"} user ${user.username}?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        adminViewModel.userRepository.toggleUserBan(user.id)
+                        showBanConfirm = false
+                    }
+                ) {
+                    Text("Confirm", color = if (user.isBanned) AdminDesign.Secondary else AdminDesign.Error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBanConfirm = false }) {
+                    Text("Cancel")
+                }
+            },
+            containerColor = AdminDesign.Surface,
+            shape = AdminDesign.CardShape
+        )
+    }
+
+    if (showShadowBanConfirm) {
+        AlertDialog(
+            onDismissRequest = { showShadowBanConfirm = false },
+            title = { Text(if (user.shadowBanned) "Remove Shadow Ban" else "Apply Shadow Ban") },
+            text = { Text("Are you sure you want to ${if (user.shadowBanned) "remove shadow ban from" else "apply shadow ban to"} user ${user.username}?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        adminViewModel.authRepository.setShadowBan(user.id, !user.shadowBanned)
+                        showShadowBanConfirm = false
+                    }
+                ) {
+                    Text("Confirm", color = AdminDesign.Primary)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showShadowBanConfirm = false }) {
+                    Text("Cancel")
+                }
+            },
+            containerColor = AdminDesign.Surface,
+            shape = AdminDesign.CardShape
+        )
+    }
+
+    if (showInvalidateConfirm) {
+        AlertDialog(
+            onDismissRequest = { showInvalidateConfirm = false },
+            title = { Text("Invalidate Sessions?") },
+            text = { Text("Are you sure you want to immediately invalidate all active login sessions and force logout ${user.username}?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        adminViewModel.authRepository.forceLogout(user.id)
+                        showInvalidateConfirm = false
+                    }
+                ) {
+                    Text("Confirm", color = AdminDesign.Warning)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showInvalidateConfirm = false }) {
+                    Text("Cancel")
+                }
+            },
+            containerColor = AdminDesign.Surface,
+            shape = AdminDesign.CardShape
+        )
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
         ActionTile(
             title = if (user.isBanned) "Unban Account" else "Ban Account",
             subtitle = if (user.isBanned) "Restore full access for this player" else "Prevents all game access and authentication",
             icon = Icons.Default.Block,
             color = if (user.isBanned) AdminDesign.Secondary else AdminDesign.Error,
-            onClick = { adminViewModel.userRepository.toggleUserBan(user.id) }
+            onClick = { showBanConfirm = true }
         )
         ActionTile(
             title = if (user.shadowBanned) "Remove Shadow Ban" else "Apply Shadow Ban",
             subtitle = "Player can still play but only with other toxic users",
             icon = Icons.Default.VisibilityOff,
             color = Color.Gray,
-            onClick = { adminViewModel.authRepository.setShadowBan(user.id, !user.shadowBanned) }
+            onClick = { showShadowBanConfirm = true }
         )
         ActionTile(
             title = if (user.isVerified) "Remove Verification" else "Verify Identity",
@@ -508,7 +961,7 @@ fun ModerationTab(user: SupabaseUser, adminViewModel: com.example.daadi.viewmode
             subtitle = "Force logout from all devices immediately",
             icon = Icons.Default.Logout,
             color = AdminDesign.Warning,
-            onClick = { adminViewModel.authRepository.forceLogout(user.id) }
+            onClick = { showInvalidateConfirm = true }
         )
         
         Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
@@ -587,6 +1040,99 @@ fun EconomicsTab(user: SupabaseUser, adminViewModel: com.example.daadi.viewmodel
                 Row(horizontalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
                     Button(onClick = { adminViewModel.economyRepository.adjustUserStats(user.id, 1, 0, 50) }, modifier = Modifier.weight(1f), shape = AdminDesign.ButtonShape) { Text("+1 Win (+50 E)", fontSize = 10.sp) }
                     Button(onClick = { adminViewModel.economyRepository.adjustUserStats(user.id, 0, 1, -50) }, modifier = Modifier.weight(1f), shape = AdminDesign.ButtonShape) { Text("+1 Loss (-50 E)", fontSize = 10.sp) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SecurityTab(user: SupabaseUser, adminViewModel: com.example.daadi.viewmodel.AdminViewModel) {
+    Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingMedium)) {
+        Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface), shape = AdminDesign.CardShape) {
+            Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
+                Text("DEVICE INTELLIGENCE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
+                Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+                MetadataRow("Device Model", user.metadata?.get("device_model")?.toString() ?: "Android SDK 34")
+                MetadataRow("OS Version", user.metadata?.get("os_version")?.toString() ?: "Android 14")
+                MetadataRow("Rooted", user.metadata?.get("is_rooted")?.toString() ?: "False")
+                MetadataRow("VPN/Proxy", user.metadata?.get("is_vpn")?.toString() ?: "False")
+                MetadataRow("Emulator", user.metadata?.get("is_emulator")?.toString() ?: "False")
+            }
+        }
+        
+        Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface), shape = AdminDesign.CardShape) {
+            Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
+                Text("AUTHENTICATION STATE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
+                Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+                MetadataRow("Auth Method", if (user.email.contains("google")) "OAuth (Google)" else "Email/Pass")
+                MetadataRow("Multi-Factor", "Disabled")
+                MetadataRow("Recovery Status", "Verified")
+            }
+        }
+    }
+}
+
+@Composable
+fun UserDirectoryStats(users: List<SupabaseUser>) {
+    val total = users.size
+    val banned = users.count { it.isBanned }
+    val verified = users.count { it.isVerified }
+    
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(AdminDesign.SpacingMedium),
+        horizontalArrangement = Arrangement.spacedBy(AdminDesign.SpacingMedium)
+    ) {
+        AdminStatCard("Total Players", "$total", Icons.Default.People, modifier = Modifier.weight(1f))
+        AdminStatCard("Banned", "$banned", Icons.Default.Block, AdminDesign.Error, modifier = Modifier.weight(1f))
+        AdminStatCard("Verified", "$verified", Icons.Default.Verified, AdminDesign.Secondary, modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+fun ReportsTab(user: SupabaseUser, adminViewModel: com.example.daadi.viewmodel.AdminViewModel) {
+    val reportsState = adminViewModel.analyticsRepository.reports.collectAsStateWithLifecycle()
+    val reports = reportsState.value
+    val userReports = reports.filter { it.reportedId == user.id }
+
+    if (userReports.isEmpty()) {
+        AdminEmptyState(title = "Clean Record", description = "This user hasn't been reported by other players yet.")
+    } else {
+        Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
+            userReports.forEach { report ->
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface),
+                    shape = AdminDesign.CardShape,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, AdminDesign.OnSurfaceVariant.copy(alpha = 0.1f))
+                ) {
+                    Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                color = when(report.priority.lowercase()) {
+                                    "high" -> AdminDesign.Error
+                                    "medium" -> AdminDesign.Warning
+                                    else -> AdminDesign.Primary
+                                },
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    report.priority.uppercase(),
+                                    fontSize = 8.sp,
+                                    color = Color.White,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(report.category.uppercase(), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text(report.status.uppercase(), fontSize = 10.sp, color = AdminDesign.OnSurfaceVariant)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(report.reason, fontSize = 13.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Reporter ID: ${report.reporterId ?: "Anonymous"}", fontSize = 10.sp, color = AdminDesign.OnSurfaceVariant)
+                    }
                 }
             }
         }

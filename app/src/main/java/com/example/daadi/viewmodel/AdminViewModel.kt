@@ -14,4 +14,17 @@ class AdminViewModel(
     val tournamentRepository: TournamentRepository,
     val remoteConfigRepository: RemoteConfigRepository,
     val userRepository: UserRepository
-) : ViewModel()
+) : ViewModel() {
+    // Shared filters for deep links / navigation across modules
+    val filterUserId = androidx.compose.runtime.mutableStateOf<String?>(null)
+    val filterUsername = androidx.compose.runtime.mutableStateOf<String?>(null)
+    val filterDeviceId = androidx.compose.runtime.mutableStateOf<String?>(null)
+    val filterMatchId = androidx.compose.runtime.mutableStateOf<String?>(null)
+
+    fun clearAllFilters() {
+        filterUserId.value = null
+        filterUsername.value = null
+        filterDeviceId.value = null
+        filterMatchId.value = null
+    }
+}

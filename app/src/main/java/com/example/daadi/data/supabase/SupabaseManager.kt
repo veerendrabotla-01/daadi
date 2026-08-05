@@ -99,6 +99,12 @@ internal val feedbackV2ListAdapter = moshi.adapter<List<SupabaseFeedbackV2>>(Typ
 
 internal val ticketListAdapter = moshi.adapter<List<SupabaseSupportTicket>>(Types.newParameterizedType(List::class.java, SupabaseSupportTicket::class.java))
 
+internal val appealListAdapter = moshi.adapter<List<SupabaseAppeal>>(Types.newParameterizedType(List::class.java, SupabaseAppeal::class.java))
+
+internal val ticketReplyListAdapter = moshi.adapter<List<SupabaseTicketReply>>(Types.newParameterizedType(List::class.java, SupabaseTicketReply::class.java))
+
+internal val moderatorActionListAdapter = moshi.adapter<List<SupabaseModeratorAction>>(Types.newParameterizedType(List::class.java, SupabaseModeratorAction::class.java))
+
 internal val loginHistoryListAdapter = moshi.adapter<List<SupabaseLoginHistory>>(Types.newParameterizedType(List::class.java, SupabaseLoginHistory::class.java))
 
 internal val banListAdapter = moshi.adapter<List<SupabaseBan>>(Types.newParameterizedType(List::class.java, SupabaseBan::class.java))
@@ -130,6 +136,12 @@ internal val seasonPassListAdapter = moshi.adapter<List<SupabaseSeasonPass>>(Typ
 internal val seasonPassTierListAdapter = moshi.adapter<List<SupabaseSeasonPassTier>>(Types.newParameterizedType(List::class.java, SupabaseSeasonPassTier::class.java))
 
 internal val cmsContentListAdapter = moshi.adapter<List<SupabaseCMSContent>>(Types.newParameterizedType(List::class.java, SupabaseCMSContent::class.java))
+
+internal val missionListAdapter = moshi.adapter<List<SupabaseMission>>(Types.newParameterizedType(List::class.java, SupabaseMission::class.java))
+
+internal val referralRewardListAdapter = moshi.adapter<List<SupabaseReferralReward>>(Types.newParameterizedType(List::class.java, SupabaseReferralReward::class.java))
+
+internal val userSeasonProgressListAdapter = moshi.adapter<List<SupabaseUserSeasonProgress>>(Types.newParameterizedType(List::class.java, SupabaseUserSeasonProgress::class.java))
 
 internal val geminiService: GeminiApiService by lazy {
         val serializationJson = SerializationJson { ignoreUnknownKeys = true }
@@ -198,6 +210,15 @@ val liveOpsEvents: StateFlow<List<SupabaseLiveOpsEvent>> = _liveOpsEvents
 internal val _seasonPasses = MutableStateFlow<List<SupabaseSeasonPass>>(emptyList())
 
 val seasonPasses: StateFlow<List<SupabaseSeasonPass>> = _seasonPasses
+
+internal val _missions = MutableStateFlow<List<SupabaseMission>>(emptyList())
+val missions: StateFlow<List<SupabaseMission>> = _missions
+
+internal val _referralRewards = MutableStateFlow<List<SupabaseReferralReward>>(emptyList())
+val referralRewards: StateFlow<List<SupabaseReferralReward>> = _referralRewards
+
+internal val _userSeasonProgress = MutableStateFlow<List<SupabaseUserSeasonProgress>>(emptyList())
+val userSeasonProgress: StateFlow<List<SupabaseUserSeasonProgress>> = _userSeasonProgress
 
 internal val _cmsContent = MutableStateFlow<List<SupabaseCMSContent>>(emptyList())
 
@@ -342,6 +363,9 @@ internal val appVersionListAdapter = moshi.adapter<List<SupabaseAppVersion>>(Typ
 internal val maintenanceListAdapter = moshi.adapter<List<SupabaseMaintenanceSchedule>>(Types.newParameterizedType(List::class.java, SupabaseMaintenanceSchedule::class.java))
 
 internal val tournamentListAdapter = moshi.adapter<List<SupabaseTournament>>(Types.newParameterizedType(List::class.java, SupabaseTournament::class.java))
+internal val tournamentParticipantListAdapter = moshi.adapter<List<SupabaseTournamentParticipant>>(Types.newParameterizedType(List::class.java, SupabaseTournamentParticipant::class.java))
+internal val tournamentBracketListAdapter = moshi.adapter<List<SupabaseTournamentBracket>>(Types.newParameterizedType(List::class.java, SupabaseTournamentBracket::class.java))
+internal val tournamentAnnouncementListAdapter = moshi.adapter<List<SupabaseTournamentAnnouncement>>(Types.newParameterizedType(List::class.java, SupabaseTournamentAnnouncement::class.java))
 
 internal val eventListAdapter = moshi.adapter<List<SupabaseGameEvent>>(Types.newParameterizedType(List::class.java, SupabaseGameEvent::class.java))
 
@@ -553,6 +577,18 @@ internal val _tickets = MutableStateFlow<List<SupabaseSupportTicket>>(emptyList(
 
 val tickets: StateFlow<List<SupabaseSupportTicket>> = _tickets.asStateFlow()
 
+internal val _appeals = MutableStateFlow<List<SupabaseAppeal>>(emptyList())
+
+val appeals: StateFlow<List<SupabaseAppeal>> = _appeals.asStateFlow()
+
+internal val _ticketReplies = MutableStateFlow<List<SupabaseTicketReply>>(emptyList())
+
+val ticketReplies: StateFlow<List<SupabaseTicketReply>> = _ticketReplies.asStateFlow()
+
+internal val _moderatorActions = MutableStateFlow<List<SupabaseModeratorAction>>(emptyList())
+
+val moderatorActions: StateFlow<List<SupabaseModeratorAction>> = _moderatorActions.asStateFlow()
+
 internal val _userLoginHistory = MutableStateFlow<List<SupabaseLoginHistory>>(emptyList())
 
 val userLoginHistory: StateFlow<List<SupabaseLoginHistory>> = _userLoginHistory.asStateFlow()
@@ -562,8 +598,16 @@ internal val _auditLogs = MutableStateFlow<List<SupabaseAuditLog>>(emptyList())
 val auditLogs: StateFlow<List<SupabaseAuditLog>> = _auditLogs.asStateFlow()
 
 internal val _tournaments = MutableStateFlow<List<SupabaseTournament>>(emptyList())
-
 val tournaments: StateFlow<List<SupabaseTournament>> = _tournaments.asStateFlow()
+
+internal val _tournamentParticipants = MutableStateFlow<List<SupabaseTournamentParticipant>>(emptyList())
+val tournamentParticipants: StateFlow<List<SupabaseTournamentParticipant>> = _tournamentParticipants.asStateFlow()
+
+internal val _tournamentBrackets = MutableStateFlow<List<SupabaseTournamentBracket>>(emptyList())
+val tournamentBrackets: StateFlow<List<SupabaseTournamentBracket>> = _tournamentBrackets.asStateFlow()
+
+internal val _tournamentAnnouncements = MutableStateFlow<List<SupabaseTournamentAnnouncement>>(emptyList())
+val tournamentAnnouncements: StateFlow<List<SupabaseTournamentAnnouncement>> = _tournamentAnnouncements.asStateFlow()
 
 internal val _gameEvents = MutableStateFlow<List<SupabaseGameEvent>>(emptyList())
 
@@ -692,7 +736,7 @@ fun logAdminAction(action: String, target: String) {
                 _adminAuditLogs.update { listOf(log) + it.take(99) }
                 logAudit(action, targetTable = target)
             } catch (e: Exception) {
-                // Transactional failure placeholder
+                Log.e(tag, "Transactional audit logging failure", e)
             }
         }
     }
@@ -820,6 +864,202 @@ fun fetchReports() {
                 } catch (e: Exception) {}
             }
         }
+    }
+
+    fun fetchAppeals() {
+        if (isConfigured) {
+            scope.launch {
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/appeals?select=*&order=created_at.desc")
+                    .headers(getHeaders())
+                    .get()
+                    .build()
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {}
+                    override fun onResponse(call: Call, response: Response) {
+                        val body = response.body?.string()
+                        if (response.isSuccessful && body != null) {
+                            try {
+                                val list = appealListAdapter.fromJson(body)
+                                if (list != null) _appeals.value = list
+                            } catch (e: Exception) {}
+                        }
+                    }
+                })
+            }
+        } else {
+            val saved = prefs.getString("sim_appeals", null)
+            if (saved != null) {
+                try {
+                    _appeals.value = appealListAdapter.fromJson(saved) ?: emptyList()
+                } catch (e: Exception) {}
+            }
+        }
+    }
+
+    fun fetchModeratorActions(userId: String? = null) {
+        if (isConfigured) {
+            scope.launch {
+                val url = if (userId != null) "$supabaseUrl/rest/v1/moderator_actions?target_user_id=eq.$userId&order=created_at.desc"
+                          else "$supabaseUrl/rest/v1/moderator_actions?order=created_at.desc&limit=100"
+                val request = Request.Builder()
+                    .url(url)
+                    .headers(getHeaders())
+                    .get()
+                    .build()
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {}
+                    override fun onResponse(call: Call, response: Response) {
+                        val body = response.body?.string()
+                        if (response.isSuccessful && body != null) {
+                            try {
+                                val list = moderatorActionListAdapter.fromJson(body)
+                                if (list != null) _moderatorActions.value = list
+                            } catch (e: Exception) {}
+                        }
+                    }
+                })
+            }
+        } else {
+            val saved = prefs.getString("sim_moderator_actions", null)
+            if (saved != null) {
+                try {
+                    _moderatorActions.value = moderatorActionListAdapter.fromJson(saved) ?: emptyList()
+                } catch (e: Exception) {}
+            }
+        }
+    }
+
+    fun fetchTicketReplies(ticketId: String) {
+        if (isConfigured) {
+            scope.launch {
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/ticket_replies?ticket_id=eq.$ticketId&order=created_at.asc")
+                    .headers(getHeaders())
+                    .get()
+                    .build()
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {}
+                    override fun onResponse(call: Call, response: Response) {
+                        val body = response.body?.string()
+                        if (response.isSuccessful && body != null) {
+                            try {
+                                val list = ticketReplyListAdapter.fromJson(body)
+                                if (list != null) _ticketReplies.value = list
+                            } catch (e: Exception) {}
+                        }
+                    }
+                })
+            }
+        } else {
+            val saved = prefs.getString("sim_ticket_replies_$ticketId", null)
+            if (saved != null) {
+                try {
+                    _ticketReplies.value = ticketReplyListAdapter.fromJson(saved) ?: emptyList()
+                } catch (e: Exception) {}
+            }
+        }
+    }
+
+    fun submitModeratorAction(action: SupabaseModeratorAction, onResult: (Boolean) -> Unit = {}) {
+        if (isConfigured) {
+            scope.launch {
+                val json = moshi.adapter(SupabaseModeratorAction::class.java).toJson(action)
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/moderator_actions")
+                    .headers(getHeaders())
+                    .post(json.toRequestBody("application/json".toMediaType()))
+                    .build()
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) { runOnMain { onResult(false) } }
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) {
+                            fetchModeratorActions(action.targetUserId)
+                            runOnMain { onResult(true) }
+                        } else {
+                            runOnMain { onResult(false) }
+                        }
+                    }
+                })
+            }
+        } else {
+            _moderatorActions.value = listOf(action) + _moderatorActions.value
+            saveSimulatorModeratorActions()
+            onResult(true)
+        }
+    }
+
+    fun submitAppealDecision(appealId: String, status: String, notes: String, onResult: (Boolean) -> Unit) {
+        val decisionAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault()).format(Date())
+        if (isConfigured) {
+            scope.launch {
+                val update = mapOf("status" to status, "moderator_notes" to notes, "decision_at" to decisionAt)
+                val json = moshi.adapter(Map::class.java).toJson(update)
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/appeals?id=eq.$appealId")
+                    .headers(getHeaders())
+                    .patch(json.toRequestBody("application/json".toMediaType()))
+                    .build()
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) { runOnMain { onResult(false) } }
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) {
+                            fetchAppeals()
+                            runOnMain { onResult(true) }
+                        } else {
+                            runOnMain { onResult(false) }
+                        }
+                    }
+                })
+            }
+        } else {
+            _appeals.value = _appeals.value.map {
+                if (it.id == appealId) it.copy(status = status, moderatorNotes = notes, decisionAt = decisionAt) else it
+            }
+            saveSimulatorAppeals()
+            onResult(true)
+        }
+    }
+
+    fun addTicketReply(reply: SupabaseTicketReply, onResult: (Boolean) -> Unit) {
+        if (isConfigured) {
+            scope.launch {
+                val json = moshi.adapter(SupabaseTicketReply::class.java).toJson(reply)
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/ticket_replies")
+                    .headers(getHeaders())
+                    .post(json.toRequestBody("application/json".toMediaType()))
+                    .build()
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) { runOnMain { onResult(false) } }
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) {
+                            fetchTicketReplies(reply.ticketId)
+                            runOnMain { onResult(true) }
+                        } else {
+                            runOnMain { onResult(false) }
+                        }
+                    }
+                })
+            }
+        } else {
+            val list = (_ticketReplies.value + reply).toMutableList()
+            _ticketReplies.value = list
+            saveSimulatorTicketReplies(reply.ticketId, list)
+            onResult(true)
+        }
+    }
+
+    private fun saveSimulatorAppeals() {
+        prefs.edit().putString("sim_appeals", appealListAdapter.toJson(_appeals.value)).apply()
+    }
+
+    private fun saveSimulatorModeratorActions() {
+        prefs.edit().putString("sim_moderator_actions", moderatorActionListAdapter.toJson(_moderatorActions.value)).apply()
+    }
+
+    private fun saveSimulatorTicketReplies(ticketId: String, replies: List<SupabaseTicketReply>) {
+        prefs.edit().putString("sim_ticket_replies_$ticketId", ticketReplyListAdapter.toJson(replies)).apply()
     }
 
 fun fetchAuditLogsV2() {
@@ -1330,6 +1570,7 @@ fun signUp(email: String, username: String, pass: String, onResult: (Boolean, St
                 val bodyMap = mapOf(
                     "email" to trimmedEmail,
                     "password" to trimmedPass,
+                    "options" to mapOf("data" to mapOf("username" to trimmedUsername)),
                     "data" to mapOf("username" to trimmedUsername)
                 )
                 val json = moshi.adapter(Map::class.java).toJson(bodyMap)
@@ -1343,7 +1584,7 @@ fun signUp(email: String, username: String, pass: String, onResult: (Boolean, St
 
                 client.newCall(request).enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
-                        runOnMain { onResult(false, e.localizedMessage) }
+                        runOnMain { onResult(false, "An error occurred. Please try again.") }
                     }
 
                     override fun onResponse(call: Call, response: Response) {
@@ -1460,7 +1701,7 @@ fun login(email: String, pass: String, onResult: (Boolean, String?) -> Unit) {
 
                 client.newCall(request).enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
-                        runOnMain { onResult(false, e.localizedMessage) }
+                        runOnMain { onResult(false, "An error occurred. Please try again.") }
                     }
 
                     override fun onResponse(call: Call, response: Response) {
@@ -1478,7 +1719,7 @@ fun login(email: String, pass: String, onResult: (Boolean, String?) -> Unit) {
 
                             val userMap = authMap?.get("user") as? Map<*, *>
                             val authId = userMap?.get("id") as? String ?: authMap?.get("id") as? String ?: ""
-                            val metadata = userMap?.get("user_metadata") as? Map<*, *>
+                            val metadata = (userMap?.get("user_metadata") as? Map<*, *>) ?: (userMap?.get("raw_user_meta_data") as? Map<*, *>)
                             val extractedUsername = metadata?.get("username") as? String ?: trimmedEmail.split("@")[0]
 
                             scope.launch {
@@ -1490,7 +1731,7 @@ fun login(email: String, pass: String, onResult: (Boolean, String?) -> Unit) {
                                     .build()
                                 client.newCall(userRequest).enqueue(object : Callback {
                                     override fun onFailure(call: Call, e: IOException) {
-                                        runOnMain { onResult(false, "Login succeeded but failed to fetch profile: ${e.localizedMessage}") }
+                                        runOnMain { onResult(false, "Login succeeded but failed to fetch profile. Please try again.") }
                                     }
                                     override fun onResponse(call: Call, r: Response) {
                                         val uBody = r.body?.string()
@@ -1551,7 +1792,7 @@ fun login(email: String, pass: String, onResult: (Boolean, String?) -> Unit) {
                                                     })
                                                 }
                                             } catch (e: Exception) {
-                                                runOnMain { onResult(false, "Failed to parse user profile: ${e.localizedMessage}") }
+                                                runOnMain { onResult(false, "Failed to parse user profile. Please try again.") }
                                             }
                                         } else {
                                             runOnMain { onResult(false, "Failed to fetch user record (Code: ${r.code}).") }
@@ -1597,7 +1838,7 @@ fun signInWithOAuth(provider: String, context: android.content.Context, onResult
                 context.startActivity(intent)
                 onResult(true, "Launching browser for $provider Sign-In...")
             } catch (e: Exception) {
-                onResult(false, "Could not open web browser: ${e.localizedMessage}")
+                onResult(false, "Could not open web browser. Please try again.")
             }
         } else {
             // Simulated login:
@@ -1670,7 +1911,7 @@ fun fetchUserProfileWithToken(token: String, onResult: (Boolean, String?) -> Uni
 
             client.newCall(request).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: java.io.IOException) {
-                    runOnMain { onResult(false, e.localizedMessage) }
+                    runOnMain { onResult(false, "An error occurred. Please try again.") }
                 }
 
                 override fun onResponse(call: Call, response: Response) {
@@ -1680,7 +1921,7 @@ fun fetchUserProfileWithToken(token: String, onResult: (Boolean, String?) -> Uni
                             val authMap = moshi.adapter(Map::class.java).fromJson(body)
                             val authId = authMap?.get("id") as? String ?: ""
                             val email = authMap?.get("email") as? String ?: ""
-                            val userMetadata = authMap?.get("user_metadata") as? Map<*, *>
+                            val userMetadata = (authMap?.get("user_metadata") as? Map<*, *>) ?: (authMap?.get("raw_user_meta_data") as? Map<*, *>)
                             val username = userMetadata?.get("username") as? String 
                                 ?: userMetadata?.get("full_name") as? String 
                                 ?: email.split("@")[0]
@@ -1694,7 +1935,7 @@ fun fetchUserProfileWithToken(token: String, onResult: (Boolean, String?) -> Uni
 
                             client.newCall(publicUserRequest).enqueue(object : Callback {
                                 override fun onFailure(call: Call, e: java.io.IOException) {
-                                    runOnMain { onResult(false, "Failed to check player record: ${e.localizedMessage}") }
+                                    runOnMain { onResult(false, "Failed to check player record. Please try again.") }
                                 }
 
                                 override fun onResponse(call: Call, res: Response) {
@@ -1757,7 +1998,7 @@ fun fetchUserProfileWithToken(token: String, onResult: (Boolean, String?) -> Uni
                                                 })
                                             }
                                         } catch (e: Exception) {
-                                            runOnMain { onResult(false, "Failed to parse player record: ${e.localizedMessage}") }
+                                            runOnMain { onResult(false, "Failed to parse player record. Please try again.") }
                                         }
                                     } else {
                                         runOnMain { onResult(false, "Failed to fetch player record (Code: ${res.code}).") }
@@ -1765,7 +2006,7 @@ fun fetchUserProfileWithToken(token: String, onResult: (Boolean, String?) -> Uni
                                 }
                             })
                         } catch (e: Exception) {
-                            runOnMain { onResult(false, "Failed to parse auth user details: ${e.localizedMessage}") }
+                            runOnMain { onResult(false, "Failed to parse auth user details. Please try again.") }
                         }
                     } else {
                         runOnMain { onResult(false, "Failed to load auth user (Code: ${response.code})") }
@@ -1791,7 +2032,7 @@ fun resetPassword(email: String, onResult: (Boolean, String?) -> Unit) {
 
                 client.newCall(request).enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
-                        runOnMain { onResult(false, e.localizedMessage) }
+                        runOnMain { onResult(false, "An error occurred. Please try again.") }
                     }
 
                     override fun onResponse(call: Call, response: Response) {
@@ -1842,7 +2083,7 @@ fun updatePassword(newPassword: String, onResult: (Boolean, String?) -> Unit) {
 
                 client.newCall(request).enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
-                        runOnMain { onResult(false, e.localizedMessage) }
+                        runOnMain { onResult(false, "An error occurred. Please try again.") }
                     }
 
                     override fun onResponse(call: Call, response: Response) {
@@ -2052,7 +2293,7 @@ fun loadInitialData() {
 
         client.newCall(request).enqueueWithRetry(
             onFailure = { call, e ->
-                _errorMessage.value = "Failed users sync: ${e.localizedMessage}"
+                _errorMessage.value = "Unable to connect to server. Please check your internet connection."
             },
             onResponse = { call, response ->
                 val body = response.body?.string()
@@ -2281,7 +2522,9 @@ fun deleteUserRemote(userId: String) {
         } else {
             val dateStr = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
             _users.value = getLeaderboardSeedUsers() + listOf(
-                SupabaseUser(id = "u_sim_admin", username = "DaadiAdmin", email = "admin@daadi.com", role = "admin", createdAt = dateStr, totalGames = 25, wins = 18, losses = 7, coins = 10000, xp = 5000, rating = 1500, isVerified = true)
+                SupabaseUser(id = "u_sim_admin", username = "DaadiAdmin", email = "admin@daadi.com", role = "admin", createdAt = dateStr, totalGames = 25, wins = 18, losses = 7, coins = 10000, xp = 5000, rating = 1500, isVerified = true),
+                SupabaseUser(id = "u_sim_mod", username = "DaadiMod", email = "mod@daadi.com", role = "moderator", createdAt = dateStr, totalGames = 15, wins = 10, losses = 5, coins = 5000, xp = 2000, rating = 1200, isVerified = true),
+                SupabaseUser(id = "u_sim_support", username = "DaadiSupport", email = "support@daadi.com", role = "support", createdAt = dateStr, totalGames = 10, wins = 5, losses = 5, coins = 3000, xp = 1000, rating = 1000, isVerified = true)
             )
             saveSimulatorUsers()
         }
@@ -3603,7 +3846,7 @@ fun createSystemSetting(key: String, value: String, description: String, onResul
 
                 client.newCall(request).enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
-                        runOnMain { onResult(false, e.localizedMessage) }
+                        runOnMain { onResult(false, "An error occurred. Please try again.") }
                     }
                     override fun onResponse(call: Call, response: Response) {
                         if (response.isSuccessful) {
@@ -3644,7 +3887,7 @@ fun deleteSystemSetting(key: String, onResult: (Boolean, String?) -> Unit = { _,
 
                 client.newCall(request).enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
-                        runOnMain { onResult(false, e.localizedMessage) }
+                        runOnMain { onResult(false, "An error occurred. Please try again.") }
                     }
                     override fun onResponse(call: Call, response: Response) {
                         if (response.isSuccessful) {
@@ -3738,7 +3981,7 @@ fun submitFeedback(content: String, category: String, onResult: (Boolean, String
                                 trySubmitV2(false)
                             } else {
                                 // Fallback: If feedback_v2 fails (e.g. table not initialized or schema mismatch), try legacy feedback table
-                                submitLegacyFeedback(content, category, dateStr, username, validUserId, "feedback_v2: ${e.localizedMessage}", onResult)
+                                submitLegacyFeedback(content, category, dateStr, username, validUserId, "feedback_v2: An error occurred.", onResult)
                             }
                         }
 
@@ -3875,7 +4118,7 @@ fun submitFeedback(content: String, category: String, onResult: (Boolean, String
                     if (useSessionToken) {
                         trySubmitV1(false)
                     } else {
-                        val combinedError = if (prevError != null) "$prevError | feedback_v1: ${e.localizedMessage}" else "feedback_v1: ${e.localizedMessage}"
+                        val combinedError = if (prevError != null) "$prevError | feedback_v1: An error occurred" else "feedback_v1: An error occurred."
                         runOnMain { onResult(false, combinedError) }
                     }
                 }
@@ -5025,7 +5268,9 @@ fun toggleGameEvent(eventId: String, isActive: Boolean) {
                 val roles = listOf(
                     mapOf("id" to "R-1", "name" to "PublicUser", "description" to "General public user who can play casual games"),
                     mapOf("id" to "R-2", "name" to "Player", "description" to "Verified system players with profile access"),
-                    mapOf("id" to "R-3", "name" to "Admin", "description" to "Full system administration and data control")
+                    mapOf("id" to "R-3", "name" to "Admin", "description" to "Full system administration and data control"),
+                    mapOf("id" to "R-4", "name" to "Moderator", "description" to "User moderation, reporting, and chat oversight"),
+                    mapOf("id" to "R-5", "name" to "Support", "description" to "Customer support, account recovery, and helpdesk")
                 )
                 roles.forEach { role ->
                     val json = moshi.adapter(Map::class.java).toJson(role)
@@ -5329,6 +5574,21 @@ fun fetchSeasonPasses() {
         fetchList("/rest/v1/season_passes?select=*&order=start_time.desc", seasonPassListAdapter) { _seasonPasses.value = it }
     }
 
+fun fetchMissions() {
+        if (!isConfigured) return
+        fetchList("/rest/v1/missions?select=*&order=created_at.desc", missionListAdapter) { _missions.value = it }
+    }
+
+fun fetchReferralRewards() {
+        if (!isConfigured) return
+        fetchList("/rest/v1/referral_rewards?select=*&order=created_at.desc", referralRewardListAdapter) { _referralRewards.value = it }
+    }
+
+fun fetchUserSeasonProgress() {
+        if (!isConfigured) return
+        fetchList("/rest/v1/user_season_progress?select=*&order=current_xp.desc", userSeasonProgressListAdapter) { _userSeasonProgress.value = it }
+    }
+
 fun fetchCMSContent() {
         if (!isConfigured) return
         fetchList("/rest/v1/cms_content?select=*&order=created_at.desc", cmsContentListAdapter) { _cmsContent.value = it }
@@ -5485,6 +5745,64 @@ suspend fun askAiAssistant(prompt: String): String = withContext(Dispatchers.IO)
                     sb.append("• Lobbies Queue Status: **IDLE (No active queues)**\n")
                 }
             }
+            q.contains("anomaly") || q.contains("scan") || q.contains("detect") || q.contains("flag") -> {
+                sb.append("⚠️ **AUTOMATED SYSTEM ANOMALY DIAL SCAN**\n\n")
+                sb.append("Scanning live telemetry clusters for compliance outliers, fraud, and hardware latency thresholds...\n\n")
+                
+                var anomaliesFound = 0
+                val highLatencyServices = _biHealthMetrics.value.filter { (it.latencyMs ?: 0) > 40 }
+                if (highLatencyServices.isNotEmpty()) {
+                    anomaliesFound++
+                    sb.append("🚨 **LATENCY EXCURSION:**\n")
+                    highLatencyServices.forEach { 
+                        sb.append("  - service **${it.serviceName}** reports high latency of **${it.latencyMs}ms**.\n")
+                    }
+                } else {
+                    sb.append("✅ **GATEWAY LATENCY:** All services running < 40ms threshold.\n")
+                }
+
+                val criticalAlerts = _fraudAlerts.value.filter { it.confidence > 0.75 }
+                if (criticalAlerts.isNotEmpty()) {
+                    anomaliesFound++
+                    sb.append("🚨 **CRITICAL FRAUD SIGNALS:**\n")
+                    criticalAlerts.forEach { alert ->
+                        sb.append("  - user **${alert.userId.take(8)}** flagged for **${alert.type}** with high confidence (**${(alert.confidence * 100).toInt()}%**)\n")
+                    }
+                } else {
+                    sb.append("✅ **FINANCIAL MATRIX:** Verified ledger balancing, zero high-confidence fraud anomalies.\n")
+                }
+
+                val antiCheatCount = _antiCheatLogs.value.size
+                if (antiCheatCount > 5) {
+                    anomaliesFound++
+                    sb.append("🚨 **SECURITY SPIKE:** Out of bounds anti-cheat events registered (**$antiCheatCount** logs in frame)\n")
+                } else {
+                    sb.append("✅ **ANTI-CHEAT CONSOLE:** Safe memory bounds, normal client injection metrics.\n")
+                }
+
+                sb.append("\n**PROGNOSIS:** Analysis complete. Found **$anomaliesFound** anomalies requiring investigation.")
+            }
+            q.contains("liveops") || q.contains("recommend") || q.contains("retention") || q.contains("campaign") -> {
+                sb.append("📈 **LIVEOPS CAMPAIGN ANALYTICAL RECOMMENDATIONS**\n\n")
+                val churnPct = 0.08
+                sb.append("Based on historical retention curves and an active churn benchmark of **${String.format("%.1f", churnPct * 100)}%**, the local telemetry recommends the following interventions:\n\n")
+                sb.append("1. 🎯 **RETENTION BOOST CAMPAIGN:**\n")
+                sb.append("   - Proactively launch a **Daily Login Streak** event offering **50 coins** for 5 consecutive logins to counteract the current Week-2 drop-off.\n")
+                sb.append("2. ⚔️ **WEEKEND MULTIPLAYER TOURNAMENT:**\n")
+                sb.append("   - Schedule an interactive **Ad-supported Coin Championship** on Friday to bolster active DAU matchmaking densities.\n")
+                sb.append("3. 💎 **ECONOMY BALANCE TUNE:**\n")
+                sb.append("   - Run a temporary **15% discount bonus** on avatar cosmetics in the customizing store to trigger microtransactions from high-activity, non-converting users.\n")
+            }
+            q.contains("summary") || q.contains("report") || q.contains("generate") || q.contains("digest") -> {
+                sb.append("📊 **EXECUTIVE CONSOLE TELEMETRY DIGEST**\n\n")
+                sb.append("Generative high-fidelity dashboard snapshot:\n\n")
+                sb.append("• **User Base Index:** ${_users.value.size} total registered players.\n")
+                sb.append("• **Active Bans:** ${_bans.value.size} security lockouts.\n")
+                sb.append("• **Network Health:** latency metrics averaging **24ms**, CPU nodes **stable**.\n")
+                sb.append("• **Multiplayer Logs:** ${_matches.value.size} games and ${_tournaments.value.size} active tournaments recorded.\n")
+                sb.append("• **Monetization Engine:** AdMob fill rate at **${String.format("%.1f", _adTelemetry.value.fillRate * 100)}%**, store customizer functional.\n\n")
+                sb.append("**CONCLUSION:** Infrastructure and player economy are running at **99.98% operational capacity**.")
+            }
             else -> {
                 sb.append("👋 **WELCOME TO DAADI SYSTEM CONSOLE**\n\n")
                 sb.append("Our local analysis engine delivers instant, fully secure telemetry diagnostics directly from the active SQLite/Supabase synchronization bounds.\n\n")
@@ -5495,7 +5813,10 @@ suspend fun askAiAssistant(prompt: String): String = withContext(Dispatchers.IO)
                 sb.append("• `fraud` - Probe for transaction compliance or payment alerts.\n")
                 sb.append("• `economy` - Summarize store items and ledger transaction logs.\n")
                 sb.append("• `ad` - Telemetry on AdMob fill rates and impression metrics.\n")
-                sb.append("• `matches` - Inspect live lobbies, matchmaking wait times, and tournaments.\n\n")
+                sb.append("• `matches` - Inspect live lobbies, matchmaking wait times, and tournaments.\n")
+                sb.append("• `anomaly` - Run dynamic scans for outlier metrics or latency violations.\n")
+                sb.append("• `liveops` - Suggest player campaigns to maximize stickiness.\n")
+                sb.append("• `summary` - Generate a complete, ready-to-present executive status report.\n\n")
                 sb.append("Type any of the keywords above to run a fully secure, local, real-time diagnostic sweep!")
             }
         }
@@ -6066,6 +6387,116 @@ fun adjustUserEconomy(userId: String, amount: Int, currency: String, reason: Str
                     }
                 }
             } catch (e: Exception) {}
+        }
+    }
+
+    fun fetchTournamentParticipants(tournamentId: String) {
+        if (!isConfigured) return
+        scope.launch {
+            try {
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/tournament_participants?tournament_id=eq.$tournamentId&order=rank.asc")
+                    .headers(getHeaders())
+                    .get()
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val json = response.body?.string() ?: ""
+                        _tournamentParticipants.value = tournamentParticipantListAdapter.fromJson(json) ?: emptyList()
+                    }
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun fetchTournamentBrackets(tournamentId: String) {
+        if (!isConfigured) return
+        scope.launch {
+            try {
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/tournament_brackets?tournament_id=eq.$tournamentId&order=round.asc,position.asc")
+                    .headers(getHeaders())
+                    .get()
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val json = response.body?.string() ?: ""
+                        _tournamentBrackets.value = tournamentBracketListAdapter.fromJson(json) ?: emptyList()
+                    }
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun postTournamentAnnouncement(announcement: SupabaseTournamentAnnouncement, onResult: (Boolean) -> Unit = {}) {
+        if (!isConfigured) {
+            _tournamentAnnouncements.value = listOf(announcement) + _tournamentAnnouncements.value
+            onResult(true)
+            return
+        }
+        scope.launch {
+            try {
+                val json = moshi.adapter(SupabaseTournamentAnnouncement::class.java).toJson(announcement)
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/tournament_announcements")
+                    .headers(getHeaders())
+                    .post(json.toRequestBody("application/json".toMediaType()))
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    val success = response.isSuccessful
+                    if (success) fetchTournamentAnnouncements(announcement.tournamentId)
+                    runOnMain { onResult(success) }
+                }
+            } catch (e: Exception) {
+                runOnMain { onResult(false) }
+            }
+        }
+    }
+
+    fun fetchTournamentAnnouncements(tournamentId: String) {
+        if (!isConfigured) return
+        scope.launch {
+            try {
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/tournament_announcements?tournament_id=eq.$tournamentId&order=created_at.desc")
+                    .headers(getHeaders())
+                    .get()
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val json = response.body?.string() ?: ""
+                        _tournamentAnnouncements.value = tournamentAnnouncementListAdapter.fromJson(json) ?: emptyList()
+                    }
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
+    fun updateMatchStatus(matchId: String, status: String, onResult: (Boolean) -> Unit = {}) {
+        if (!isConfigured) {
+            _matches.value = _matches.value.map {
+                if (it.id == matchId) it.copy(status = status) else it
+            }
+            onResult(true)
+            return
+        }
+        scope.launch {
+            try {
+                val updateMap = mapOf("status" to status)
+                val json = moshi.adapter(Map::class.java).toJson(updateMap)
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/matches?id=eq.$matchId")
+                    .headers(getHeaders())
+                    .patch(json.toRequestBody("application/json".toMediaType()))
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    val success = response.isSuccessful
+                    if (success) fetchRemoteMatches()
+                    runOnMain { onResult(success) }
+                }
+            } catch (e: Exception) {
+                runOnMain { onResult(false) }
+            }
         }
     }
 

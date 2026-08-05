@@ -1,6 +1,9 @@
 package com.example.daadi.ui.screens.admin
 
-import com.example.daadi.data.supabase.SupabaseTournament
+import com.example.daadi.data.supabase.*
+import com.example.daadi.ui.screens.admin.AdminDesign
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -8,7 +11,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,143 +32,264 @@ fun AdminTournamentScreen(
 ) {
     val tournaments by adminViewModel.tournamentRepository.tournaments.collectAsStateWithLifecycle()
     val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
+    var selectedTournament by remember { mutableStateOf<SupabaseTournament?>(null) }
     var showCreateDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         adminViewModel.tournamentRepository.fetchTournaments()
     }
 
-    AdminFoundationScaffold(
-        title = "Tournaments",
-        adminViewModel = adminViewModel,
-        onBack = onBack,
-        actions = {
-            IconButton(onClick = { showCreateDialog = true }) {
-                Icon(Icons.Default.EmojiEvents, contentDescription = "Create Tournament", tint = AdminDesign.Primary)
+    if (selectedTournament == null) {
+        AdminFoundationScaffold(
+            title = "Tournament Center",
+            adminViewModel = adminViewModel,
+            onBack = onBack,
+            actions = {
+                IconButton(onClick = { showCreateDialog = true }) {
+                    Icon(Icons.Default.Add, contentDescription = "Create", tint = AdminDesign.Primary)
+                }
             }
-        }
-    ) { padding ->
-        if (isSyncing && tournaments.isEmpty()) {
-            LazyColumn(modifier = Modifier.padding(padding).fillMaxSize().padding(AdminDesign.SpacingMedium)) {
-                items(5) { ShimmerItem(Modifier.padding(vertical = AdminDesign.SpacingSmall)) }
-            }
-        } else if (tournaments.isEmpty()) {
-            AdminEmptyState(
-                title = "No Tournaments", 
-                description = "Competitive play is currently quiet. Schedule a new tournament to drive high-stakes engagement.",
-                actionButton = {
-                    Button(
-                        onClick = { showCreateDialog = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Primary),
-                        shape = AdminDesign.ButtonShape
-                    ) {
-                        Text("LAUNCH NEW TOURNAMENT")
+        ) { padding ->
+            if (isSyncing && tournaments.isEmpty()) {
+                LazyColumn(modifier = Modifier.padding(padding).fillMaxSize().padding(AdminDesign.SpacingMedium)) {
+                    items(5) { ShimmerItem(Modifier.padding(vertical = AdminDesign.SpacingSmall)) }
+                }
+            } else if (tournaments.isEmpty()) {
+                AdminEmptyState("No Tournaments", "Schedule a new competition to start.", actionButton = {
+                    Button(onClick = { showCreateDialog = true }) { Text("Create Tournament") }
+                })
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(AdminDesign.SpacingMedium),
+                    verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall),
+                    modifier = Modifier.fillMaxSize().padding(padding)
+                ) {
+                    items(tournaments) { tournament ->
+                        TournamentItem(
+                            tournament = tournament,
+                            onClick = { selectedTournament = tournament },
+                            onDelete = { adminViewModel.tournamentRepository.deleteTournament(tournament.id) }
+                        )
                     }
                 }
-            )
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(AdminDesign.SpacingMedium),
-                verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall),
-                modifier = Modifier.fillMaxSize().padding(padding)
-            ) {
-                item {
-                    Text("ACTIVE & UPCOMING COMPETITIONS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
-                    Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
-                }
-                items(tournaments) { tournament ->
-                    TournamentItem(
-                        tournament = tournament,
-                        onUpdateStatus = { newStatus ->
-                            adminViewModel.tournamentRepository.updateTournamentStatus(tournament.id, newStatus)
-                        },
-                        onDelete = {
-                            adminViewModel.tournamentRepository.deleteTournament(tournament.id)
-                        }
-                    )
-                }
+            }
+
+            if (showCreateDialog) {
+                CreateTournamentDialog(
+                    onDismiss = { showCreateDialog = false },
+                    onConfirm = { title, desc, fee, prize ->
+                        adminViewModel.tournamentRepository.createTournament(title, desc, fee, prize)
+                        showCreateDialog = false
+                    }
+                )
             }
         }
+    } else {
+        TournamentDetailView(
+            tournament = selectedTournament!!,
+            adminViewModel = adminViewModel,
+            onBack = { selectedTournament = null }
+        )
+    }
+}
 
-        if (showCreateDialog) {
-            CreateTournamentDialog(
-                onDismiss = { showCreateDialog = false },
-                onConfirm = { title, desc, fee, prize ->
-                    adminViewModel.tournamentRepository.createTournament(title, desc, fee, prize)
-                    showCreateDialog = false
+@Composable
+fun TournamentDetailView(
+    tournament: SupabaseTournament,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
+    onBack: () -> Unit
+) {
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val tabs = listOf("Overview", "Participants", "Brackets", "Announce")
+
+    AdminFoundationScaffold(
+        title = tournament.title,
+        onBack = onBack
+    ) { padding ->
+        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+            TabRow(selectedTabIndex = selectedTab, containerColor = Color.Transparent, contentColor = AdminDesign.Primary) {
+                tabs.forEachIndexed { index, title ->
+                    Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(title, fontSize = 11.sp) })
                 }
-            )
+            }
+
+            Box(modifier = Modifier.weight(1f)) {
+                when (selectedTab) {
+                    0 -> TournamentOverviewTab(tournament, adminViewModel)
+                    1 -> TournamentParticipantsTab(tournament, adminViewModel)
+                    2 -> TournamentBracketsTab(tournament, adminViewModel)
+                    3 -> TournamentAnnouncementsTab(tournament, adminViewModel)
+                }
+            }
         }
     }
 }
 
 @Composable
-fun TournamentItem(
-    tournament: SupabaseTournament,
-    onUpdateStatus: (String) -> Unit,
-    onDelete: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = AdminDesign.CardShape,
-        elevation = CardDefaults.cardElevation(defaultElevation = AdminDesign.CardElevation),
-        colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface)
-    ) {
-        Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    modifier = Modifier.size(40.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    color = AdminDesign.Primary.copy(alpha = 0.1f)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = AdminDesign.Primary, modifier = Modifier.size(20.dp))
+fun TournamentOverviewTab(tournament: SupabaseTournament, adminViewModel: com.example.daadi.viewmodel.AdminViewModel) {
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(AdminDesign.SpacingMedium), verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingMedium)) {
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface)) {
+                Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
+                    Text("CONTROL PANEL", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { adminViewModel.tournamentRepository.updateTournamentStatus(tournament.id, "active") }, modifier = Modifier.weight(1f)) { Text("START") }
+                        Button(onClick = { adminViewModel.tournamentRepository.updateTournamentStatus(tournament.id, "completed") }, modifier = Modifier.weight(1f)) { Text("END") }
                     }
-                }
-                Spacer(modifier = Modifier.width(AdminDesign.SpacingMedium))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(tournament.title, fontWeight = FontWeight.ExtraBold, color = AdminDesign.OnSurface, fontSize = 15.sp)
-                    Text(tournament.status.uppercase(), style = MaterialTheme.typography.labelSmall, color = AdminDesign.Success, fontWeight = FontWeight.Black)
-                }
-                
-                // Status rotation action button
-                IconButton(onClick = {
-                    val nextStatus = when (tournament.status.lowercase()) {
-                        "scheduled" -> "active"
-                        "active" -> "completed"
-                        else -> "scheduled"
-                    }
-                    onUpdateStatus(nextStatus)
-                }) {
-                    Icon(
-                        imageVector = Icons.Default.Transform,
-                        contentDescription = "Shift status",
-                        tint = AdminDesign.Primary
-                    )
-                }
-
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete tournament",
-                        tint = AdminDesign.Error
-                    )
                 }
             }
-            
-            Text(
-                text = tournament.description ?: "No description provided.", 
-                fontSize = 12.sp, 
-                color = AdminDesign.OnSurfaceVariant, 
-                modifier = Modifier.padding(vertical = AdminDesign.SpacingSmall)
-            )
-            
-            HorizontalDivider(modifier = Modifier.padding(vertical = AdminDesign.SpacingSmall), color = AdminDesign.OnSurface.copy(alpha = 0.05f))
-            
-            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                TournamentStat("ENTRY FEE", "${tournament.entryFee}", Icons.Default.Login)
-                TournamentStat("PRIZE POOL", "${tournament.prizePoolCoins}", Icons.Default.MilitaryTech)
-                TournamentStat("MAX CAPACITY", "${tournament.maxParticipants}", Icons.Default.Groups)
+        }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface)) {
+                Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
+                    Text("DETAILS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(tournament.description ?: "No description", fontSize = 13.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Entry Fee: ${tournament.entryFee} coins", fontWeight = FontWeight.Bold)
+                    Text("Prize Pool: ${tournament.prizePoolCoins} coins", fontWeight = FontWeight.Bold)
+                    Text("Max Participants: ${tournament.maxParticipants}")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TournamentParticipantsTab(tournament: SupabaseTournament, adminViewModel: com.example.daadi.viewmodel.AdminViewModel) {
+    val participants by adminViewModel.tournamentRepository.participants.collectAsStateWithLifecycle()
+    
+    LaunchedEffect(tournament.id) {
+        adminViewModel.tournamentRepository.network.fetchTournamentParticipants(tournament.id)
+    }
+
+    if (participants.isEmpty()) {
+        AdminEmptyState("No Entrants", "Nobody has registered for this tournament yet.")
+    } else {
+        LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(AdminDesign.SpacingMedium), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(participants) { participant ->
+                Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface)) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        PlayerIcon(participant.userId.take(8)) // Mock username if not joined
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("User ID: ${participant.userId}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("Joined: ${participant.joinedAt}", fontSize = 10.sp)
+                        }
+                        Spacer(modifier = Modifier.weight(1f))
+                        IconButton(onClick = { /* Disqualify logic */ }) {
+                            Icon(Icons.Default.Gavel, contentDescription = null, tint = AdminDesign.Error)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TournamentBracketsTab(tournament: SupabaseTournament, adminViewModel: com.example.daadi.viewmodel.AdminViewModel) {
+    val brackets by adminViewModel.tournamentRepository.brackets.collectAsStateWithLifecycle()
+
+    LaunchedEffect(tournament.id) {
+        adminViewModel.tournamentRepository.network.fetchTournamentBrackets(tournament.id)
+    }
+
+    if (brackets.isEmpty()) {
+        AdminEmptyState("Bracket Empty", "Brackets haven't been generated or synced for this tournament.")
+    } else {
+        LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(AdminDesign.SpacingMedium), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            items(brackets) { bracket ->
+                Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface)) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("ROUND ${bracket.round} - POS ${bracket.position}", fontWeight = FontWeight.Black, fontSize = 10.sp, color = AdminDesign.Primary)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                            Text(bracket.player1Id ?: "TBD", fontWeight = FontWeight.Bold)
+                            Text("VS", fontSize = 10.sp, color = AdminDesign.OnSurfaceVariant)
+                            Text(bracket.player2Id ?: "TBD", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TournamentAnnouncementsTab(tournament: SupabaseTournament, adminViewModel: com.example.daadi.viewmodel.AdminViewModel) {
+    val announcements by adminViewModel.tournamentRepository.announcements.collectAsStateWithLifecycle()
+    var title by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
+
+    LaunchedEffect(tournament.id) {
+        adminViewModel.tournamentRepository.network.fetchTournamentAnnouncements(tournament.id)
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(AdminDesign.SpacingMedium)) {
+        Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface)) {
+            Column(modifier = Modifier.padding(AdminDesign.SpacingMedium), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("NEW ANNOUNCEMENT", fontWeight = FontWeight.Black, fontSize = 10.sp)
+                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = message, onValueChange = { message = it }, label = { Text("Message") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                Button(
+                    onClick = {
+                        val ann = com.example.daadi.data.supabase.SupabaseTournamentAnnouncement(
+                            id = UUID.randomUUID().toString(),
+                            tournamentId = tournament.id,
+                            title = title,
+                            message = message,
+                            createdAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date())
+                        )
+                        adminViewModel.tournamentRepository.network.postTournamentAnnouncement(ann) {
+                            title = ""
+                            message = ""
+                        }
+                    },
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("BROADCAST")
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("PREVIOUS ANNOUNCEMENTS", fontWeight = FontWeight.Black, fontSize = 10.sp)
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(announcements) { ann ->
+                Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface.copy(alpha = 0.5f))) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(ann.title, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(ann.message, fontSize = 12.sp)
+                        Text(ann.createdAt, fontSize = 9.sp, color = AdminDesign.OnSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TournamentItem(tournament: SupabaseTournament, onClick: () -> Unit, onDelete: () -> Unit) {
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface),
+        shape = AdminDesign.CardShape,
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(modifier = Modifier.padding(AdminDesign.SpacingMedium), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = AdminDesign.Primary)
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(tournament.title, fontWeight = FontWeight.Bold)
+                Text(tournament.status.uppercase(), fontSize = 10.sp, color = AdminDesign.Success, fontWeight = FontWeight.Black)
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, contentDescription = null, tint = AdminDesign.Error.copy(alpha = 0.5f))
             }
         }
     }

@@ -23,23 +23,37 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.daadi.data.supabase.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.util.UUID
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun AdminSupportHubScreen(
     adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
+    onUserClick: (com.example.daadi.data.supabase.SupabaseUser) -> Unit = {},
     onBack: () -> Unit
 ) {
     val tickets by adminViewModel.supportRepository.tickets.collectAsStateWithLifecycle()
     val feedbackV2 by adminViewModel.supportRepository.feedbackV2.collectAsStateWithLifecycle()
     val users by adminViewModel.userRepository.users.collectAsStateWithLifecycle()
     val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
+    val filterUsername = adminViewModel.filterUsername.value ?: ""
 
     var selectedTab by remember { mutableIntStateOf(0) }
+    var searchQuery by remember { mutableStateOf("") }
+    var filterStatus by remember { mutableStateOf("all") }
     val tabs = listOf("Support Tickets", "Feedback Center")
 
     LaunchedEffect(Unit) {
         adminViewModel.supportRepository.fetchTickets()
         adminViewModel.supportRepository.fetchFeedbackV2()
+    }
+
+    LaunchedEffect(filterUsername) {
+        if (filterUsername.isNotEmpty()) {
+            searchQuery = filterUsername
+        }
     }
 
     AdminFoundationScaffold(
@@ -57,6 +71,67 @@ fun AdminSupportHubScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            if (filterUsername.isNotEmpty()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = AdminDesign.SpacingMedium, vertical = 4.dp),
+                    color = AdminDesign.Primary.copy(alpha = 0.1f),
+                    shape = AdminDesign.CardShape
+                ) {
+                    Row(
+                        modifier = Modifier.padding(AdminDesign.SpacingMedium),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Filtering support by: $filterUsername", fontWeight = FontWeight.Bold, color = AdminDesign.Primary, fontSize = 12.sp)
+                        TextButton(onClick = { 
+                            adminViewModel.filterUsername.value = ""
+                            searchQuery = ""
+                        }) {
+                            Text("Clear Filter", fontWeight = FontWeight.Black, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
+            // Search and Filter Bar
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(AdminDesign.SpacingMedium),
+                horizontalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search tickets/users...", fontSize = 12.sp) },
+                    modifier = Modifier.weight(1f),
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = AdminDesign.Surface,
+                        unfocusedContainerColor = AdminDesign.Surface
+                    )
+                )
+                
+                var showFilterMenu by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { showFilterMenu = true }) {
+                        Icon(Icons.Default.FilterList, contentDescription = "Filter")
+                    }
+                    DropdownMenu(expanded = showFilterMenu, onDismissRequest = { showFilterMenu = false }) {
+                        listOf("all", "open", "in_progress", "resolved", "closed").forEach { status ->
+                            DropdownMenuItem(
+                                text = { Text(status.uppercase()) },
+                                onClick = { 
+                                    filterStatus = status
+                                    showFilterMenu = false 
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
             TabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = Color.Transparent,
@@ -79,8 +154,22 @@ fun AdminSupportHubScreen(
                     }
                 } else {
                     when (selectedTab) {
-                        0 -> TicketList(tickets, users, adminViewModel)
-                        1 -> FeedbackV2List(feedbackV2, users)
+                        0 -> {
+                            val filteredTickets = tickets.filter { ticket ->
+                                (filterStatus == "all" || ticket.status == filterStatus) &&
+                                (ticket.subject.contains(searchQuery, ignoreCase = true) || 
+                                 ticket.message.contains(searchQuery, ignoreCase = true) ||
+                                 users.find { it.id == ticket.userId }?.username?.contains(searchQuery, ignoreCase = true) == true)
+                            }
+                            TicketList(filteredTickets, users, adminViewModel, onUserClick)
+                        }
+                        1 -> {
+                            val filteredFeedback = feedbackV2.filter { f ->
+                                f.content.contains(searchQuery, ignoreCase = true) ||
+                                users.find { it.id == f.userId }?.username?.contains(searchQuery, ignoreCase = true) == true
+                            }
+                            FeedbackV2List(filteredFeedback, users, onUserClick)
+                        }
                     }
                 }
             }
@@ -90,7 +179,7 @@ fun AdminSupportHubScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TicketList(tickets: List<SupabaseSupportTicket>, users: List<SupabaseUser>, adminViewModel: com.example.daadi.viewmodel.AdminViewModel) {
+fun TicketList(tickets: List<SupabaseSupportTicket>, users: List<SupabaseUser>, adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onUserClick: (com.example.daadi.data.supabase.SupabaseUser) -> Unit) {
     var activeEditingTicket by remember { mutableStateOf<SupabaseSupportTicket?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -105,7 +194,7 @@ fun TicketList(tickets: List<SupabaseSupportTicket>, users: List<SupabaseUser>, 
             verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)
         ) {
             items(tickets) { ticket ->
-                TicketItem(ticket, users.find { it.id == ticket.userId }) {
+                TicketItem(ticket, users.find { it.id == ticket.userId }, onUserClick) {
                     activeEditingTicket = ticket
                 }
             }
@@ -114,98 +203,157 @@ fun TicketList(tickets: List<SupabaseSupportTicket>, users: List<SupabaseUser>, 
 
     if (activeEditingTicket != null) {
         val tkt = activeEditingTicket!!
+        val replies by supabaseManager.ticketReplies.collectAsStateWithLifecycle()
         var currentStatus by remember { mutableStateOf(tkt.status) }
         var currentAssignee by remember { mutableStateOf(tkt.assignedTo ?: "Admin Alok") }
         var replyText by remember { mutableStateOf("") }
         var isSubmitting by remember { mutableStateOf(false) }
 
+        LaunchedEffect(tkt.id) {
+            supabaseManager.fetchTicketReplies(tkt.id)
+        }
+
         AlertDialog(
             onDismissRequest = { activeEditingTicket = null },
-            title = { Text("Resolve Request: ${tkt.id}", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AdminDesign.Primary) },
+            title = { 
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Ticket #${tkt.id.take(6)}", fontWeight = FontWeight.Black, fontSize = 16.sp, color = AdminDesign.Primary)
+                    Spacer(modifier = Modifier.weight(1f))
+                    StatusBadge(currentStatus)
+                }
+            },
             text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text("Subject: ${tkt.subject}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text("User message: \"${tkt.message}\"", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(vertical = 4.dp))
+                Column(modifier = Modifier.fillMaxWidth().heightIn(max = 500.dp)) {
+                    Text(tkt.subject, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    
+                    // Chat-like reply history
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                            .background(AdminDesign.Background, RoundedCornerShape(8.dp))
+                            .padding(AdminDesign.SpacingSmall),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        item {
+                            // Original Message
+                            ChatBubble(
+                                message = tkt.message,
+                                isFromAdmin = false,
+                                sender = users.find { it.id == tkt.userId }?.username ?: "User"
+                            )
+                        }
+                        items(replies) { reply ->
+                            ChatBubble(
+                                message = reply.message,
+                                isFromAdmin = reply.authorRole == "agent",
+                                sender = if (reply.authorRole == "agent") "SUPPORT" else (users.find { it.id == tkt.userId }?.username ?: "User")
+                            )
+                        }
+                    }
                     
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     
-                    Text("Set Resolution Status:", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = AdminDesign.Primary)
+                    Text("Support Action Panel", fontWeight = FontWeight.Black, fontSize = 10.sp, color = AdminDesign.Primary)
+                    
                     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        listOf("open", "in_progress", "resolved", "closed").forEach { s ->
+                        listOf("open", "in_progress", "resolved").forEach { s ->
                             val selected = currentStatus == s
                             FilterChip(
                                 selected = selected,
                                 onClick = { currentStatus = s },
-                                label = { Text(s.uppercase(), fontSize = 10.sp) }
+                                label = { Text(s.uppercase(), fontSize = 9.sp) }
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text("Assign Administrator:", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = AdminDesign.Primary)
-                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        listOf("Admin Alok", "Admin Sunita", "Admin Rahul").forEach { a ->
-                            val selected = currentAssignee == a
-                            FilterChip(
-                                selected = selected,
-                                onClick = { currentAssignee = a },
-                                label = { Text(a, fontSize = 10.sp) }
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text("Official Support Reply:", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = AdminDesign.Primary)
                     OutlinedTextField(
                         value = replyText,
                         onValueChange = { replyText = it },
-                        placeholder = { Text("Type support solution / explanation here...", fontSize = 12.sp) },
+                        placeholder = { Text("Enter response to user...", fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth().height(80.dp),
-                        colors = TextFieldDefaults.colors(focusedContainerColor = Color.White, unfocusedContainerColor = Color.White)
+                        colors = TextFieldDefaults.colors(focusedContainerColor = Color.White, unfocusedContainerColor = Color.White, focusedTextColor = Color.Black, unfocusedTextColor = Color.Black),
+                        shape = RoundedCornerShape(8.dp)
                     )
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        isSubmitting = true
-                        val resolvedReply = if (replyText.isBlank()) tkt.message else replyText
-                        adminViewModel.supportRepository.updateTicketStatusAndReply(
-                            ticketId = tkt.id,
-                            status = currentStatus,
-                            replyMessage = resolvedReply,
-                            assignedTo = currentAssignee
-                        ) { success ->
-                            isSubmitting = false
-                            activeEditingTicket = null
-                            if (success) {
-                                android.widget.Toast.makeText(context, "Support response submitted successfully!", android.widget.Toast.LENGTH_LONG).show()
+                        if (replyText.isNotBlank()) {
+                            isSubmitting = true
+                            val reply = com.example.daadi.data.supabase.SupabaseTicketReply(
+                                id = UUID.randomUUID().toString(),
+                                ticketId = tkt.id,
+                                authorId = "admin_alok",
+                                authorRole = "agent",
+                                message = replyText,
+                                createdAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault()).format(Date())
+                            )
+                            supabaseManager.addTicketReply(reply) { success ->
+                                if (success) {
+                                    adminViewModel.supportRepository.updateTicketStatusAndReply(
+                                        ticketId = tkt.id,
+                                        status = currentStatus,
+                                        replyMessage = replyText,
+                                        assignedTo = currentAssignee
+                                    ) { 
+                                        isSubmitting = false
+                                        replyText = ""
+                                        // Refresh replies
+                                        supabaseManager.fetchTicketReplies(tkt.id)
+                                    }
+                                } else {
+                                    isSubmitting = false
+                                }
+                            }
+                        } else {
+                            // Just update status if no reply
+                            adminViewModel.supportRepository.updateTicketStatusAndReply(tkt.id, currentStatus, "", currentAssignee) {
+                                activeEditingTicket = null
                             }
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Primary),
                     enabled = !isSubmitting
                 ) {
-                    if (isSubmitting) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White)
-                    } else {
-                        Text("Save & Dispatch")
-                    }
+                    Text(if (replyText.isBlank()) "Update Status" else "Send Reply")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { activeEditingTicket = null }) {
-                    Text("Cancel")
-                }
+                TextButton(onClick = { activeEditingTicket = null }) { Text("Close") }
             }
         )
     }
 }
 
 @Composable
-fun TicketItem(ticket: SupabaseSupportTicket, user: SupabaseUser?, onClick: () -> Unit) {
+fun ChatBubble(message: String, isFromAdmin: Boolean, sender: String) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = if (isFromAdmin) Alignment.End else Alignment.Start
+    ) {
+        Text(sender.uppercase(), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = AdminDesign.OnSurfaceVariant)
+        Surface(
+            color = if (isFromAdmin) AdminDesign.Primary else AdminDesign.Surface,
+            contentColor = if (isFromAdmin) Color.White else AdminDesign.OnSurface,
+            shape = RoundedCornerShape(
+                topStart = 8.dp,
+                topEnd = 8.dp,
+                bottomStart = if (isFromAdmin) 8.dp else 0.dp,
+                bottomEnd = if (isFromAdmin) 0.dp else 8.dp
+            ),
+            tonalElevation = if (isFromAdmin) 0.dp else 2.dp,
+            border = if (isFromAdmin) null else androidx.compose.foundation.BorderStroke(1.dp, AdminDesign.OnSurface.copy(alpha = 0.05f))
+        ) {
+            Text(message, modifier = Modifier.padding(8.dp), fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+fun TicketItem(ticket: SupabaseSupportTicket, user: SupabaseUser?, onUserClick: (com.example.daadi.data.supabase.SupabaseUser) -> Unit, onClick: () -> Unit) {
     Card(
         colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface),
         shape = AdminDesign.CardShape,
@@ -218,7 +366,29 @@ fun TicketItem(ticket: SupabaseSupportTicket, user: SupabaseUser?, onClick: () -
                 StatusBadge(ticket.status)
             }
             Spacer(modifier = Modifier.height(4.dp))
-            Text("ORIGIN: ${user?.username ?: "ANONYMOUS_NODE"}", fontSize = 10.sp, color = AdminDesign.OnSurfaceVariant, fontWeight = FontWeight.Black)
+            
+            if (user != null) {
+                Card(
+                    onClick = { onUserClick(user) },
+                    colors = CardDefaults.cardColors(
+                        containerColor = AdminDesign.Primary.copy(alpha = 0.08f),
+                        contentColor = AdminDesign.Primary
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.wrapContentSize()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Person, null, modifier = Modifier.size(10.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(user.username, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                }
+            } else {
+                Text("ORIGIN: ANONYMOUS_NODE", fontSize = 10.sp, color = AdminDesign.OnSurfaceVariant, fontWeight = FontWeight.Black)
+            }
             
             Surface(
                 modifier = Modifier.fillMaxWidth().padding(vertical = AdminDesign.SpacingSmall),
@@ -260,7 +430,7 @@ fun TicketItem(ticket: SupabaseSupportTicket, user: SupabaseUser?, onClick: () -
 }
 
 @Composable
-fun FeedbackV2List(feedback: List<SupabaseFeedbackV2>, users: List<SupabaseUser>) {
+fun FeedbackV2List(feedback: List<SupabaseFeedbackV2>, users: List<SupabaseUser>, onUserClick: (com.example.daadi.data.supabase.SupabaseUser) -> Unit) {
     if (feedback.isEmpty()) {
         AdminEmptyState(
             title = "No Feedback", 
@@ -272,14 +442,14 @@ fun FeedbackV2List(feedback: List<SupabaseFeedbackV2>, users: List<SupabaseUser>
             verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)
         ) {
             items(feedback) { item ->
-                FeedbackV2Item(item, users.find { it.id == item.userId })
+                FeedbackV2Item(item, users.find { it.id == item.userId }, onUserClick)
             }
         }
     }
 }
 
 @Composable
-fun FeedbackV2Item(item: SupabaseFeedbackV2, user: SupabaseUser?) {
+fun FeedbackV2Item(item: SupabaseFeedbackV2, user: SupabaseUser?, onUserClick: (com.example.daadi.data.supabase.SupabaseUser) -> Unit) {
     Card(
         colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface),
         shape = AdminDesign.CardShape,
@@ -305,6 +475,28 @@ fun FeedbackV2Item(item: SupabaseFeedbackV2, user: SupabaseUser?) {
             }
             Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
             Text(item.content, fontSize = 13.sp, color = AdminDesign.OnSurface, lineHeight = 18.sp)
+            
+            if (user != null) {
+                Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
+                Card(
+                    onClick = { onUserClick(user) },
+                    colors = CardDefaults.cardColors(
+                        containerColor = AdminDesign.Primary.copy(alpha = 0.08f),
+                        contentColor = AdminDesign.Primary
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.wrapContentSize()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Person, null, modifier = Modifier.size(10.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(user.username, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                }
+            }
             
             HorizontalDivider(modifier = Modifier.padding(vertical = AdminDesign.SpacingSmall), color = AdminDesign.OnSurface.copy(alpha = 0.05f))
             

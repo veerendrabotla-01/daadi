@@ -68,12 +68,27 @@ fun OnboardingScreen(onFinish: () -> Unit) {
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF1A1C2C),
-                        Color(0xFF0F111A)
+                        Color(0xFF2C1C10), // Rich Walnut
+                        Color(0xFF1A0F08)  // Deep Mahogany
                     )
                 )
             )
     ) {
+        // Decorative background elements for "Pro Max" look
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            pages[pagerState.currentPage].accentColor.copy(alpha = 0.15f),
+                            Color.Transparent
+                        ),
+                        center = androidx.compose.ui.geometry.Offset(0f, 0f)
+                    )
+                )
+        )
+
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize()
@@ -84,9 +99,10 @@ fun OnboardingScreen(onFinish: () -> Unit) {
         // Bottom Controls
         Column(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
+                .fillMaxSize()
                 .navigationBarsPadding()
                 .padding(bottom = 48.dp, start = 32.dp, end = 32.dp),
+            verticalArrangement = Arrangement.Bottom,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Page Indicator
@@ -216,25 +232,36 @@ fun OnboardingPageContent(page: OnboardingPage, isVisible: Boolean) {
             visible = isVisible,
             enter = fadeIn(tween(600)) + slideInVertically(initialOffsetY = { 40 }, animationSpec = tween(600))
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = page.title,
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color.White,
-                    textAlign = TextAlign.Center
-                )
-                
-                Spacer(modifier = Modifier.height(20.dp))
-                
-                Text(
-                    text = page.description,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Color.White.copy(alpha = 0.7f),
-                    textAlign = TextAlign.Center,
-                    lineHeight = 28.sp,
-                    modifier = Modifier.padding(horizontal = 8.dp)
-                )
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.03f)),
+                shape = RoundedCornerShape(24.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+                modifier = Modifier.padding(horizontal = 4.dp)
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(24.dp)
+                ) {
+                    Text(
+                        text = page.title,
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
+                        letterSpacing = (-0.5).sp
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        text = page.description,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.White.copy(alpha = 0.6f),
+                        textAlign = TextAlign.Center,
+                        lineHeight = 26.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
+                }
             }
         }
     }

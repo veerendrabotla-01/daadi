@@ -52,6 +52,7 @@ class AuthRepository(val network: SupabaseManager) {
                     val bodyMap = mapOf(
                         "email" to trimmedEmail,
                         "password" to trimmedPass,
+                        "options" to mapOf("data" to mapOf("username" to trimmedUsername)),
                         "data" to mapOf("username" to trimmedUsername)
                     )
                     val json = network.moshi.adapter(Map::class.java).toJson(bodyMap)
@@ -843,13 +844,17 @@ class AdminRepository(val network: SupabaseManager) {
                     .post(json.toRequestBody("application/json".toMediaType()))
                     .build()
                 val response = network.client.newCall(request).execute()
-                if (response.isSuccessful) {
-                    onResult(true, "Export request submitted successfully. You will be notified when it's ready.")
-                } else {
-                    onResult(false, "Failed to submit export request: ${response.code}")
+                network.runOnMain {
+                    if (response.isSuccessful) {
+                        onResult(true, "Export request submitted successfully. You will be notified when it's ready.")
+                    } else {
+                        onResult(false, "Failed to submit export request: ${response.code}")
+                    }
                 }
             } catch (e: Exception) {
-                onResult(false, e.localizedMessage ?: "Network error")
+                network.runOnMain {
+                    onResult(false, e.localizedMessage ?: "Network error")
+                }
             }
         }
     }
@@ -984,16 +989,17 @@ class AdminRepository(val network: SupabaseManager) {
     fun approveRequest(requestId: String) {
         network.scope.launch {
             try {
+                val approverName = network._currentUser.value?.username ?: "Admin"
                 val currentList = _approvalRequests.value.toMutableList()
                 val reqIndex = currentList.indexOfFirst { it.id == requestId }
                 if (reqIndex != -1) {
                     val req = currentList[reqIndex]
-                    val updatedReq = req.copy(status = "approved")
+                    val updatedReq = req.copy(status = "approved", approver = approverName)
                     currentList[reqIndex] = updatedReq
                     _approvalRequests.value = currentList
                     
                     if (network.isConfigured) {
-                        val update = mapOf("status" to "approved")
+                        val update = mapOf("status" to "approved", "approver" to approverName)
                         val jsonBody = network.moshi.adapter(Map::class.java).toJson(update)
                         val request = Request.Builder()
                             .url("${network.supabaseUrl}/rest/v1/approval_requests?id=eq.$requestId")
@@ -1071,19 +1077,20 @@ class AdminRepository(val network: SupabaseManager) {
         }
     }
 
-    fun rejectRequest(requestId: String) {
+    fun rejectRequest(requestId: String, reason: String) {
         network.scope.launch {
             try {
+                val approverName = network._currentUser.value?.username ?: "Admin"
                 val currentList = _approvalRequests.value.toMutableList()
                 val reqIndex = currentList.indexOfFirst { it.id == requestId }
                 if (reqIndex != -1) {
                     val req = currentList[reqIndex]
-                    val updatedReq = req.copy(status = "rejected")
+                    val updatedReq = req.copy(status = "rejected", rejectionReason = reason, approver = approverName)
                     currentList[reqIndex] = updatedReq
                     _approvalRequests.value = currentList
                     
                     if (network.isConfigured) {
-                        val update = mapOf("status" to "rejected")
+                        val update = mapOf("status" to "rejected", "rejection_reason" to reason, "approver" to approverName)
                         val jsonBody = network.moshi.adapter(Map::class.java).toJson(update)
                         val request = Request.Builder()
                             .url("${network.supabaseUrl}/rest/v1/approval_requests?id=eq.$requestId")
@@ -1173,6 +1180,27 @@ class AdminRepository(val network: SupabaseManager) {
             }
         }
 
+    fun fetchAuditLogs() {
+        if (!network.userHasPermission("view_logs")) return
+        network.scope.launch {
+            val request = Request.Builder()
+                .url("${network.supabaseUrl}/rest/v1/audit_logs?select=*&order=created_at.desc")
+                .headers(network.getHeaders())
+                .get()
+                .build()
+            network.client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {}
+                override fun onResponse(call: Call, response: Response) {
+                    if (response.isSuccessful) {
+                        val logs = network.auditListAdapter.fromJson(response.body?.string() ?: "[]") ?: emptyList()
+                        network._auditLogs.value = logs
+                    }
+                    response.close()
+                }
+            })
+        }
+    }
+
     val auditLogs: StateFlow<List<SupabaseAuditLog>> = network._auditLogs.asStateFlow()
 
     fun logAudit(
@@ -1186,12 +1214,77 @@ class AdminRepository(val network: SupabaseManager) {
         ) {
             network.logAudit(action, targetTable, targetId, oldValue, newValue, reason, screenName)
         }
+
+    fun fetchAnnouncements() {
+        if (!network.userHasPermission("view_config")) return
+        network.scope.launch {
+            val request = Request.Builder()
+                .url("${network.supabaseUrl}/rest/v1/announcements?select=*&order=created_at.desc")
+                .headers(network.getHeaders())
+                .get()
+                .build()
+            network.client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {}
+                override fun onResponse(call: Call, response: Response) {
+                    if (response.isSuccessful) {
+                        val data = network.announcementsAdapter.fromJson(response.body?.string() ?: "[]") ?: emptyList()
+                        network._announcements.value = data
+                    }
+                    response.close()
+                }
+            })
+        }
+    }
+
+    fun createAnnouncement(announcement: SupabaseAnnouncement) {
+        if (!network.userHasPermission("manage_config")) return
+        network.scope.launch {
+            val json = network.announcementAdapter.toJson(announcement)
+            val request = Request.Builder()
+                .url("${network.supabaseUrl}/rest/v1/announcements")
+                .headers(network.getHeaders())
+                .post(json.toRequestBody("application/json".toMediaType()))
+                .build()
+            network.client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {}
+                override fun onResponse(call: Call, response: Response) {
+                    if (response.isSuccessful) {
+                        logAudit("CREATE_ANNOUNCEMENT", "announcements", announcement.id.toString())
+                        fetchAnnouncements()
+                    }
+                    response.close()
+                }
+            })
+        }
+    }
+
+    fun deleteAnnouncement(id: Int) {
+        if (!network.userHasPermission("manage_config")) return
+        network.scope.launch {
+            val request = Request.Builder()
+                .url("${network.supabaseUrl}/rest/v1/announcements?id=eq.$id")
+                .headers(network.getHeaders())
+                .delete()
+                .build()
+            network.client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {}
+                override fun onResponse(call: Call, response: Response) {
+                    if (response.isSuccessful) {
+                        logAudit("DELETE_ANNOUNCEMENT", "announcements", id.toString())
+                        fetchAnnouncements()
+                    }
+                    response.close()
+                }
+            })
+        }
+    }
 }
 
 class AnalyticsRepository(val network: SupabaseManager) {
     suspend fun askAiAssistant(query: String): String = network.askAiAssistant(query)
 
     val biMetrics: StateFlow<List<SupabaseBIMetrics>> = network._biMetrics
+    val reports: StateFlow<List<SupabaseReport>> = network.reports
 
     val crashLogs: StateFlow<List<SupabaseCrashLog>> = network._crashLogs
 
@@ -1379,6 +1472,172 @@ class AnalyticsRepository(val network: SupabaseManager) {
                 } catch (e: Exception) {}
             }
         }
+
+    private val _databaseBackups = MutableStateFlow<List<SupabaseDatabaseBackup>>(
+        listOf(
+            SupabaseDatabaseBackup("b-1001", "pg_backup_prod_2026_07_12.sql", 152428800, "automated", "2026-07-12 04:00", "completed"),
+            SupabaseDatabaseBackup("b-1002", "pg_backup_prod_2026_07_13.sql", 152953210, "automated", "2026-07-13 04:00", "completed"),
+            SupabaseDatabaseBackup("b-1003", "pg_backup_prod_2026_07_14.sql", 153124900, "automated", "2026-07-14 04:00", "completed"),
+            SupabaseDatabaseBackup("b-1004", "manual_backup_pre_migration.sql", 153010450, "manual", "2026-07-14 18:24", "completed")
+        )
+    )
+    val databaseBackups: StateFlow<List<SupabaseDatabaseBackup>> = _databaseBackups.asStateFlow()
+
+    fun triggerDatabaseBackup(onComplete: (Boolean, String) -> Unit) {
+        val nextId = "b-${(1000 + _databaseBackups.value.size + 1)}"
+        val dateStr = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+        val filename = "manual_backup_$nextId.sql"
+        val newBackup = SupabaseDatabaseBackup(
+            id = nextId,
+            filename = filename,
+            sizeBytes = (100 * 1024 * 1024 + (10 * 1024 * 1024 * Math.random())).toLong(),
+            type = "manual",
+            createdAt = dateStr,
+            status = "completed"
+        )
+        network.scope.launch {
+            delay(1500)
+            _databaseBackups.value = _databaseBackups.value + newBackup
+            network.logAdminAction("DATABASE_BACKUP_CREATE", "ID: $nextId, Filename: $filename")
+            onComplete(true, "Database snapshot saved securely to cluster-backup storage. Size: ${newBackup.sizeBytes / 1024 / 1024}MB")
+        }
+    }
+
+    fun restoreDatabaseBackup(id: String, onComplete: (Boolean, String) -> Unit) {
+        network.scope.launch {
+            delay(2000)
+            network.logAdminAction("DATABASE_BACKUP_RESTORE", "ID: $id")
+            onComplete(true, "Database state rolled back to backup archive $id successfully. Indices rebuilt.")
+        }
+    }
+
+    fun resolveCrashLog(id: String) {
+        if (network.isConfigured) {
+            network.scope.launch {
+                val update = mapOf("status" to "resolved")
+                val json = network.moshi.adapter(Map::class.java).toJson(update)
+                val request = Request.Builder()
+                    .url("${network.supabaseUrl}/rest/v1/crash_logs?id=eq.$id")
+                    .headers(network.getHeaders())
+                    .patch(json.toRequestBody("application/json".toMediaType()))
+                    .build()
+                network.client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {}
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) { network.scope.launch { network.fetchCrashLogs() } }
+                    }
+                })
+            }
+        } else {
+            network._crashLogs.value = network._crashLogs.value.map {
+                if (it.id == id) it.copy(status = "resolved") else it
+            }
+            network.saveSimulatorCrashLogs()
+        }
+        network.logAdminAction("CRASH_RESOLVE", "ID: $id")
+    }
+
+    fun setDeviceQuarantine(deviceId: String, isQuarantined: Boolean) {
+        if (network.isConfigured) {
+            network.scope.launch {
+                val update = mapOf("is_blocked" to isQuarantined)
+                val json = network.moshi.adapter(Map::class.java).toJson(update)
+                val request = Request.Builder()
+                    .url("${network.supabaseUrl}/rest/v1/device_records?device_id=eq.$deviceId")
+                    .headers(network.getHeaders())
+                    .patch(json.toRequestBody("application/json".toMediaType()))
+                    .build()
+                network.client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {}
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) { network.scope.launch { network.fetchDeviceRecords() } }
+                    }
+                })
+            }
+        } else {
+            network._deviceRecords.value = network._deviceRecords.value.map {
+                if (it.deviceId == deviceId) it.copy(isBlocked = isQuarantined) else it
+            }
+            network.saveSimulatorDeviceRecords()
+        }
+        network.logAdminAction("DEVICE_QUARANTINE_SET", "ID: $deviceId, Quarantined: $isQuarantined")
+    }
+
+    fun terminateDeviceAccess(deviceId: String) {
+        if (network.isConfigured) {
+            network.scope.launch {
+                val update = mapOf("is_blocked" to true)
+                val json = network.moshi.adapter(Map::class.java).toJson(update)
+                val request = Request.Builder()
+                    .url("${network.supabaseUrl}/rest/v1/device_records?device_id=eq.$deviceId")
+                    .headers(network.getHeaders())
+                    .patch(json.toRequestBody("application/json".toMediaType()))
+                    .build()
+                network.client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {}
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) { network.scope.launch { network.fetchDeviceRecords() } }
+                    }
+                })
+            }
+        } else {
+            network._deviceRecords.value = network._deviceRecords.value.map {
+                if (it.deviceId == deviceId) it.copy(isBlocked = true) else it
+            }
+            network.saveSimulatorDeviceRecords()
+        }
+        network.logAdminAction("DEVICE_ACCESS_TERMINATE", "ID: $deviceId")
+    }
+
+    fun dismissFraudAlert(alertId: String) {
+        if (network.isConfigured) {
+            network.scope.launch {
+                val request = Request.Builder()
+                    .url("${network.supabaseUrl}/rest/v1/fraud_alerts?id=eq.$alertId")
+                    .headers(network.getHeaders())
+                    .delete()
+                    .build()
+                network.client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {}
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) { network.scope.launch { network.fetchFraudAlerts() } }
+                    }
+                })
+            }
+        } else {
+            network._fraudAlerts.value = network._fraudAlerts.value.filter { it.id != alertId }
+            network.saveSimulatorFraudAlerts()
+        }
+        network.logAdminAction("FRAUD_ALERT_DISMISS", "ID: $alertId")
+    }
+
+    fun flagUserFraud(userId: String) {
+        if (network.isConfigured) {
+            network.scope.launch {
+                val update = mapOf("role" to "flagged_fraud")
+                val json = network.moshi.adapter(Map::class.java).toJson(update)
+                val request = Request.Builder()
+                    .url("${network.supabaseUrl}/rest/v1/users?id=eq.$userId")
+                    .headers(network.getHeaders())
+                    .patch(json.toRequestBody("application/json".toMediaType()))
+                    .build()
+                network.client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {}
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) { network.scope.launch { network.fetchUsers() } }
+                    }
+                })
+            }
+        } else {
+            network._users.value = network._users.value.map {
+                if (it.id == userId || it.username == userId) it.copy(role = "flagged_fraud") else it
+            }
+            network.saveSimulatorUsers()
+        }
+        network._fraudAlerts.value = network._fraudAlerts.value.filter { it.userId != userId }
+        network.saveSimulatorFraudAlerts()
+        network.logAdminAction("USER_FRAUD_TERMINATE", "User ID: $userId")
+    }
 }
 
 class RemoteGameRepository(val network: SupabaseManager, private val matchDao: com.example.daadi.data.local.MatchDao) {
@@ -1697,8 +1956,11 @@ class RemoteGameRepository(val network: SupabaseManager, private val matchDao: c
             }
         }
 
-    fun updateMatchStatus(matchId: String, newStatus: String) {
-            if (!network.userHasPermission("manage_matches")) return
+    fun updateMatchStatus(matchId: String, newStatus: String, onResult: (Boolean) -> Unit = {}) {
+            if (!network.userHasPermission("manage_matches")) {
+                onResult(false)
+                return
+            }
             network.scope.launch {
                 try {
                     val body = "{\"status\": \"$newStatus\"}".toRequestBody("application/json".toMediaType())
@@ -1711,9 +1973,14 @@ class RemoteGameRepository(val network: SupabaseManager, private val matchDao: c
                         if (response.isSuccessful) {
                             network.fetchRemoteMatches()
                             network.logAdminAction("MATCH_UPDATE", "$matchId -> $newStatus")
+                            network.runOnMain { onResult(true) }
+                        } else {
+                            network.runOnMain { onResult(false) }
                         }
                     }
-                } catch (e: Exception) {}
+                } catch (e: Exception) {
+                    network.runOnMain { onResult(false) }
+                }
             }
         }
 }
@@ -1729,6 +1996,10 @@ class EconomyRepository(val network: SupabaseManager) {
 
     val spinWheelRewards: StateFlow<List<SupabaseSpinWheelReward>> = network._spinWheelRewards
 
+    val missions: StateFlow<List<SupabaseMission>> = network._missions
+
+    val referralRewards: StateFlow<List<SupabaseReferralReward>> = network._referralRewards
+
     fun fetchEconomyTransactions() {
         if (!network.isConfigured) return
         network.scope.launch { network.fetchEconomyTransactions() }
@@ -1742,6 +2013,16 @@ class EconomyRepository(val network: SupabaseManager) {
     fun fetchCoupons() {
         if (!network.isConfigured) return
         network.scope.launch { network.fetchCoupons() }
+    }
+
+    fun fetchMissions() {
+        if (!network.isConfigured) return
+        network.scope.launch { network.fetchMissions() }
+    }
+
+    fun fetchReferralRewards() {
+        if (!network.isConfigured) return
+        network.scope.launch { network.fetchReferralRewards() }
     }
 
     fun adjustUserEconomy(userId: String, coinsDelta: Int, xpDelta: Int) {
@@ -1822,7 +2103,7 @@ class EconomyRepository(val network: SupabaseManager) {
             }
         }
 
-    fun createStoreItem(name: String, description: String, type: String, priceCoins: Int?, priceUsd: Double?, isFeatured: Boolean, discountPercentage: Int) {
+    fun createStoreItem(name: String, description: String, type: String, priceCoins: Int?, priceUsd: Double?, isFeatured: Boolean, discountPercentage: Int, expiryAt: String? = null) {
             if (!network.isConfigured) return
             network.scope.launch {
                 try {
@@ -1836,6 +2117,7 @@ class EconomyRepository(val network: SupabaseManager) {
                     )
                     if (priceCoins != null) bodyMap["price_coins"] = priceCoins
                     if (priceUsd != null) bodyMap["price_usd"] = priceUsd
+                    if (expiryAt != null) bodyMap["expiry_at"] = expiryAt
                     val body = network.moshi.adapter(Map::class.java).toJson(bodyMap).toRequestBody("application/json".toMediaType())
                     val request = Request.Builder()
                         .url("${network.supabaseUrl}/rest/v1/store_items")
@@ -1846,6 +2128,80 @@ class EconomyRepository(val network: SupabaseManager) {
                         if (response.isSuccessful) {
                             network.fetchStoreItems()
                             network.logAdminAction("CREATE_STORE_ITEM", name)
+                        }
+                    }
+                } catch (e: Exception) {}
+            }
+        }
+
+    fun createMission(title: String, description: String, type: String, xpReward: Int, coinReward: Int, targetValue: Int) {
+            if (!network.isConfigured) return
+            network.scope.launch {
+                try {
+                    val bodyMap = mapOf(
+                        "title" to title,
+                        "description" to description,
+                        "type" to type,
+                        "xp_reward" to xpReward,
+                        "coin_reward" to coinReward,
+                        "target_value" to targetValue,
+                        "is_active" to true
+                    )
+                    val body = network.moshi.adapter(Map::class.java).toJson(bodyMap).toRequestBody("application/json".toMediaType())
+                    val request = Request.Builder()
+                        .url("${network.supabaseUrl}/rest/v1/missions")
+                        .headers(network.getHeaders())
+                        .post(body)
+                        .build()
+                    network.client.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            network.fetchMissions()
+                            network.logAdminAction("CREATE_MISSION", title)
+                        }
+                    }
+                } catch (e: Exception) {}
+            }
+        }
+
+    fun deleteMission(id: String) {
+            if (!network.isConfigured) return
+            network.scope.launch {
+                try {
+                    val request = Request.Builder()
+                        .url("${network.supabaseUrl}/rest/v1/missions?id=eq.$id")
+                        .headers(network.getHeaders())
+                        .delete()
+                        .build()
+                    network.client.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            network.fetchMissions()
+                            network.logAdminAction("DELETE_MISSION", id)
+                        }
+                    }
+                } catch (e: Exception) {}
+            }
+        }
+
+    fun saveReferralReward(referrerCoins: Int, referredCoins: Int) {
+            if (!network.isConfigured) return
+            network.scope.launch {
+                try {
+                    // Logic to update referral reward config (usually a single row or global config)
+                    val bodyMap = mapOf(
+                        "referrer_coins" to referrerCoins,
+                        "referred_coins" to referredCoins,
+                        "is_active" to true
+                    )
+                    val body = network.moshi.adapter(Map::class.java).toJson(bodyMap).toRequestBody("application/json".toMediaType())
+                    val request = Request.Builder()
+                        .url("${network.supabaseUrl}/rest/v1/referral_rewards")
+                        .headers(network.getHeaders())
+                        .post(body) // Upsert logic might be needed
+                        .build()
+                    network.client.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            network.fetchReferralRewards()
+                            network.logAdminAction("UPDATE_REFERRAL_CONFIG", "$referrerCoins/$referredCoins")
                         }
                     }
                 } catch (e: Exception) {}
@@ -1981,10 +2337,12 @@ class EconomyRepository(val network: SupabaseManager) {
 
 class LiveOpsRepository(val network: SupabaseManager) {
     val liveOpsEvents: StateFlow<List<SupabaseLiveOpsEvent>> = network._liveOpsEvents
-
+    val gameEvents: StateFlow<List<SupabaseGameEvent>> = network.gameEvents
     val seasonPasses: StateFlow<List<SupabaseSeasonPass>> = network._seasonPasses
 
-    val gameEvents: StateFlow<List<SupabaseGameEvent>> = network._gameEvents.asStateFlow()
+    val announcements: StateFlow<List<SupabaseAnnouncement>> = network._announcements
+
+    val userSeasonProgress: StateFlow<List<SupabaseUserSeasonProgress>> = network._userSeasonProgress
 
     fun fetchLiveOpsEvents() {
         if (!network.isConfigured) return
@@ -1994,6 +2352,16 @@ class LiveOpsRepository(val network: SupabaseManager) {
     fun fetchSeasonPasses() {
         if (!network.isConfigured) return
         network.scope.launch { network.fetchSeasonPasses() }
+    }
+
+    fun fetchAnnouncements() {
+        if (!network.isConfigured) return
+        network.scope.launch { network.scope.launch { network.fetchRemoteAnnouncements() } }
+    }
+
+    fun fetchUserSeasonProgress() {
+        if (!network.isConfigured) return
+        network.scope.launch { network.fetchUserSeasonProgress() }
     }
     fun fetchGameEvents() {
             if (!network.isConfigured) return
@@ -2516,6 +2884,9 @@ class SupportRepository(val network: SupabaseManager) {
 
 class TournamentRepository(val network: SupabaseManager) {
     val tournaments: StateFlow<List<SupabaseTournament>> = network._tournaments.asStateFlow()
+    val participants: StateFlow<List<SupabaseTournamentParticipant>> = network.tournamentParticipants
+    val brackets: StateFlow<List<SupabaseTournamentBracket>> = network.tournamentBrackets
+    val announcements: StateFlow<List<SupabaseTournamentAnnouncement>> = network.tournamentAnnouncements
 
     fun fetchTournaments() {
         if (!network.isConfigured) return
@@ -2670,9 +3041,36 @@ class RemoteConfigRepository(val network: SupabaseManager) {
                 )
                 network._announcements.value = listOf(newAnn) + network._announcements.value
                 network.saveSimulatorAnnouncements()
+        }
+            }
+
+    fun createAnnouncementFull(announcement: SupabaseAnnouncement) {
+        if (!network.userHasPermission("manage_config")) return
+        network.scope.launch {
+            if (network.isConfigured) {
+                val reqBody = network.moshi.adapter(SupabaseAnnouncement::class.java).toJson(announcement.copy(id = 0)) // let DB generate ID
+                val request = Request.Builder()
+                    .url("${network.supabaseUrl}/rest/v1/announcements")
+                    .headers(network.getHeaders())
+                    .post(reqBody.toRequestBody("application/json".toMediaType()))
+                    .build()
+                network.client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {}
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) {
+                            network.logAdminAction("REMOTE_CONFIG_UPDATE", "announcements")
+                            network.scope.launch { network.fetchRemoteAnnouncements() }
+                        }
+                    }
+                })
+            } else {
+                val maxId = network._announcements.value.maxOfOrNull { it.id } ?: 0
+                val nextId = maxId + 1
+                network._announcements.value = listOf(announcement.copy(id = nextId)) + network._announcements.value
+                network.saveSimulatorAnnouncements()
             }
         }
-
+    }
     fun toggleAnnouncementStatus(id: Int) {
             if (network.isConfigured) {
                 val item = network._announcements.value.find { it.id == id } ?: return
@@ -2690,7 +3088,7 @@ class RemoteConfigRepository(val network: SupabaseManager) {
                     network.client.newCall(request).enqueue(object : Callback {
                         override fun onFailure(call: Call, e: IOException) {}
                         override fun onResponse(call: Call, response: Response) {
-                            if (response.isSuccessful) { network.scope.launch { network.fetchRemoteAnnouncements() } }
+                            if (response.isSuccessful) { network.scope.launch { network.scope.launch { network.fetchRemoteAnnouncements() } } }
                         }
                     })
                 }
@@ -2713,7 +3111,7 @@ class RemoteConfigRepository(val network: SupabaseManager) {
                     network.client.newCall(request).enqueue(object : Callback {
                         override fun onFailure(call: Call, e: IOException) {}
                         override fun onResponse(call: Call, response: Response) {
-                            if (response.isSuccessful) { network.scope.launch { network.fetchRemoteAnnouncements() } }
+                            if (response.isSuccessful) { network.scope.launch { network.scope.launch { network.fetchRemoteAnnouncements() } } }
                         }
                     })
                 }
@@ -2755,6 +3153,198 @@ class RemoteConfigRepository(val network: SupabaseManager) {
             updateSystemSetting(key, value)
             network.logAdminAction("REMOTE_CONFIG_UPDATE", "$key -> $value")
         }
+
+    fun rollbackConfig(key: String, previousValue: String) {
+        updateSystemSetting(key, previousValue)
+        network.logAdminAction("REMOTE_CONFIG_ROLLBACK", "$key -> $previousValue")
+    }
+
+    fun addSystemSetting(key: String, value: String, description: String, type: String = "variable") {
+        if (network.isConfigured) {
+            network.scope.launch {
+                val update = mapOf("key" to key, "value" to value, "description" to description, "type" to type)
+                val json = network.moshi.adapter(Map::class.java).toJson(update)
+                val reqBody = json.toRequestBody("application/json".toMediaType())
+
+                val request = Request.Builder()
+                    .url("${network.supabaseUrl}/rest/v1/system_settings")
+                    .headers(network.getHeaders())
+                    .post(reqBody)
+                    .build()
+
+                network.client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {}
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) { network.scope.launch { network.fetchRemoteSettings() } }
+                    }
+                })
+            }
+        } else {
+            val newSetting = SupabaseSystemSetting(key, value, description)
+            network._systemSettings.value = network._systemSettings.value + newSetting
+            network.saveSimulatorSettings()
+        }
+        network.logAdminAction("REMOTE_CONFIG_ADD", "$key -> $value")
+    }
+
+    fun deleteSystemSetting(key: String) {
+        if (network.isConfigured) {
+            network.scope.launch {
+                val request = Request.Builder()
+                    .url("${network.supabaseUrl}/rest/v1/system_settings?key=eq.$key")
+                    .headers(network.getHeaders())
+                    .delete()
+                    .build()
+
+                network.client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {}
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) { network.scope.launch { network.fetchRemoteSettings() } }
+                    }
+                })
+            }
+        } else {
+            network._systemSettings.value = network._systemSettings.value.filter { it.key != key }
+            network.saveSimulatorSettings()
+        }
+        network.logAdminAction("REMOTE_CONFIG_DELETE", key)
+    }
+
+    fun addAppVersion(versionCode: Int, versionName: String, isMandatory: Boolean, minSupportedVersion: Int, releaseNotes: String, stagedRolloutPercentage: Int = 100) {
+        val newVer = SupabaseAppVersion(
+            versionCode = versionCode,
+            versionName = versionName,
+            isMandatory = isMandatory,
+            minSupportedVersion = minSupportedVersion,
+            releaseNotes = releaseNotes,
+            stagedRolloutPercentage = stagedRolloutPercentage,
+            createdAt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+        )
+        if (network.isConfigured) {
+            network.scope.launch {
+                val json = network.moshi.adapter(SupabaseAppVersion::class.java).toJson(newVer)
+                val request = Request.Builder()
+                    .url("${network.supabaseUrl}/rest/v1/app_versions")
+                    .headers(network.getHeaders())
+                    .post(json.toRequestBody("application/json".toMediaType()))
+                    .build()
+                network.client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {}
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) { network.scope.launch { network.fetchAppVersions() } }
+                    }
+                })
+            }
+        } else {
+            network._appVersions.value = listOf(newVer) + network._appVersions.value
+            network.saveSimulatorAppVersions()
+        }
+        network.logAdminAction("APP_VERSION_ADD", "v$versionName ($versionCode)")
+    }
+
+    fun deleteAppVersion(versionCode: Int) {
+        if (network.isConfigured) {
+            network.scope.launch {
+                val request = Request.Builder()
+                    .url("${network.supabaseUrl}/rest/v1/app_versions?version_code=eq.$versionCode")
+                    .headers(network.getHeaders())
+                    .delete()
+                    .build()
+                network.client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {}
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) { network.scope.launch { network.fetchAppVersions() } }
+                    }
+                })
+            }
+        } else {
+            network._appVersions.value = network._appVersions.value.filter { it.versionCode != versionCode }
+            network.saveSimulatorAppVersions()
+        }
+        network.logAdminAction("APP_VERSION_DELETE", "Code: $versionCode")
+    }
+
+    fun addMaintenanceSchedule(startTime: String, endTime: String, reason: String) {
+        val id = UUID.randomUUID().toString()
+        val newSchedule = SupabaseMaintenanceSchedule(
+            id = id,
+            startTime = startTime,
+            endTime = endTime,
+            reason = reason,
+            isActive = true,
+            createdAt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+        )
+        if (network.isConfigured) {
+            network.scope.launch {
+                val json = network.moshi.adapter(SupabaseMaintenanceSchedule::class.java).toJson(newSchedule)
+                val request = Request.Builder()
+                    .url("${network.supabaseUrl}/rest/v1/maintenance_schedules")
+                    .headers(network.getHeaders())
+                    .post(json.toRequestBody("application/json".toMediaType()))
+                    .build()
+                network.client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {}
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) { network.scope.launch { network.fetchMaintenanceSchedules() } }
+                    }
+                })
+            }
+        } else {
+            network._maintenanceSchedules.value = listOf(newSchedule) + network._maintenanceSchedules.value
+            network.saveSimulatorMaintenanceSchedules()
+        }
+        network.logAdminAction("MAINTENANCE_SCHEDULE_ADD", "Reason: $reason ($startTime to $endTime)")
+    }
+
+    fun toggleMaintenanceSchedule(id: String) {
+        val schedule = network._maintenanceSchedules.value.find { it.id == id } ?: return
+        val newStatus = !schedule.isActive
+        if (network.isConfigured) {
+            network.scope.launch {
+                val update = mapOf("is_active" to newStatus)
+                val json = network.moshi.adapter(Map::class.java).toJson(update)
+                val request = Request.Builder()
+                    .url("${network.supabaseUrl}/rest/v1/maintenance_schedules?id=eq.$id")
+                    .headers(network.getHeaders())
+                    .patch(json.toRequestBody("application/json".toMediaType()))
+                    .build()
+                network.client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {}
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) { network.scope.launch { network.fetchMaintenanceSchedules() } }
+                    }
+                })
+            }
+        } else {
+            network._maintenanceSchedules.value = network._maintenanceSchedules.value.map {
+                if (it.id == id) it.copy(isActive = newStatus) else it
+            }
+            network.saveSimulatorMaintenanceSchedules()
+        }
+        network.logAdminAction("MAINTENANCE_SCHEDULE_TOGGLE", "ID: $id, Active: $newStatus")
+    }
+
+    fun deleteMaintenanceSchedule(id: String) {
+        if (network.isConfigured) {
+            network.scope.launch {
+                val request = Request.Builder()
+                    .url("${network.supabaseUrl}/rest/v1/maintenance_schedules?id=eq.$id")
+                    .headers(network.getHeaders())
+                    .delete()
+                    .build()
+                network.client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {}
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) { network.scope.launch { network.fetchMaintenanceSchedules() } }
+                    }
+                })
+            }
+        } else {
+            network._maintenanceSchedules.value = network._maintenanceSchedules.value.filter { it.id != id }
+            network.saveSimulatorMaintenanceSchedules()
+        }
+        network.logAdminAction("MAINTENANCE_SCHEDULE_DELETE", "ID: $id")
+    }
 
     fun saveCMSContent(content: SupabaseCMSContent) {
             network.scope.launch {

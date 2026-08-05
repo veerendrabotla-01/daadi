@@ -93,8 +93,8 @@ fun AdminStoreManagement(adminViewModel: com.example.daadi.viewmodel.AdminViewMo
         if (showCreateItemDialog) {
             CreateStoreItemDialog(
                 onDismiss = { showCreateItemDialog = false },
-                onConfirm = { name, desc, type, coinPrice, usdPrice, isFeatured, discount ->
-                    adminViewModel.economyRepository.createStoreItem(name, desc, type, coinPrice, usdPrice, isFeatured, discount)
+                onConfirm = { name, desc, type, coinPrice, usdPrice, isFeatured, discount, expiry ->
+                    adminViewModel.economyRepository.createStoreItem(name, desc, type, coinPrice, usdPrice, isFeatured, discount, expiry)
                     showCreateItemDialog = false
                 }
             )
@@ -276,7 +276,7 @@ fun CouponCard(coupon: SupabaseCoupon, onDelete: (String) -> Unit) {
 }
 
 @Composable
-fun CreateStoreItemDialog(onDismiss: () -> Unit, onConfirm: (String, String, String, Int?, Double?, Boolean, Int) -> Unit) {
+fun CreateStoreItemDialog(onDismiss: () -> Unit, onConfirm: (String, String, String, Int?, Double?, Boolean, Int, String?) -> Unit) {
     var name by remember { mutableStateOf("") }
     var desc by remember { mutableStateOf("") }
     var type by remember { mutableStateOf("pack") }
@@ -285,6 +285,7 @@ fun CreateStoreItemDialog(onDismiss: () -> Unit, onConfirm: (String, String, Str
     var usdPrice by remember { mutableStateOf("4.99") }
     var isFeatured by remember { mutableStateOf(false) }
     var discountPercent by remember { mutableStateOf("0") }
+    var expiryAt by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -313,6 +314,7 @@ fun CreateStoreItemDialog(onDismiss: () -> Unit, onConfirm: (String, String, Str
                 }
 
                 OutlinedTextField(value = discountPercent, onValueChange = { discountPercent = it }, label = { Text("Discount Percentage") }, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape)
+                OutlinedTextField(value = expiryAt, onValueChange = { expiryAt = it }, label = { Text("Expiry (YYYY-MM-DD HH:MM)") }, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape)
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = isFeatured, onCheckedChange = { isFeatured = it })
@@ -333,7 +335,8 @@ fun CreateStoreItemDialog(onDismiss: () -> Unit, onConfirm: (String, String, Str
                         finalCoinPrice,
                         finalUsdPrice,
                         isFeatured,
-                        discountPercent.toIntOrNull() ?: 0
+                        discountPercent.toIntOrNull() ?: 0,
+                        expiryAt.ifBlank { null }
                     )
                 },
                 shape = AdminDesign.ButtonShape

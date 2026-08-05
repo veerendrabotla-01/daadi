@@ -32,10 +32,16 @@ fun AdminLeaderboardManagerScreen(
     val users by adminViewModel.userRepository.users.collectAsStateWithLifecycle()
     val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
     var selectedScope by remember { mutableStateOf("Global") }
-    val scopes = listOf("Global", "Weekly", "Monthly", "Season")
+    var selectedRegion by remember { mutableStateOf("All Regions") }
+    var showResetDialog by remember { mutableStateOf(false) }
     
-    val sortedUsers = remember(users, selectedScope) {
-        users.sortedByDescending { 
+    val scopes = listOf("Global", "Weekly", "Monthly", "Season")
+    val regions = listOf("All Regions", "Asia", "Europe", "Americas", "Africa")
+    
+    val sortedUsers = remember(users, selectedScope, selectedRegion) {
+        users.filter { 
+            selectedRegion == "All Regions" || it.email.contains(".in") // Simple mock region filter
+        }.sortedByDescending { 
             when (selectedScope) {
                 "Global" -> it.rating.toFloat()
                 "Weekly" -> it.wins.toFloat()
@@ -51,15 +57,13 @@ fun AdminLeaderboardManagerScreen(
         adminViewModel = adminViewModel,
         onBack = onBack,
         actions = {
-            IconButton(onClick = { /* Recalculate Logic */ }) {
-                Icon(Icons.Default.Autorenew, contentDescription = "Recalculate", tint = AdminDesign.Primary)
-            }
-            IconButton(onClick = { /* Freeze Logic */ }) {
-                Icon(Icons.Default.AcUnit, contentDescription = "Freeze", tint = AdminDesign.Secondary)
-            }
+            IconButton(onClick = { /* Simulated Recalculate */ }) { Icon(Icons.Default.Autorenew, contentDescription = "Recalculate", tint = AdminDesign.Primary) }
+            IconButton(onClick = { showResetDialog = true }) { Icon(Icons.Default.Refresh, contentDescription = "Reset Season", tint = AdminDesign.Error) }
+            IconButton(onClick = { /* Export Logic */ }) { Icon(Icons.Default.FileUpload, contentDescription = "Export", tint = AdminDesign.Secondary) }
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // Scope Tabs
             ScrollableTabRow(
                 selectedTabIndex = scopes.indexOf(selectedScope),
                 containerColor = Color.Transparent,
@@ -76,16 +80,28 @@ fun AdminLeaderboardManagerScreen(
                 }
             }
 
+            // Region Selector
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = AdminDesign.SpacingMedium, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Public, contentDescription = null, modifier = Modifier.size(16.dp), tint = AdminDesign.OnSurfaceVariant)
+                Spacer(modifier = Modifier.width(8.dp))
+                regions.forEach { region ->
+                    FilterChip(
+                        selected = selectedRegion == region,
+                        onClick = { selectedRegion = region },
+                        label = { Text(region, fontSize = 10.sp) },
+                        modifier = Modifier.padding(end = 4.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                }
+            }
+
             Box(modifier = Modifier.weight(1f)) {
                 if (isSyncing && users.isEmpty()) {
                     LazyColumn(modifier = Modifier.fillMaxSize().padding(AdminDesign.SpacingMedium)) {
                         items(12) { ShimmerItem(Modifier.padding(vertical = AdminDesign.SpacingSmall)) }
                     }
-                } else if (users.isEmpty()) {
-                    AdminEmptyState(
-                        title = "No Data Captured", 
-                        description = "Elo distribution is null. No user performance records found in this cluster."
-                    )
+                } else if (sortedUsers.isEmpty()) {
+                    AdminEmptyState("No Rankings", "No data matches your current filters.")
                 } else {
                     LazyColumn(
                         contentPadding = PaddingValues(AdminDesign.SpacingMedium),
@@ -97,6 +113,22 @@ fun AdminLeaderboardManagerScreen(
                     }
                 }
             }
+        }
+
+        if (showResetDialog) {
+            AlertDialog(
+                onDismissRequest = { showResetDialog = false },
+                title = { Text("RESET SEASON DATA?", fontWeight = FontWeight.Black) },
+                text = { Text("This will archive current rankings and reset all seasonal ELO points to baseline (1200). This action is irreversible.") },
+                confirmButton = {
+                    Button(onClick = { showResetDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Error)) {
+                        Text("CONFIRM RESET")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showResetDialog = false }) { Text("CANCEL") }
+                }
+            )
         }
     }
 }

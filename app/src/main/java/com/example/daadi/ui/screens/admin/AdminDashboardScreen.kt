@@ -36,6 +36,7 @@ fun AdminDashboardScreen(
     adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onNavigateToUsers: () -> Unit,
     onNavigateToSafety: () -> Unit,
+    onNavigateToFeedback: () -> Unit,
     onNavigateToMatches: () -> Unit,
     onNavigateToConfig: () -> Unit,
     onNavigateToAnalytics: () -> Unit,
@@ -67,6 +68,7 @@ fun AdminDashboardScreen(
     onNavigateToRollbacks: () -> Unit,
     onNavigateToAIEngine: () -> Unit,
     onNavigateToLeaderboards: () -> Unit,
+    onNavigateToAppeals: () -> Unit,
     onNavigateToHelp: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -78,13 +80,18 @@ fun AdminDashboardScreen(
     
     val menuItems = remember(currentUser) {
         listOfNotNull(
+            // --- THE CORE 3 MODULES REQUESTED ---
+            if (adminViewModel.authRepository.userHasPermission("moderate_users")) AdminMenuItem("Safety & Moderation", "Reports & bans", Icons.Default.GppGood, onNavigateToSafety, AdminDesign.Error) else null,
+            if (adminViewModel.authRepository.userHasPermission("view_feedback")) AdminMenuItem("Support Center", "Tickets & replies", Icons.Default.SupportAgent, onNavigateToFeedback, AdminDesign.Primary) else null,
+            if (adminViewModel.authRepository.userHasPermission("moderate_users")) AdminMenuItem("Reports & Appeals", "Review decisions", Icons.Default.Gavel, onNavigateToAppeals, AdminDesign.Secondary) else null,
+            
+            // --- OTHER MODULES ---
             if (adminViewModel.authRepository.userHasPermission("view_users")) AdminMenuItem("User Directory", "Players & roles", Icons.Default.People, onNavigateToUsers, AdminDesign.Primary) else null,
             if (adminViewModel.authRepository.userHasPermission("manage_admins")) AdminMenuItem("Admin Matrix", "RBAC & permissions", Icons.Default.Security, onNavigateToPermissionMatrix, Color(0xFFC2185B)) else null,
             if (adminViewModel.authRepository.userHasPermission("manage_admins")) AdminMenuItem("Approvals", "Workflows & requests", Icons.Default.FactCheck, onNavigateToApprovals, Color(0xFF00695C)) else null,
             if (adminViewModel.authRepository.userHasPermission("manage_config")) AdminMenuItem("Task Scheduler", "Cron & automation", Icons.Default.Schedule, onNavigateToScheduler, Color(0xFFE65100)) else null,
             if (adminViewModel.authRepository.userHasPermission("view_analytics")) AdminMenuItem("Data Exports", "CSV & Archives", Icons.Default.FileDownload, onNavigateToExports, Color(0xFF455A64)) else null,
             if (adminViewModel.authRepository.userHasPermission("manage_config")) AdminMenuItem("Config Rollbacks", "Version history", Icons.Default.History, onNavigateToRollbacks, Color(0xFF5D4037)) else null,
-            if (adminViewModel.authRepository.userHasPermission("moderate_users")) AdminMenuItem("Safety & Trust", "Reports & bans", Icons.Default.GppGood, onNavigateToSafety, AdminDesign.Error) else null,
             if (adminViewModel.authRepository.userHasPermission("manage_matches")) AdminMenuItem("Match Control", "Live lobbies", Icons.Default.PlayArrow, onNavigateToMatches, AdminDesign.Secondary) else null,
             if (adminViewModel.authRepository.userHasPermission("manage_config")) AdminMenuItem("Remote Config", "Engine variables", Icons.Default.Settings, onNavigateToConfig, Color(0xFF5C2D0A)) else null,
             if (adminViewModel.authRepository.userHasPermission("manage_config")) AdminMenuItem("Economy Center", "Currency & XP", Icons.Default.AccountBalanceWallet, { onNavigateToEconomy() }, AdminDesign.Secondary) else null,
@@ -158,6 +165,32 @@ fun AdminDashboardScreen(
                         items(menuItems) { item ->
                             AdminMenuCard(item)
                         }
+
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = AdminDesign.SpacingLarge),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Divider(modifier = Modifier.padding(bottom = AdminDesign.SpacingMedium), color = AdminDesign.OnSurface.copy(alpha = 0.05f))
+                                Text(
+                                    "DAADI ENTERPRISE CONSOLE v2.4.0",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AdminDesign.OnSurfaceVariant.copy(alpha = 0.5f),
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Code, contentDescription = null, modifier = Modifier.size(10.dp), tint = AdminDesign.OnSurfaceVariant.copy(alpha = 0.4f))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        "Architected & Founded by Botla Veerendra & Macha Praveen",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = AdminDesign.OnSurfaceVariant.copy(alpha = 0.6f),
+                                        fontSize = 9.sp
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -229,35 +262,7 @@ fun AdminMenuCard(item: AdminMenuItem) {
     }
 }
 
-@Composable
-fun QuickStatCard(label: String, value: String, modifier: Modifier = Modifier, isAlert: Boolean = false) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = if (isAlert && value != "0") AdminDesign.Error.copy(alpha = 0.05f) else MaterialTheme.colorScheme.surface
-        ),
-        shape = AdminDesign.CardShape,
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (isAlert && value != "0") AdminDesign.Error.copy(alpha = 0.3f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        modifier = modifier
-    ) {
-        Column(modifier = Modifier.padding(AdminDesign.SpacingMedium), horizontalAlignment = Alignment.Start) {
-            Text(
-                text = label.uppercase(),
-                style = MaterialTheme.typography.labelSmall,
-                color = if (isAlert && value != "0") AdminDesign.Error else MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.5.sp
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = value,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = if (isAlert && value != "0") AdminDesign.Error else MaterialTheme.colorScheme.onSurface
-            )
-        }
-    }
-}
+
 
 @Composable
 fun QuickStatsRow(users: List<com.example.daadi.data.supabase.SupabaseUser>, matches: List<com.example.daadi.data.supabase.SupabaseMatch>, biMetrics: List<com.example.daadi.data.supabase.SupabaseBIMetrics>) {

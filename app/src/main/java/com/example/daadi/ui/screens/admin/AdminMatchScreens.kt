@@ -4,12 +4,14 @@ package com.example.daadi.ui.screens.admin
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,123 +29,115 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun AdminMatchManagementScreen(
     adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
+    onUserClick: (com.example.daadi.data.supabase.SupabaseUser) -> Unit = {},
     onBack: () -> Unit
 ) {
     val matches by adminViewModel.remoteGameRepository.matches.collectAsStateWithLifecycle()
     val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
+    val users by adminViewModel.userRepository.users.collectAsStateWithLifecycle()
+    val filterMatchId = adminViewModel.filterMatchId.value ?: ""
+    val filterUsername = adminViewModel.filterUsername.value ?: ""
+    
     var selectedMatch by remember { mutableStateOf<SupabaseMatch?>(null) }
     var searchQuery by remember { mutableStateOf("") }
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: Active, 1: Archive
 
-    BoxWithConstraints {
-        val isWide = maxWidth >= 900.dp
-        
-        if (isWide) {
-            AdminWideMatchManagement(
-                matches = matches,
-                isSyncing = isSyncing,
-                selectedMatch = selectedMatch,
-                onMatchSelect = { selectedMatch = it },
-                searchQuery = searchQuery,
-                onSearchQueryChange = { searchQuery = it },
-                adminViewModel = adminViewModel,
-                onBack = onBack
-            )
-        } else {
-            if (selectedMatch == null) {
-                AdminMatchArchiveScreen(
-                    matches = matches,
-                    isSyncing = isSyncing,
-                    onMatchClick = { selectedMatch = it },
-                    searchQuery = searchQuery,
-                    onSearchChange = { searchQuery = it },
-                    adminViewModel = adminViewModel,
-                    onBack = onBack
-                )
-            } else {
-                AdminMatchDetailScreen(
-                    match = selectedMatch!!,
-                    onBack = { selectedMatch = null }
-                )
-            }
+    LaunchedEffect(filterMatchId) {
+        if (filterMatchId.isNotEmpty()) {
+            searchQuery = filterMatchId
         }
     }
-}
 
-@Composable
-fun AdminWideMatchManagement(
-    matches: List<SupabaseMatch>,
-    isSyncing: Boolean,
-    selectedMatch: SupabaseMatch?,
-    onMatchSelect: (SupabaseMatch) -> Unit,
-    searchQuery: String,
-    onSearchQueryChange: (String) -> Unit,
-    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
-    onBack: () -> Unit
-) {
+    LaunchedEffect(filterUsername) {
+        if (filterUsername.isNotEmpty() && filterMatchId.isEmpty()) {
+            searchQuery = filterUsername
+        }
+    }
+
+    val liveMatches = matches.filter { it.status == "playing" || it.status == "paused" || it.status == "waiting" }
+    val archivedMatches = matches.filter { it.status == "finished" || it.status == "terminated" }
+
     AdminFoundationScaffold(
-        title = "Match Archive",
+        title = "Live Match Center",
         adminViewModel = adminViewModel,
         onBack = onBack,
         showSearch = true,
         searchQuery = searchQuery,
-        onSearchQueryChange = onSearchQueryChange
+        onSearchQueryChange = { searchQuery = it }
     ) { padding ->
-        Row(modifier = Modifier.padding(padding).fillMaxSize()) {
-            // Left Panel: List
-            Box(modifier = Modifier.weight(0.4f).fillMaxHeight()) {
-                MatchListContent(
-                    matches = matches,
-                    isSyncing = isSyncing,
-                    searchQuery = searchQuery,
-                    onMatchClick = onMatchSelect,
-                    selectedMatchId = selectedMatch?.id,
-                    adminViewModel = adminViewModel
-                )
-            }
-            VerticalDivider(color = AdminDesign.OnSurfaceVariant.copy(alpha = 0.1f), thickness = 1.dp)
-            
-            // Right Panel: Details
-            Box(modifier = Modifier.weight(0.6f).fillMaxHeight()) {
-                if (selectedMatch != null) {
-                    MatchDetailContent(match = selectedMatch)
-                } else {
-                    AdminEmptyState(
-                        title = "No Match Selected",
-                        description = "Select a game record from the archive to view technical details and move history.",
-                        icon = { Icon(Icons.Default.ManageSearch, contentDescription = null, modifier = Modifier.size(64.dp), tint = AdminDesign.OnSurfaceVariant) }
-                    )
+        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+            if (filterMatchId.isNotEmpty() || filterUsername.isNotEmpty()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = AdminDesign.SpacingMedium, vertical = 4.dp),
+                    color = AdminDesign.Primary.copy(alpha = 0.1f),
+                    shape = AdminDesign.CardShape
+                ) {
+                    Row(
+                        modifier = Modifier.padding(AdminDesign.SpacingMedium),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = if (filterMatchId.isNotEmpty()) "Filtering match ID: $filterMatchId" else "Filtering player: $filterUsername", 
+                            fontWeight = FontWeight.Bold, 
+                            color = AdminDesign.Primary, 
+                            fontSize = 12.sp
+                        )
+                        TextButton(onClick = { 
+                            adminViewModel.filterMatchId.value = ""
+                            adminViewModel.filterUsername.value = ""
+                            searchQuery = ""
+                        }) {
+                            Text("Clear Filter", fontWeight = FontWeight.Black, fontSize = 12.sp)
+                        }
+                    }
                 }
             }
-        }
-    }
-}
 
-@Composable
-fun AdminMatchArchiveScreen(
-    matches: List<SupabaseMatch>,
-    isSyncing: Boolean,
-    onMatchClick: (SupabaseMatch) -> Unit,
-    searchQuery: String,
-    onSearchChange: (String) -> Unit,
-    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
-    onBack: () -> Unit
-) {
-    AdminFoundationScaffold(
-        title = "Match Archive",
-        adminViewModel = adminViewModel,
-        onBack = onBack,
-        showSearch = true,
-        searchQuery = searchQuery,
-        onSearchQueryChange = onSearchChange
-    ) { padding ->
-        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
-            MatchListContent(
-                matches = matches,
-                isSyncing = isSyncing,
-                searchQuery = searchQuery,
-                onMatchClick = onMatchClick,
-                adminViewModel = adminViewModel
-            )
+            TabRow(selectedTabIndex = selectedTab, containerColor = Color.Transparent, contentColor = AdminDesign.Primary) {
+                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Active Sessions (${liveMatches.size})", fontSize = 12.sp) })
+                Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Match Archive (${archivedMatches.size})", fontSize = 12.sp) })
+            }
+
+            val displayMatches = if (selectedTab == 0) liveMatches else archivedMatches
+
+            BoxWithConstraints(modifier = Modifier.weight(1f)) {
+                val isWide = maxWidth >= 900.dp
+                if (isWide) {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        Box(modifier = Modifier.weight(0.4f)) {
+                            MatchListContent(
+                                matches = displayMatches,
+                                isSyncing = isSyncing,
+                                searchQuery = searchQuery,
+                                onMatchClick = { selectedMatch = it },
+                                selectedMatchId = selectedMatch?.id,
+                                adminViewModel = adminViewModel
+                            )
+                        }
+                        VerticalDivider(color = AdminDesign.OnSurfaceVariant.copy(alpha = 0.1f))
+                        Box(modifier = Modifier.weight(0.6f)) {
+                            if (selectedMatch != null) {
+                                MatchDetailContent(match = selectedMatch!!, users = users, onUserClick = onUserClick, adminViewModel = adminViewModel)
+                            } else {
+                                AdminEmptyState("No Match Selected", "Select a session to view telemetry.")
+                            }
+                        }
+                    }
+                } else {
+                    if (selectedMatch == null) {
+                        MatchListContent(
+                            matches = displayMatches,
+                            isSyncing = isSyncing,
+                            searchQuery = searchQuery,
+                            onMatchClick = { selectedMatch = it },
+                            adminViewModel = adminViewModel
+                        )
+                    } else {
+                        MatchDetailContent(match = selectedMatch!!, users = users, onUserClick = onUserClick, adminViewModel = adminViewModel, onBack = { selectedMatch = null })
+                    }
+                }
+            }
         }
     }
 }
@@ -240,80 +234,156 @@ fun MatchArchiveItem(match: SupabaseMatch, onClick: () -> Unit, onDelete: () -> 
 }
 
 @Composable
-fun AdminMatchDetailScreen(
-    match: SupabaseMatch,
-    onBack: () -> Unit
+fun MatchDetailContent(
+    match: SupabaseMatch, 
+    users: List<com.example.daadi.data.supabase.SupabaseUser>,
+    onUserClick: (com.example.daadi.data.supabase.SupabaseUser) -> Unit,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
+    onBack: (() -> Unit)? = null
 ) {
-    AdminFoundationScaffold(
-        title = "Match Details",
-        supabaseManager = null, // No need for refresh here
-        onBack = onBack
-    ) { padding ->
-        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
-            MatchDetailContent(match = match)
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var isUpdating by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (onBack != null) {
+            Row(modifier = Modifier.fillMaxWidth().padding(AdminDesign.SpacingMedium), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) }
+                Text("Match Details", fontWeight = FontWeight.Bold)
+            }
+        }
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(AdminDesign.SpacingMedium),
+            verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingMedium)
+        ) {
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface), shape = AdminDesign.CardShape) {
+                    Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("TELEMETRY & ENFORCEMENT", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.Primary)
+                            Spacer(modifier = Modifier.weight(1f))
+                            if (isUpdating) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        }
+                        Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+                        
+                        // Action Row
+                        if (match.status != "finished" && match.status != "terminated") {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = { 
+                                        isUpdating = true
+                                        val newStatus = if (match.status == "paused") "playing" else "paused"
+                                        adminViewModel.remoteGameRepository.updateMatchStatus(match.id, newStatus) { isUpdating = false }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = if (match.status == "paused") AdminDesign.Success else AdminDesign.Primary),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Icon(if (match.status == "paused") Icons.Default.PlayArrow else Icons.Default.Pause, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(if (match.status == "paused") "Resume" else "Pause", fontSize = 11.sp)
+                                }
+                                
+                                Button(
+                                    onClick = { 
+                                        isUpdating = true
+                                        adminViewModel.remoteGameRepository.updateMatchStatus(match.id, "terminated") { isUpdating = false }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Error),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Terminate", fontSize = 11.sp)
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+
+                        DetailRow("Match ID", match.id)
+                        DetailRow("Server Region", match.serverRegion ?: "Asia-South (Mumbai)")
+                        DetailRow("Status", match.status.uppercase())
+                        DetailRow("Latency", "${match.latencyMs}ms")
+                        DetailRow("Moves", match.movesCount.toString())
+                    }
+                }
+            }
+
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface), shape = AdminDesign.CardShape) {
+                    Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
+                        Text("SQUAD ANALYTICS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
+                        Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+                        val hostUser = users.find { it.username.equals(match.hostName, ignoreCase = true) }
+                        PlayerDetailItem(match.hostName, "HOST", isWinner = match.winner == match.hostName, user = hostUser, onUserClick = onUserClick)
+                        Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
+                        val oppUser = users.find { it.username.equals(match.opponentName, ignoreCase = true) }
+                        PlayerDetailItem(match.opponentName.ifEmpty { "WAITING..." }, "OPPONENT", isWinner = match.winner == match.opponentName, user = oppUser, onUserClick = onUserClick)
+                    }
+                }
+            }
+
+            item {
+                Text("LIVE MOVE FEED", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
+                Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
+                Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface), shape = AdminDesign.CardShape) {
+                    Box(modifier = Modifier.padding(AdminDesign.SpacingMedium).fillMaxWidth().heightIn(min = 150.dp)) {
+                        Text(
+                            text = match.movesJson?.ifBlank { "Awaiting match start telemetry..." } ?: "No active telemetry found.",
+                            fontSize = 11.sp,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            color = AdminDesign.OnSurfaceVariant
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-fun MatchDetailContent(match: SupabaseMatch) {
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(AdminDesign.SpacingMedium), verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingMedium)) {
-        item {
-            Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface), shape = AdminDesign.CardShape) {
-                Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
-                    Text("MATCH SUMMARY", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
-                    Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
-                    DetailRow("Match ID", match.id)
-                    DetailRow("Status", match.status.uppercase())
-                    DetailRow("Type", match.matchType.uppercase())
-                    DetailRow("Created At", match.createdAt)
-                    DetailRow("Moves", match.movesCount.toString())
-                    DetailRow("Latency", "${match.latencyMs}ms")
-                    if (match.abandonedBy != null) DetailRow("Abandoned By", match.abandonedBy!!)
+fun PlayerDetailItem(
+    name: String, 
+    role: String, 
+    isWinner: Boolean, 
+    user: com.example.daadi.data.supabase.SupabaseUser? = null, 
+    onUserClick: (com.example.daadi.data.supabase.SupabaseUser) -> Unit = {}
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (user != null) {
+                    Modifier.clickable { onUserClick(user) }
+                } else {
+                    Modifier
+                }
+            )
+            .padding(vertical = 4.dp)
+    ) {
+        PlayerIcon(name)
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                if (user != null) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Default.Launch, 
+                        contentDescription = "View Profile", 
+                        tint = AdminDesign.Primary, 
+                        modifier = Modifier.size(12.dp)
+                    )
                 }
             }
+            Text(role, fontSize = 9.sp, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
         }
-        
-        item {
-            Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface), shape = AdminDesign.CardShape) {
-                Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
-                    Text("PARTICIPANTS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
-                    Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        PlayerIcon(match.hostName)
-                        Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
-                        Text(match.hostName, fontWeight = FontWeight.Bold)
-                        if (match.winner == match.hostName) {
-                            Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
-                            Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = AdminDesign.Secondary, modifier = Modifier.size(16.dp))
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        PlayerIcon(match.opponentName.ifEmpty { "Waiting..." })
-                        Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
-                        Text(match.opponentName.ifEmpty { "Waiting..." }, fontWeight = FontWeight.Bold)
-                        if (match.winner == match.opponentName) {
-                            Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
-                            Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = AdminDesign.Secondary, modifier = Modifier.size(16.dp))
-                        }
-                    }
-                }
-            }
-        }
-        
-        item {
-            Text("MOVE LOGS (JSON)", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
-            Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
-            Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface), shape = AdminDesign.CardShape) {
-                Box(modifier = Modifier.padding(AdminDesign.SpacingMedium).fillMaxWidth().heightIn(min = 200.dp)) {
-                    if (match.movesJson.isNullOrBlank()) {
-                        Text("No telemetry data available for this session.", color = AdminDesign.OnSurfaceVariant, fontSize = 12.sp)
-                    } else {
-                        Text(match.movesJson, fontSize = 11.sp, color = AdminDesign.OnSurfaceVariant)
-                    }
-                }
-            }
+        Spacer(modifier = Modifier.weight(1f))
+        if (isWinner) {
+            Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = Color(0xFFFFD700))
         }
     }
 }
@@ -327,7 +397,7 @@ private fun DetailRow(label: String, value: String) {
 }
 
 @Composable
-private fun PlayerIcon(name: String) {
+fun PlayerIcon(name: String) {
     Surface(modifier = Modifier.size(24.dp), shape = CircleShape, color = AdminDesign.Primary.copy(alpha = 0.1f)) {
         Box(contentAlignment = Alignment.Center) {
             Text(name.take(1).uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Black, color = AdminDesign.Primary)

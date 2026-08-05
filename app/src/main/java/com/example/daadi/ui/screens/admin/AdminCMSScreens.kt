@@ -29,6 +29,7 @@ fun AdminCMSCenter(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, o
     val cmsContent by adminViewModel.remoteConfigRepository.cmsContent.collectAsStateWithLifecycle()
     val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
     var selectedItem by remember { mutableStateOf<com.example.daadi.data.supabase.SupabaseCMSContent?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
 
     AdminFoundationScaffold(
         title = "Content Hub",
@@ -67,7 +68,16 @@ fun AdminCMSCenter(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, o
                         description = "The CMS repository is currently empty. Initialize baseline assets to populate user-facing terminals."
                     )
                 } else {
-                    LazyColumn(
+                    
+                        val filteredCms = remember(cmsContent, searchQuery) {
+                            if (searchQuery.isBlank()) cmsContent
+                            else cmsContent.filter { 
+                                it.title.contains(searchQuery, ignoreCase = true) || 
+                                it.type.contains(searchQuery, ignoreCase = true) ||
+                                (it.author?.contains(searchQuery, ignoreCase = true) == true)
+                            }
+                        }
+                        LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(AdminDesign.SpacingMedium),
                         verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)
@@ -75,8 +85,18 @@ fun AdminCMSCenter(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, o
                         item {
                             Text("PUBLISHED ASSETS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
                             Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = { Text("Search CMS by title, type, or author...") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = AdminDesign.InputShape,
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                                singleLine = true
+                            )
+                            Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
                         }
-                        items(cmsContent) { content ->
+                        items(filteredCms) { content ->
                             CMSContentCard(content, onClick = { selectedItem = content })
                         }
                     }

@@ -1,6 +1,7 @@
 package com.example.daadi.ui.screens.admin
 
 import com.example.daadi.data.supabase.SupabaseLiveOpsEvent
+import com.example.daadi.data.supabase.SupabaseAnnouncement
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -26,11 +27,15 @@ import java.util.*
 @Composable
 fun AdminLiveOpsCenter(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onBack: () -> Unit) {
     val events by adminViewModel.liveOpsRepository.liveOpsEvents.collectAsStateWithLifecycle()
+    val announcements by adminViewModel.liveOpsRepository.announcements.collectAsStateWithLifecycle()
     val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
+    var selectedTab by remember { mutableIntStateOf(0) }
     var showCreateDialog by remember { mutableStateOf(false) }
+    var showCreateAnnouncement by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         adminViewModel.liveOpsRepository.fetchLiveOpsEvents()
+        adminViewModel.liveOpsRepository.fetchAnnouncements()
     }
 
     AdminFoundationScaffold(
@@ -38,53 +43,42 @@ fun AdminLiveOpsCenter(adminViewModel: com.example.daadi.viewmodel.AdminViewMode
         adminViewModel = adminViewModel,
         onBack = onBack,
         actions = {
-            IconButton(onClick = { showCreateDialog = true }) {
-                Icon(Icons.Default.AddCircle, contentDescription = "Schedule Event", tint = AdminDesign.Primary)
+            if (selectedTab == 0) {
+                IconButton(onClick = { showCreateDialog = true }) {
+                    Icon(Icons.Default.AddCircle, contentDescription = "Schedule Event", tint = AdminDesign.Primary)
+                }
+            } else {
+                IconButton(onClick = { showCreateAnnouncement = true }) {
+                    Icon(Icons.Default.Campaign, contentDescription = "New Announcement", tint = AdminDesign.Primary)
+                }
             }
         }
     ) { padding ->
-        if (isSyncing && events.isEmpty()) {
-            LazyColumn(modifier = Modifier.padding(padding).fillMaxSize().padding(AdminDesign.SpacingMedium)) {
-                items(5) { ShimmerItem(Modifier.padding(vertical = AdminDesign.SpacingSmall)) }
-            }
-        } else if (events.isEmpty()) {
-            AdminEmptyState(
-                title = "Ops Silence", 
-                description = "No LiveOps events are currently scheduled or active. Game logic is operating on baseline parameters.",
-                actionButton = {
-                    Button(
-                        onClick = { showCreateDialog = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Primary),
-                        shape = AdminDesign.ButtonShape
-                    ) {
-                        Text("SCHEDULE NEW EVENT")
-                    }
-                }
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier.padding(padding).fillMaxSize(),
-                contentPadding = PaddingValues(AdminDesign.SpacingMedium),
-                verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)
+        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = Color.Transparent,
+                contentColor = AdminDesign.Primary,
+                divider = {}
             ) {
-                item {
-                    LiveOpsStatusBanner(events)
-                    Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }) {
+                    Text("EVENTS", modifier = Modifier.padding(12.dp), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
-                item {
-                    Text("ACTIVE OPERATIONS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
-                    Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
+                Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }) {
+                    Text("ANNOUNCEMENTS", modifier = Modifier.padding(12.dp), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
-                items(events) { event ->
-                    LiveOpsEventCard(
-                        event = event,
-                        onToggleActive = { active ->
-                            adminViewModel.liveOpsRepository.toggleLiveOpsEventActive(event.id, active)
-                        },
-                        onDelete = {
-                            adminViewModel.liveOpsRepository.deleteLiveOpsEvent(event.id)
-                        }
-                    )
+            }
+
+            Box(modifier = Modifier.weight(1f)) {
+                if (isSyncing && events.isEmpty() && announcements.isEmpty()) {
+                    LazyColumn(modifier = Modifier.fillMaxSize().padding(AdminDesign.SpacingMedium)) {
+                        items(5) { ShimmerItem(Modifier.padding(vertical = AdminDesign.SpacingSmall)) }
+                    }
+                } else {
+                    when (selectedTab) {
+                        0 -> LiveOpsEventsList(events, showCreateDialog, { showCreateDialog = true }, adminViewModel)
+                        1 -> GlobalAnnouncementsList(announcements, { adminViewModel.adminRepository.deleteAnnouncement(it) })
+                    }
                 }
             }
         }
@@ -109,6 +103,117 @@ fun AdminLiveOpsCenter(adminViewModel: com.example.daadi.viewmodel.AdminViewMode
                     showCreateDialog = false
                 }
             )
+        }
+
+        if (showCreateAnnouncement) {
+            CreateAnnouncementDialog(
+                onDismiss = { showCreateAnnouncement = false },
+                onConfirm = { title, content, priority ->
+                    adminViewModel.adminRepository.createAnnouncement(
+                        SupabaseAnnouncement(
+                            id = (1000..9999).random(),
+                            title = title,
+                            content = content,
+                            priority = priority,
+                            isActive = true,
+                            createdAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(Date())
+                        )
+                    )
+                    showCreateAnnouncement = false
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun LiveOpsEventsList(
+    events: List<SupabaseLiveOpsEvent>,
+    showCreateDialog: Boolean,
+    onShowCreate: () -> Unit,
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel
+) {
+    if (events.isEmpty()) {
+        AdminEmptyState(
+            title = "Ops Silence", 
+            description = "No LiveOps events are currently scheduled or active. Game logic is operating on baseline parameters.",
+            actionButton = {
+                Button(
+                    onClick = onShowCreate,
+                    colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Primary),
+                    shape = AdminDesign.ButtonShape
+                ) {
+                    Text("SCHEDULE NEW EVENT")
+                }
+            }
+        )
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(AdminDesign.SpacingMedium),
+            verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)
+        ) {
+            item {
+                LiveOpsStatusBanner(events)
+                Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+            }
+            item {
+                Text("ACTIVE OPERATIONS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
+                Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
+            }
+            items(events) { event ->
+                LiveOpsEventCard(
+                    event = event,
+                    onToggleActive = { active ->
+                        adminViewModel.liveOpsRepository.toggleLiveOpsEventActive(event.id, active)
+                    },
+                    onDelete = {
+                        adminViewModel.liveOpsRepository.deleteLiveOpsEvent(event.id)
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun GlobalAnnouncementsList(
+    announcements: List<com.example.daadi.data.supabase.SupabaseAnnouncement>,
+    onDelete: (Int) -> Unit
+) {
+    if (announcements.isEmpty()) {
+        AdminEmptyState(
+            title = "No Announcements",
+            description = "The global announcement board is empty. Send updates to all active players."
+        )
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(AdminDesign.SpacingMedium),
+            verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingMedium)
+        ) {
+            items(announcements) { ann ->
+                AdminCard {
+                    Column(Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Campaign, null, tint = AdminDesign.Primary)
+                            Spacer(Modifier.width(12.dp))
+                            Text(ann.title, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                            IconButton(onClick = { onDelete(ann.id) }) {
+                                Icon(Icons.Default.Delete, null, tint = AdminDesign.Error)
+                            }
+                        }
+                        Text(ann.content, style = AdminDesign.BodyStyle)
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Badge(containerColor = AdminDesign.Secondary) { Text(ann.priority.uppercase(), fontSize = 8.sp, fontWeight = FontWeight.Bold) }
+                            Badge(containerColor = if (ann.isActive) Color(0xFF2E7D32) else AdminDesign.OnSurfaceVariant) { 
+                                Text(if (ann.isActive) "ACTIVE" else "INACTIVE", fontSize = 8.sp, fontWeight = FontWeight.Bold) 
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -272,4 +377,46 @@ fun CreateLiveOpsDialog(onDismiss: () -> Unit, onConfirm: (String, String, Strin
             TextButton(onClick = onDismiss) { Text("ABORT") }
         }
     )
+}
+
+@Composable
+fun CreateAnnouncementDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String, String, String) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var content by remember { mutableStateOf("") }
+    var priority by remember { mutableStateOf("low") }
+
+    AdminDialog(title = "New Global Announcement", onDismiss = onDismiss) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            AdminTextField(value = title, onValueChange = { title = it }, label = "Title")
+            AdminTextField(value = content, onValueChange = { content = it }, label = "Message Content", minLines = 3)
+            
+            Text("PRIORITY", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("low", "medium", "high", "critical").forEach { p ->
+                    FilterChip(
+                        selected = priority == p,
+                        onClick = { priority = p },
+                        label = { Text(p.uppercase(), fontSize = 10.sp) }
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+                Spacer(Modifier.width(8.dp))
+                Button(
+                    onClick = { onConfirm(title, content, priority) },
+                    colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Primary)
+                ) {
+                    Text("Broadcast")
+                }
+            }
+        }
+    }
 }

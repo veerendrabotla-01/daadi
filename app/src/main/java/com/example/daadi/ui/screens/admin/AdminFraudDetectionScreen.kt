@@ -21,33 +21,98 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
-fun AdminFraudDetectionScreen(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onBack: () -> Unit) {
+fun AdminFraudDetectionScreen(
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
+    onUserClick: (com.example.daadi.data.supabase.SupabaseUser) -> Unit = {},
+    onBack: () -> Unit
+) {
     val alerts by adminViewModel.analyticsRepository.fraudAlerts.collectAsStateWithLifecycle()
     val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
+    val users by adminViewModel.userRepository.users.collectAsStateWithLifecycle()
+    val filterUserId = adminViewModel.filterUserId.value ?: ""
+
+    val filteredAlerts = remember(alerts, filterUserId) {
+        if (filterUserId.isNotEmpty()) {
+            alerts.filter { it.userId.equals(filterUserId, ignoreCase = true) }
+        } else {
+            alerts
+        }
+    }
 
     AdminFoundationScaffold("Fraud Intelligence", supabaseManager, onBack) { padding ->
-        if (isSyncing && alerts.isEmpty()) {
+        if (isSyncing && filteredAlerts.isEmpty()) {
             LazyColumn(modifier = Modifier.padding(padding).fillMaxSize().padding(AdminDesign.SpacingMedium)) {
                 items(6) { ShimmerItem(Modifier.padding(vertical = AdminDesign.SpacingSmall)) }
             }
-        } else if (alerts.isEmpty()) {
-            AdminEmptyState(
-                title = "No Fraud Detected", 
-                description = "Algorithmic monitoring shows zero anomalous transaction or behavioral patterns."
-            )
+        } else if (filteredAlerts.isEmpty()) {
+            Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+                if (filterUserId.isNotEmpty()) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().padding(AdminDesign.SpacingMedium),
+                        color = AdminDesign.Primary.copy(alpha = 0.1f),
+                        shape = AdminDesign.CardShape
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(AdminDesign.SpacingMedium),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("No match for User ID: ${filterUserId.take(16)}...", fontWeight = FontWeight.Bold, color = AdminDesign.Primary, fontSize = 12.sp)
+                            TextButton(onClick = { adminViewModel.filterUserId.value = "" }) {
+                                Text("Clear Filter", fontWeight = FontWeight.Black, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+                AdminEmptyState(
+                    title = "No Fraud Detected", 
+                    description = "Algorithmic monitoring shows zero anomalous transaction or behavioral patterns."
+                )
+            }
         } else {
             LazyColumn(
                 modifier = Modifier.padding(padding).fillMaxSize(),
                 contentPadding = PaddingValues(AdminDesign.SpacingMedium),
                 verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)
             ) {
+                if (filterUserId.isNotEmpty()) {
+                    item {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            color = AdminDesign.Primary.copy(alpha = 0.1f),
+                            shape = AdminDesign.CardShape
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(AdminDesign.SpacingMedium),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Filtering by User ID: ${filterUserId.take(16)}...", fontWeight = FontWeight.Bold, color = AdminDesign.Primary, fontSize = 12.sp)
+                                TextButton(onClick = { adminViewModel.filterUserId.value = "" }) {
+                                    Text("Clear Filter", fontWeight = FontWeight.Black, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 item {
                     Text("BEHAVIORAL ANOMALY FEED", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
                     Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
                 }
 
-                items(alerts) { alert ->
-                    FraudAlertCard(alert)
+                items(filteredAlerts) { alert ->
+                    FraudAlertCard(
+                        alert = alert,
+                        users = users,
+                        onUserClick = onUserClick,
+                        onDismiss = {
+                            adminViewModel.analyticsRepository.dismissFraudAlert(alert.id)
+                        },
+                        onTerminate = {
+                            adminViewModel.analyticsRepository.flagUserFraud(alert.userId)
+                        }
+                    )
                 }
             }
         }
@@ -55,7 +120,13 @@ fun AdminFraudDetectionScreen(adminViewModel: com.example.daadi.viewmodel.AdminV
 }
 
 @Composable
-fun FraudAlertCard(alert: com.example.daadi.data.supabase.SupabaseFraudAlert) {
+fun FraudAlertCard(
+    alert: com.example.daadi.data.supabase.SupabaseFraudAlert,
+    users: List<com.example.daadi.data.supabase.SupabaseUser>,
+    onUserClick: (com.example.daadi.data.supabase.SupabaseUser) -> Unit,
+    onDismiss: () -> Unit,
+    onTerminate: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = AdminDesign.CardShape,
@@ -115,15 +186,49 @@ fun FraudAlertCard(alert: com.example.daadi.data.supabase.SupabaseFraudAlert) {
                 )
             }
             
+            val associatedUser = remember(users, alert.userId) {
+                users.find { it.id.equals(alert.userId, ignoreCase = true) }
+            }
+            if (associatedUser != null) {
+                Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+                Text("ASSOCIATED PLAYER", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
+                Spacer(modifier = Modifier.height(4.dp))
+                Card(
+                    onClick = { onUserClick(associatedUser) },
+                    colors = CardDefaults.cardColors(
+                        containerColor = AdminDesign.Primary.copy(alpha = 0.08f),
+                        contentColor = AdminDesign.Primary
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.wrapContentWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Person, null, modifier = Modifier.size(12.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(associatedUser.username, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                }
+            }
+            
             Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { /* Dismiss */ }) { 
+                val context = androidx.compose.ui.platform.LocalContext.current
+                TextButton(onClick = { 
+                    onDismiss()
+                    android.widget.Toast.makeText(context, "Fraud alert dismissed.", android.widget.Toast.LENGTH_SHORT).show()
+                }) { 
                     Text("DISMISS ALERT", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AdminDesign.OnSurfaceVariant) 
                 }
                 Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
                 Button(
-                    onClick = { /* Ban User */ }, 
+                    onClick = { 
+                        onTerminate()
+                        android.widget.Toast.makeText(context, "User access flagged and terminated.", android.widget.Toast.LENGTH_SHORT).show()
+                    }, 
                     colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Error),
                     shape = AdminDesign.ButtonShape
                 ) {

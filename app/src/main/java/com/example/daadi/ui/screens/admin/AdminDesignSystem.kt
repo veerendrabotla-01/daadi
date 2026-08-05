@@ -2,8 +2,10 @@ package com.example.daadi.ui.screens.admin
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -13,6 +15,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -219,8 +222,172 @@ fun AdminErrorState(
 }
 
 @Composable
+fun AdminStatCard(
+    title: String,
+    value: String,
+    icon: ImageVector,
+    color: Color = AdminDesign.Primary,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        shape = AdminDesign.CardShape,
+        colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, AdminDesign.OnSurfaceVariant.copy(alpha = 0.1f))
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                color = color.copy(alpha = 0.1f),
+                shape = CircleShape,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.padding(8.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = AdminDesign.OnSurfaceVariant
+                )
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = AdminDesign.OnSurface,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun AdminLoadingScreen() {
     Box(modifier = Modifier.fillMaxSize().background(AdminDesign.Background), contentAlignment = Alignment.Center) {
         CircularProgressIndicator(color = AdminDesign.Primary, strokeWidth = 3.dp)
+    }
+}
+
+@Composable
+fun AdminCard(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    content: @Composable () -> Unit
+) {
+    if (onClick != null) {
+        Card(
+            modifier = modifier.clip(AdminDesign.CardShape).clickable { onClick() },
+            shape = AdminDesign.CardShape,
+            colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, AdminDesign.OnSurfaceVariant.copy(alpha = 0.1f)),
+            content = { content() }
+        )
+    } else {
+        Card(
+            modifier = modifier,
+            shape = AdminDesign.CardShape,
+            colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, AdminDesign.OnSurfaceVariant.copy(alpha = 0.1f)),
+            content = { content() }
+        )
+    }
+}
+
+@Composable
+fun AdminDialog(
+    title: String,
+    onDismiss: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, fontWeight = FontWeight.Black) },
+        text = { content() },
+        confirmButton = {},
+        dismissButton = {},
+        containerColor = AdminDesign.Surface,
+        shape = AdminDesign.CardShape
+    )
+}
+
+@Composable
+fun AdminTextField(
+    modifier: Modifier = Modifier,
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    minLines: Int = 1
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        modifier = modifier.fillMaxWidth(),
+        shape = AdminDesign.InputShape,
+        minLines = minLines,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = AdminDesign.Primary,
+            unfocusedBorderColor = AdminDesign.OnSurfaceVariant.copy(alpha = 0.2f)
+        )
+    )
+}
+
+@get:Composable
+val AdminDesign.BodyStyle get() = MaterialTheme.typography.bodyMedium.copy(color = AdminDesign.OnSurface)
+
+@get:Composable
+val AdminDesign.HeadingStyle get() = MaterialTheme.typography.titleMedium.copy(color = AdminDesign.OnSurface, fontWeight = FontWeight.Bold)
+
+@Composable
+fun QuickStatCard(label: String, value: String, modifier: Modifier = Modifier, isAlert: Boolean = false) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = if (isAlert && value != "0") AdminDesign.Error.copy(alpha = 0.05f) else AdminDesign.Surface
+        ),
+        shape = AdminDesign.CardShape,
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (isAlert && value != "0") AdminDesign.Error.copy(alpha = 0.3f) else AdminDesign.OnSurfaceVariant.copy(alpha = 0.1f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        modifier = modifier
+    ) {
+        Column(modifier = Modifier.padding(AdminDesign.SpacingMedium), horizontalAlignment = Alignment.Start) {
+            Text(
+                text = label.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isAlert && value != "0") AdminDesign.Error else AdminDesign.OnSurfaceVariant,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.5.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = value,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = if (isAlert && value != "0") AdminDesign.Error else AdminDesign.OnSurface
+            )
+        }
+    }
+}
+
+@Composable
+fun MetricMiniCard(label: String, value: String, color: Color, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        shape = AdminDesign.CardShape,
+        elevation = CardDefaults.cardElevation(defaultElevation = AdminDesign.CardElevation),
+        colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, AdminDesign.OnSurfaceVariant.copy(alpha = 0.1f))
+    ) {
+        Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
+            Text(label, fontSize = 10.sp, color = AdminDesign.OnSurfaceVariant, fontWeight = FontWeight.Black)
+            Text(value, fontSize = 20.sp, fontWeight = FontWeight.Black, color = color)
+        }
     }
 }

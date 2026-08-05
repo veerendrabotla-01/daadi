@@ -98,7 +98,9 @@ class DaadiApplication : Application() {
                 "WebView/Default/HTTP Cache/Code Cache/wasm",
                 "WebView/Default/Code Cache",
                 "WebView/Default/Code Cache/js",
-                "WebView/Default/Code Cache/wasm"
+                "WebView/Default/Code Cache/wasm",
+                "WebView/Default/Local Storage",
+                "WebView/Default/Local Storage/leveldb"
             )
 
             for (subPath in webViewDirs) {
@@ -111,7 +113,7 @@ class DaadiApplication : Application() {
                     dir.setWritable(true, false)
                     dir.setExecutable(true, false)
                     
-                    // Create synchronous placeholder
+                    // Create synchronous placeholder to prevent Chromium opendir errors
                     val placeholder = java.io.File(dir, ".placeholder")
                     if (!placeholder.exists()) {
                         placeholder.createNewFile()

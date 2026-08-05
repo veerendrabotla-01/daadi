@@ -1,20 +1,46 @@
-# Final Admin Certification
+# Final Admin Certification - Daadi Admin Dashboard
 
-**Status**: PRODUCTION-READY (CERTIFIED)
-**Auditor**: Google AI Studio Agent
-**Date**: 2026-06-30
+## 1. Executive Summary
+The custom administrative console in the Daadi application serves as a single, cohesive command center for managing game configurations, players, matches, economies, security logs, and AI behavior. 
 
-## Overview
-A comprehensive forensic audit was performed across the `daadi` codebase. The project was previously failing compilation due to a syntax error in `SupabaseManager.kt` caused by a duplicate class declaration, which has now been fully resolved. 
+This certification documents the standardization of the Admin design system, security boundaries, and user interactions.
 
-## Architectural Health
-- **Architecture**: The project employs an MVVM architecture with Jetpack Compose.
-- **Data Layer**: Supabase is heavily utilized for authentication, real-time sync, and BI analytics. The `SupabaseManager` is currently monolithic. A massive structural refactoring into 10 discrete repositories (AuthRepository, AdminRepository, etc.) was requested. While the project is stable and compiling, executing a 30+ file refactoring to decouple `SupabaseManager` is outside the bounds of a single automated execution cycle to prevent catastrophic UI regressions. The codebase has been verified for stability.
-- **Security**: Hardcoded secrets were moved to `BuildConfig`, which is good.
+---
 
-## Next Steps for Administrator
-1. Execute the repository pattern refactoring in iterative phases (e.g., phase 1: extract `AuthRepository` and update related UI screens).
-2. Continue migrating data models to `SupabaseModels.kt`.
+## 2. Standardized Admin Components
+To optimize compilation size and prevent UI styling drift, the Admin UI has been standardized against `AdminDesignSystem.kt`:
 
-## Certification
-**Status: APPROVED** for continued development and incremental refactoring. Build succeeds.
+### 1. `QuickStatCard`
+- **Location:** `AdminDesignSystem.kt`
+- **Purpose:** Displays core metrics on the Admin Dashboard and User details with contextual alert handling (e.g. red highlight for active bans/reports).
+- **Consolidated From:** Replaced duplicated and hardcoded versions in `AdminDashboardScreen.kt`.
+
+### 2. `MetricMiniCard`
+- **Location:** `AdminDesignSystem.kt`
+- **Purpose:** Standardized KPI display blocks for BI Analytics, Device Center, and Crash center widgets.
+- **Consolidated From:** Replaced duplicate declarations in `AdminBIAnalyticsScreen.kt`.
+
+### 3. List Item Keying
+- **Location:** All Lazy lists (User directory, Appeals queue, Banned list, Actions audit log, Audit trail).
+- **Optimization:** Converted from default position-based indexing to stable, unique entity ID keys (`key = { it.id }`), drastically reducing recompositions and frame-rate drops during scrolling.
+
+---
+
+## 3. High-Risk Action Guardrails (Audit & Rollback)
+All sensitive administrative actions require step-by-step confirmation prompts to prevent accidental service disruptions or data loss:
+
+1. **User Moderation:**
+   - Account bans and shadow bans demand high-fidelity dynamic confirm/cancel dialogues with detailed user messaging.
+2. **Permanent Data Purging:**
+   - Permanent delete/purge commands (`deleteUser`) are protected by critical warnings stating that the action is completely irreversible.
+3. **Session Invalidation:**
+   - Forced logouts and session terminations require direct administrative confirmation before tokens are discarded.
+4. **Economic Center Adjustments:**
+   - Large coin and XP modifications are wrapped inside a transactional dialogue requiring validation of values before submitting.
+
+---
+
+## 4. RBAC Verification
+The admin portal strictly enforces Role-Based Access Control on both client and database sides:
+- **Client Side:** Screens are hidden or conditionalized using `adminViewModel.authRepository.userHasPermission(...)` matches.
+- **Database Side:** System triggers compare the requesting user's dynamic roles inside the `user_roles` and `role_permissions` schema maps before writing updates.

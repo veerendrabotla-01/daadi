@@ -216,7 +216,7 @@ fun SupabaseAuthScreen(
                                             onValueChange = { editUsername = it },
                                             label = { Text("Display Username") },
                                             modifier = Modifier.fillMaxWidth(),
-                                            colors = TextFieldDefaults.colors(focusedContainerColor = Color.White, unfocusedContainerColor = Color.White)
+                                            colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color.White, unfocusedContainerColor = Color.White, focusedTextColor = Color(0xFF5C2D0A), unfocusedTextColor = Color(0xFF5C2D0A), focusedBorderColor = Color(0xFF5C2D0A), focusedLabelColor = Color(0xFF5C2D0A))
                                         )
                                         Spacer(modifier = Modifier.height(16.dp))
                                         Text("Choose Strategic Avatar:", fontWeight = FontWeight.Bold, color = Color(0xFF5C2D0A), fontSize = 12.sp)

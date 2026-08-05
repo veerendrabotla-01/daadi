@@ -24,6 +24,11 @@ import androidx.compose.ui.unit.sp
 import com.example.daadi.data.supabase.SupabaseUser
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
+import java.util.UUID
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
 @Composable
 fun AdminSafetyHubScreen(
     adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
@@ -36,7 +41,9 @@ fun AdminSafetyHubScreen(
     val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
 
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Incident Reports", "Exclusion List")
+    var selectedReport by remember { mutableStateOf<com.example.daadi.data.supabase.SupabaseReport?>(null) }
+    var showActionDialog by remember { mutableStateOf(false) }
+    val tabs = listOf("Incident Reports", "Exclusion List", "Action Logs")
 
     LaunchedEffect(Unit) {
         supabaseManager.fetchReports()
@@ -67,12 +74,44 @@ fun AdminSafetyHubScreen(
             Box(modifier = Modifier.weight(1f)) {
                 AnimatedContent(targetState = selectedTab, label = "safety_tabs") { tabIndex ->
                     when (tabIndex) {
-                        0 -> ReportsQueue(reports, users, isSyncing, onUserClick)
+                        0 -> ReportsQueue(reports, users, isSyncing) { report ->
+                            selectedReport = report
+                            showActionDialog = true
+                        }
                         1 -> ExclusionList(bans, users, isSyncing, onUserClick)
+                        2 -> ActionLogsView(isSyncing, users)
                     }
                 }
             }
         }
+    }
+
+    if (showActionDialog && selectedReport != null) {
+        val targetUser = users.find { it.id == selectedReport!!.reportedId }
+        SafetyActionDialog(
+            report = selectedReport!!,
+            user = targetUser,
+            onDismiss = { showActionDialog = false },
+            onAction = { type, reason, duration ->
+                val action = com.example.daadi.data.supabase.SupabaseModeratorAction(
+                    id = UUID.randomUUID().toString(),
+                    moderatorId = "admin_alok", // Placeholder for current admin
+                    targetUserId = selectedReport!!.reportedId,
+                    actionType = type,
+                    reason = reason,
+                    duration = duration?.toString(),
+                    createdAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault()).format(Date())
+                )
+                supabaseManager.submitModeratorAction(action) { success ->
+                    if (success) {
+                        showActionDialog = false
+                        supabaseManager.fetchReports()
+                        supabaseManager.fetchBans()
+                        supabaseManager.fetchModeratorActions()
+                    }
+                }
+            }
+        )
     }
 }
 
@@ -81,7 +120,7 @@ fun ReportsQueue(
     reports: List<com.example.daadi.data.supabase.SupabaseReport>,
     users: List<SupabaseUser>,
     isSyncing: Boolean,
-    onUserClick: (SupabaseUser) -> Unit
+    onReportClick: (com.example.daadi.data.supabase.SupabaseReport) -> Unit
 ) {
     if (isSyncing && reports.isEmpty()) {
         LazyColumn(modifier = Modifier.fillMaxSize().padding(AdminDesign.SpacingMedium)) {
@@ -98,13 +137,11 @@ fun ReportsQueue(
             contentPadding = PaddingValues(AdminDesign.SpacingMedium),
             verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)
         ) {
-            items(reports) { report ->
+            items(reports, key = { it.id }) { report ->
                 ReportItem(
                     report = report, 
                     reportedUser = users.find { it.id == report.reportedId }, 
-                    onClick = { 
-                        users.find { it.id == report.reportedId }?.let { onUserClick(it) }
-                    }
+                    onClick = { onReportClick(report) }
                 )
             }
         }
@@ -133,7 +170,7 @@ fun ExclusionList(
             contentPadding = PaddingValues(AdminDesign.SpacingMedium),
             verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)
         ) {
-            items(bans) { ban ->
+            items(bans, key = { it.id }) { ban ->
                 BanItem(
                     ban = ban, 
                     bannedUser = users.find { it.id == ban.userId }, 
@@ -252,14 +289,14 @@ fun BanItem(ban: com.example.daadi.data.supabase.SupabaseBan, bannedUser: Supaba
 fun SafetyUserItem(user: SupabaseUser, showReports: Boolean, onClick: () -> Unit) {
     Card(
         onClick = onClick,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth().border(1.dp, Color.LightGray.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+        colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface),
+        shape = AdminDesign.CardShape,
+        modifier = Modifier.fillMaxWidth().border(1.dp, AdminDesign.OnSurface.copy(alpha = 0.05f), AdminDesign.CardShape)
     ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.padding(AdminDesign.SpacingMedium), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(user.username, fontWeight = FontWeight.Bold, color = Color(0xFF5C2D0A))
-                Text(user.email, fontSize = 11.sp, color = Color.Gray)
+                Text(user.username, fontWeight = FontWeight.Bold, color = AdminDesign.OnSurface)
+                Text(user.email, fontSize = 11.sp, color = AdminDesign.OnSurfaceVariant)
             }
             if (showReports) {
                 Text(
@@ -267,22 +304,125 @@ fun SafetyUserItem(user: SupabaseUser, showReports: Boolean, onClick: () -> Unit
                     fontSize = 10.sp, 
                     fontWeight = FontWeight.Black, 
                     color = Color.White,
-                    modifier = Modifier.background(Color(0xFFC62828), RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 4.dp)
+                    modifier = Modifier.background(AdminDesign.Error, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             } else {
-                Icon(Icons.Default.Block, contentDescription = null, tint = Color(0xFFC62828), modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Block, contentDescription = null, tint = AdminDesign.Error, modifier = Modifier.size(20.dp))
             }
         }
     }
 }
 
 @Composable
-fun EmptyStateView(message: String) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2E7D32).copy(alpha = 0.3f), modifier = Modifier.size(64.dp))
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(message, color = Color.Gray, fontSize = 14.sp)
+fun ActionLogsView(isSyncing: Boolean, users: List<SupabaseUser>) {
+    val actions by supabaseManager.moderatorActions.collectAsStateWithLifecycle()
+    
+    if (isSyncing && actions.isEmpty()) {
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(AdminDesign.SpacingMedium)) {
+            items(8) { ShimmerItem(Modifier.padding(vertical = AdminDesign.SpacingSmall)) }
+        }
+    } else if (actions.isEmpty()) {
+        AdminEmptyState("No Action History", "No moderation actions have been recorded yet.")
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(AdminDesign.SpacingMedium),
+            verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)
+        ) {
+            items(actions, key = { it.id }) { action ->
+                ModeratorActionItem(action, users.find { it.id == action.targetUserId })
+            }
         }
     }
+}
+
+@Composable
+fun ModeratorActionItem(action: com.example.daadi.data.supabase.SupabaseModeratorAction, targetUser: SupabaseUser?) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = AdminDesign.CardShape,
+        colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface)
+    ) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = when(action.actionType) {
+                    "ban" -> Icons.Default.Block
+                    "warn" -> Icons.Default.Warning
+                    "mute" -> Icons.Default.VolumeOff
+                    else -> Icons.Default.Gavel
+                },
+                contentDescription = null,
+                tint = AdminDesign.Primary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("${action.actionType.uppercase()}: ${targetUser?.username ?: "User"}", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(action.reason, fontSize = 11.sp, color = AdminDesign.OnSurfaceVariant)
+            }
+            Text(action.createdAt.take(10), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+fun SafetyActionDialog(
+    report: com.example.daadi.data.supabase.SupabaseReport,
+    user: SupabaseUser?,
+    onDismiss: () -> Unit,
+    onAction: (String, String, Int?) -> Unit
+) {
+    var reason by remember { mutableStateOf(report.reason) }
+    var selectedAction by remember { mutableStateOf("warn") }
+    var duration by remember { mutableStateOf("3") }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Moderation Action: ${user?.username ?: "User"}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("INCIDENT: ${report.category.uppercase()}", fontWeight = FontWeight.Black, fontSize = 10.sp, color = AdminDesign.Error)
+                
+                Text("Select Enforcement:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf("warn", "mute", "temp_ban", "perm_ban").forEach { action ->
+                        FilterChip(
+                            selected = selectedAction == action,
+                            onClick = { selectedAction = action },
+                            label = { Text(action.replace("_", " ").uppercase(), fontSize = 9.sp) }
+                        )
+                    }
+                }
+                
+                if (selectedAction == "temp_ban" || selectedAction == "mute") {
+                    OutlinedTextField(
+                        value = duration,
+                        onValueChange = { duration = it },
+                        label = { Text("Duration (Days)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                
+                OutlinedTextField(
+                    value = reason,
+                    onValueChange = { reason = it },
+                    label = { Text("Official Reason (Required)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onAction(selectedAction, reason, duration.toIntOrNull()) },
+                colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Error),
+                enabled = reason.isNotBlank()
+            ) {
+                Text("EXECUTE SANCTION")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("CANCEL") }
+        }
+    )
 }

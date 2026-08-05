@@ -90,7 +90,9 @@ data class SupabaseMatch(
     @Json(name = "match_type") val matchType: String = "multiplayer",
     @Json(name = "latency_ms") val latencyMs: Int = 0,
     @Json(name = "is_ranked") val isRanked: Boolean = false,
-    @Json(name = "abandoned_by") val abandonedBy: String? = null
+    @Json(name = "abandoned_by") val abandonedBy: String? = null,
+    @Json(name = "server_region") val serverRegion: String? = "Asia-South",
+    @Json(name = "chat_logs_json") val chatLogsJson: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -151,12 +153,17 @@ data class SupabaseAnnouncement(
     val id: Int,
     val title: String,
     val content: String,
-    val isActive: Boolean,
-    val createdAt: String,
+    @Json(name = "is_active") val isActive: Boolean,
+    @Json(name = "created_at") val createdAt: String,
     @Json(name = "updated_at") val updatedAt: String? = null,
     val priority: String = "low",
     @Json(name = "expiry_at") val expiryAt: String? = null,
     @Json(name = "image_url") val imageUrl: String? = null,
+    val region: String? = null,
+    @Json(name = "user_segment") val userSegment: String? = null,
+    @Json(name = "scheduled_at") val scheduledAt: String? = null,
+    @Json(name = "deep_link") val deepLink: String? = null,
+    @Json(name = "is_global") val isGlobal: Boolean = true,
     @Json(name = "display_type") val displayType: String = "banner"
 )
 
@@ -184,7 +191,44 @@ data class SupabaseReport(
     val status: String,
     @Json(name = "moderator_id") val moderatorId: String?,
     @Json(name = "created_at") val createdAt: String,
-    @Json(name = "updated_at") val updatedAt: String
+    @Json(name = "updated_at") val updatedAt: String,
+    @Json(name = "attachment_urls") val attachmentUrls: List<String> = emptyList()
+)
+
+@JsonClass(generateAdapter = true)
+data class SupabaseAppeal(
+    val id: String,
+    @Json(name = "user_id") val userId: String,
+    @Json(name = "ban_id") val banId: String?,
+    @Json(name = "report_id") val reportId: String?,
+    val reason: String,
+    val status: String, // 'pending', 'under_review', 'approved', 'rejected'
+    @Json(name = "moderator_notes") val moderatorNotes: String?,
+    @Json(name = "decision_at") val decisionAt: String?,
+    @Json(name = "created_at") val createdAt: String
+)
+
+@JsonClass(generateAdapter = true)
+data class SupabaseTicketReply(
+    val id: String,
+    @Json(name = "ticket_id") val ticketId: String,
+    @Json(name = "author_id") val authorId: String,
+    @Json(name = "author_role") val authorRole: String, // 'user', 'agent'
+    val message: String,
+    @Json(name = "attachment_urls") val attachmentUrls: List<String> = emptyList(),
+    @Json(name = "is_internal") val isInternal: Boolean = false,
+    @Json(name = "created_at") val createdAt: String
+)
+
+@JsonClass(generateAdapter = true)
+data class SupabaseModeratorAction(
+    val id: String,
+    @Json(name = "moderator_id") val moderatorId: String,
+    @Json(name = "target_user_id") val targetUserId: String,
+    val actionType: String, // 'warn', 'mute', 'ban', 'kick', 'shadow_ban'
+    val reason: String,
+    val duration: String?, // e.g., '24h', '7d', 'permanent'
+    @Json(name = "created_at") val createdAt: String
 )
 
 @JsonClass(generateAdapter = true)
@@ -216,6 +260,7 @@ data class SupabaseAppVersion(
     @Json(name = "is_mandatory") val isMandatory: Boolean,
     @Json(name = "min_supported_version") val minSupportedVersion: Int,
     @Json(name = "release_notes") val releaseNotes: String?,
+    @Json(name = "staged_rollout_percentage") val stagedRolloutPercentage: Int = 100,
     @Json(name = "created_at") val createdAt: String
 )
 
@@ -243,7 +288,10 @@ data class SupabaseDataExportRequest(
 data class SupabaseSystemSetting(
     val key: String,
     val value: String,
-    val description: String
+    val description: String,
+    val type: String = "variable",
+    @Json(name = "updated_at") val updatedAt: String? = null,
+    @Json(name = "updated_by") val updatedBy: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -279,6 +327,27 @@ data class SupabaseTournamentParticipant(
     val rank: Int?,
     val score: Int,
     @Json(name = "joined_at") val joinedAt: String
+)
+
+@JsonClass(generateAdapter = true)
+data class SupabaseTournamentBracket(
+    val id: String,
+    @Json(name = "tournament_id") val tournamentId: String,
+    val round: Int,
+    @Json(name = "match_id") val matchId: String?,
+    @Json(name = "player1_id") val player1Id: String?,
+    @Json(name = "player2_id") val player2Id: String?,
+    @Json(name = "winner_id") val winnerId: String?,
+    val position: Int
+)
+
+@JsonClass(generateAdapter = true)
+data class SupabaseTournamentAnnouncement(
+    val id: String,
+    @Json(name = "tournament_id") val tournamentId: String,
+    val title: String,
+    val message: String,
+    @Json(name = "created_at") val createdAt: String
 )
 
 @JsonClass(generateAdapter = true)
@@ -463,7 +532,45 @@ data class SupabaseCMSContent(
     @Json(name = "video_url") val videoUrl: String?,
     val status: String, // "draft", "published"
     @Json(name = "published_at") val publishedAt: String?,
+    @Json(name = "created_at") val createdAt: String,
+    val category: String? = null,
+    @Json(name = "scheduled_at") val scheduledAt: String? = null,
+    @Json(name = "expiry_at") val expiryAt: String? = null,
+    val version: String? = null,
+    val author: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class SupabaseMission(
+    val id: String,
+    val title: String,
+    val description: String?,
+    val type: String, // "daily", "weekly", "achievement"
+    @Json(name = "xp_reward") val xpReward: Int,
+    @Json(name = "coin_reward") val coinReward: Int,
+    @Json(name = "target_value") val targetValue: Int,
+    @Json(name = "is_active") val isActive: Boolean,
     @Json(name = "created_at") val createdAt: String
+)
+
+@JsonClass(generateAdapter = true)
+data class SupabaseReferralReward(
+    val id: String,
+    @Json(name = "referrer_coins") val referrerCoins: Int,
+    @Json(name = "referred_coins") val referredCoins: Int,
+    @Json(name = "is_active") val isActive: Boolean,
+    @Json(name = "created_at") val createdAt: String
+)
+
+@JsonClass(generateAdapter = true)
+data class SupabaseUserSeasonProgress(
+    val id: String,
+    @Json(name = "user_id") val userId: String,
+    @Json(name = "season_pass_id") val seasonPassId: String,
+    @Json(name = "current_xp") val currentXp: Int,
+    @Json(name = "current_tier") val currentTier: Int,
+    @Json(name = "is_premium") val isPremium: Boolean,
+    @Json(name = "claimed_tiers_json") val claimedTiersJson: String // List of claimed tier numbers
 )
 
 // Enterprise Analytics Models
@@ -619,7 +726,11 @@ data class SupabaseApprovalRequest(
     val description: String = "",
     val timestamp: String = "",
     val severity: String = "",
-    val status: String = "pending"
+    val status: String = "pending",
+    val oldValue: String? = null,
+    val newValue: String? = null,
+    val rejectionReason: String? = null,
+    val approver: String? = null
 )
 
 @com.squareup.moshi.JsonClass(generateAdapter = true)
@@ -630,5 +741,15 @@ data class SupabaseScheduledTask(
     val nextRun: String = "",
     @com.squareup.moshi.Json(name = "is_enabled") val isEnabled: Boolean = true,
     @com.squareup.moshi.Json(name = "last_status") val lastStatus: String = ""
+)
+
+@com.squareup.moshi.JsonClass(generateAdapter = true)
+data class SupabaseDatabaseBackup(
+    val id: String = "",
+    val filename: String = "",
+    val sizeBytes: Long = 0,
+    val type: String = "manual",
+    val createdAt: String = "",
+    val status: String = "completed"
 )
 

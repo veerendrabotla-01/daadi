@@ -28,6 +28,7 @@ fun AdminNavigator(
                 adminViewModel = adminViewModel,
                 onNavigateToUsers = { adminNavController.navigate("user_list") },
                 onNavigateToSafety = { adminNavController.navigate("safety") },
+                onNavigateToFeedback = { adminNavController.navigate("feedback") },
                 onNavigateToMatches = { adminNavController.navigate("match_archive") },
                 onNavigateToConfig = { adminNavController.navigate("config") },
                 onNavigateToAnalytics = { adminNavController.navigate("analytics") },
@@ -60,7 +61,15 @@ fun AdminNavigator(
                 onNavigateToAIEngine = { adminNavController.navigate("ai_engine") },
                 onNavigateToLeaderboards = { adminNavController.navigate("leaderboards") },
                 onNavigateToHelp = { adminNavController.navigate("help") },
+                onNavigateToAppeals = { adminNavController.navigate("appeals_center") },
                 onBack = onExitAdmin
+            )
+        }
+
+        composable("appeals_center") {
+            AdminAppealsScreen(
+                adminViewModel = adminViewModel,
+                onBack = { adminNavController.popBackStack() }
             )
         }
 
@@ -73,9 +82,23 @@ fun AdminNavigator(
         composable("user_list") {
             AdminUserManagementScreen(
                 adminViewModel = adminViewModel,
+                onNavigate = { route -> adminNavController.navigate(route) },
                 onBack = { adminNavController.popBackStack() },
                 onHelpClick = { adminNavController.navigate("help") }
             )
+        }
+
+        composable("user_details") {
+            selectedUser?.let { user ->
+                AdminUserDetailsScreen(
+                    user = user,
+                    adminViewModel = adminViewModel,
+                    onNavigate = { route -> adminNavController.navigate(route) },
+                    onBack = { adminNavController.popBackStack() }
+                )
+            } ?: LaunchedEffect(Unit) {
+                adminNavController.popBackStack()
+            }
         }
 
         composable("safety") {
@@ -92,6 +115,10 @@ fun AdminNavigator(
         composable("match_archive") {
             AdminMatchManagementScreen(
                 adminViewModel = adminViewModel,
+                onUserClick = { user ->
+                    selectedUser = user
+                    adminNavController.navigate("user_details")
+                },
                 onBack = { adminNavController.popBackStack() }
             )
         }
@@ -114,6 +141,10 @@ fun AdminNavigator(
         composable("feedback") {
             AdminSupportHubScreen(
                 adminViewModel = adminViewModel,
+                onUserClick = { user ->
+                    selectedUser = user
+                    adminNavController.navigate("user_details")
+                },
                 onBack = { adminNavController.popBackStack() }
             )
         }
@@ -150,6 +181,10 @@ fun AdminNavigator(
         composable("devices") {
             AdminDeviceCenterScreen(
                 adminViewModel = adminViewModel,
+                onUserClick = { user ->
+                    selectedUser = user
+                    adminNavController.navigate("user_details")
+                },
                 onBack = { adminNavController.popBackStack() }
             )
         }
@@ -157,6 +192,10 @@ fun AdminNavigator(
         composable("fraud") {
             AdminFraudDetectionScreen(
                 adminViewModel = adminViewModel,
+                onUserClick = { user ->
+                    selectedUser = user
+                    adminNavController.navigate("user_details")
+                },
                 onBack = { adminNavController.popBackStack() }
             )
         }
@@ -236,6 +275,10 @@ fun AdminNavigator(
         composable("economy") {
             AdminEconomyCenter(
                 adminViewModel = adminViewModel,
+                onUserClick = { user ->
+                    selectedUser = user
+                    adminNavController.navigate("user_details")
+                },
                 onBack = { adminNavController.popBackStack() }
             )
         }

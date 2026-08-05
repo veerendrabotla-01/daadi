@@ -63,15 +63,27 @@ CREATE TABLE IF NOT EXISTS public.announcements (
     id BIGSERIAL PRIMARY KEY,
     title TEXT NOT NULL,
     content TEXT NOT NULL,
-    "isActive" BOOLEAN DEFAULT true,
-    "createdAt" TEXT NOT NULL
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    priority TEXT DEFAULT 'low',
+    expiry_at TIMESTAMP WITH TIME ZONE,
+    image_url TEXT,
+    region TEXT,
+    user_segment TEXT,
+    scheduled_at TIMESTAMP WITH TIME ZONE,
+    deep_link TEXT,
+    is_global BOOLEAN DEFAULT true,
+    display_type TEXT DEFAULT 'banner'
 );
 
 -- 4. SYSTEM SETTINGS TABLE
 CREATE TABLE IF NOT EXISTS public.system_settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
-    description TEXT
+    description TEXT,
+    type TEXT DEFAULT 'variable',
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_by TEXT
 );
 
 -- 5. AD CONFIGURATION TABLE
@@ -571,6 +583,7 @@ CREATE TABLE IF NOT EXISTS public.app_versions (
     is_mandatory BOOLEAN DEFAULT false,
     min_supported_version INTEGER DEFAULT 0,
     release_notes TEXT,
+    staged_rollout_percentage INTEGER DEFAULT 100,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -1106,7 +1119,12 @@ CREATE TABLE IF NOT EXISTS public.cms_content (
     video_url TEXT,
     status TEXT DEFAULT 'draft' NOT NULL, -- 'draft', 'published'
     published_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    category TEXT,
+    scheduled_at TIMESTAMP WITH TIME ZONE,
+    expiry_at TIMESTAMP WITH TIME ZONE,
+    version TEXT,
+    author TEXT
 );
 
 -- 13. ENTERPRISE BI METRICS TABLE

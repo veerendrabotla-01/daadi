@@ -22,26 +22,81 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
-fun AdminDeviceCenterScreen(adminViewModel: com.example.daadi.viewmodel.AdminViewModel, onBack: () -> Unit) {
+fun AdminDeviceCenterScreen(
+    adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
+    onUserClick: (com.example.daadi.data.supabase.SupabaseUser) -> Unit = {},
+    onBack: () -> Unit
+) {
     val deviceRecords by adminViewModel.analyticsRepository.deviceRecords.collectAsStateWithLifecycle()
     val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
+    val users by adminViewModel.userRepository.users.collectAsStateWithLifecycle()
+    val filterDeviceId = adminViewModel.filterDeviceId.value ?: ""
+
+    val filteredRecords = remember(deviceRecords, filterDeviceId) {
+        if (filterDeviceId.isNotEmpty()) {
+            deviceRecords.filter { it.deviceId.equals(filterDeviceId, ignoreCase = true) }
+        } else {
+            deviceRecords
+        }
+    }
 
     AdminFoundationScaffold("Device Command", supabaseManager, onBack) { padding ->
-        if (isSyncing && deviceRecords.isEmpty()) {
+        if (isSyncing && filteredRecords.isEmpty()) {
             LazyColumn(modifier = Modifier.padding(padding).fillMaxSize().padding(AdminDesign.SpacingMedium)) {
                 items(6) { ShimmerItem(Modifier.padding(vertical = AdminDesign.SpacingSmall)) }
             }
-        } else if (deviceRecords.isEmpty()) {
-            AdminEmptyState(
-                title = "No Nodes Registered", 
-                description = "Zero device identifiers have been captured in the current security perimeter."
-            )
+        } else if (filteredRecords.isEmpty()) {
+            Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+                if (filterDeviceId.isNotEmpty()) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().padding(AdminDesign.SpacingMedium),
+                        color = AdminDesign.Primary.copy(alpha = 0.1f),
+                        shape = AdminDesign.CardShape
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(AdminDesign.SpacingMedium),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("No match for Device ID: ${filterDeviceId.take(16)}...", fontWeight = FontWeight.Bold, color = AdminDesign.Primary, fontSize = 12.sp)
+                            TextButton(onClick = { adminViewModel.filterDeviceId.value = "" }) {
+                                Text("Clear Filter", fontWeight = FontWeight.Black, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+                AdminEmptyState(
+                    title = "No Nodes Registered", 
+                    description = "Zero device identifiers have been captured in the current security perimeter."
+                )
+            }
         } else {
             LazyColumn(
                 modifier = Modifier.padding(padding).fillMaxSize(),
                 contentPadding = PaddingValues(AdminDesign.SpacingMedium),
                 verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)
             ) {
+                if (filterDeviceId.isNotEmpty()) {
+                    item {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            color = AdminDesign.Primary.copy(alpha = 0.1f),
+                            shape = AdminDesign.CardShape
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(AdminDesign.SpacingMedium),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Filtering by Device ID: ${filterDeviceId.take(16)}...", fontWeight = FontWeight.Bold, color = AdminDesign.Primary, fontSize = 12.sp)
+                                TextButton(onClick = { adminViewModel.filterDeviceId.value = "" }) {
+                                    Text("Clear Filter", fontWeight = FontWeight.Black, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 item {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
                         MetricMiniCard("REGISTERED", deviceRecords.size.toString(), AdminDesign.Primary, Modifier.weight(1f))
@@ -56,8 +111,18 @@ fun AdminDeviceCenterScreen(adminViewModel: com.example.daadi.viewmodel.AdminVie
                     Spacer(modifier = Modifier.height(AdminDesign.SpacingSmall))
                 }
 
-                items(deviceRecords) { record ->
-                    DeviceRecordCard(record)
+                items(filteredRecords) { record ->
+                    DeviceRecordCard(
+                        record = record,
+                        users = users,
+                        onUserClick = onUserClick,
+                        onQuarantineToggle = { isQuarantined ->
+                            adminViewModel.analyticsRepository.setDeviceQuarantine(record.deviceId, isQuarantined)
+                        },
+                        onTerminate = {
+                            adminViewModel.analyticsRepository.terminateDeviceAccess(record.deviceId)
+                        }
+                    )
                 }
             }
         }
@@ -65,7 +130,13 @@ fun AdminDeviceCenterScreen(adminViewModel: com.example.daadi.viewmodel.AdminVie
 }
 
 @Composable
-fun DeviceRecordCard(record: com.example.daadi.data.supabase.SupabaseDeviceRecord) {
+fun DeviceRecordCard(
+    record: com.example.daadi.data.supabase.SupabaseDeviceRecord,
+    users: List<com.example.daadi.data.supabase.SupabaseUser>,
+    onUserClick: (com.example.daadi.data.supabase.SupabaseUser) -> Unit,
+    onQuarantineToggle: (Boolean) -> Unit,
+    onTerminate: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = AdminDesign.CardShape,
@@ -114,20 +185,70 @@ fun DeviceRecordCard(record: com.example.daadi.data.supabase.SupabaseDeviceRecor
                 RiskBadge("EMU_HEURISTIC", record.isEmulator)
             }
             
+            val associatedUsers = remember(users, record.deviceId) {
+                users.filter { it.deviceId.equals(record.deviceId, ignoreCase = true) }
+            }
+            if (associatedUsers.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+                Text("ASSOCIATED PLAYERS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurfaceVariant)
+                androidx.compose.foundation.lazy.LazyRow(
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(associatedUsers) { user ->
+                        Card(
+                            onClick = { onUserClick(user) },
+                            colors = CardDefaults.cardColors(
+                                containerColor = AdminDesign.Primary.copy(alpha = 0.08f),
+                                contentColor = AdminDesign.Primary
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Person, null, modifier = Modifier.size(10.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(user.username, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
+                            }
+                        }
+                    }
+                }
+            }
+            
             Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
             
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Row(
+                modifier = Modifier.fillMaxWidth(), 
+                horizontalArrangement = Arrangement.End, 
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val context = androidx.compose.ui.platform.LocalContext.current
                 if (record.isBlocked) {
-                    TextButton(onClick = { /* Unblock */ }) { 
+                    TextButton(onClick = { 
+                        onQuarantineToggle(false)
+                        android.widget.Toast.makeText(context, "Quarantine lifted for device.", android.widget.Toast.LENGTH_SHORT).show()
+                    }) { 
                         Text("RELEASE QUARANTINE", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AdminDesign.Primary) 
                     }
                 } else {
+                    TextButton(onClick = { 
+                        onQuarantineToggle(true)
+                        android.widget.Toast.makeText(context, "Device placed under quarantine.", android.widget.Toast.LENGTH_SHORT).show()
+                    }) { 
+                        Text("QUARANTINE", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AdminDesign.Warning) 
+                    }
+                    Spacer(modifier = Modifier.width(AdminDesign.SpacingSmall))
                     Button(
-                        onClick = { /* Block */ }, 
-                        colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.OnSurfaceVariant),
+                        onClick = { 
+                            onTerminate()
+                            android.widget.Toast.makeText(context, "Hardware access terminated.", android.widget.Toast.LENGTH_SHORT).show()
+                        }, 
+                        colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Error),
                         shape = AdminDesign.ButtonShape
                     ) { 
-                        Text("TERMINATE ACCESS", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("TERMINATE", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

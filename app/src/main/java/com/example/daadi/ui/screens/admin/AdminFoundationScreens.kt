@@ -282,12 +282,14 @@ fun AdminPermissionMatrixScreen(
     val rolePermissions by supabaseManager.rolePermissions.collectAsStateWithLifecycle()
     val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
 
+    var selectedRoleForSimulator by remember { mutableStateOf<SupabaseRole?>(null) }
+
     LaunchedEffect(Unit) {
         supabaseManager.fetchRolesAndPermissions()
     }
 
     AdminFoundationScaffold(
-        title = "Permission Matrix",
+        title = "RBAC Matrix",
         adminViewModel = adminViewModel,
         onBack = onBack,
         onHelpClick = onHelpClick,
@@ -306,34 +308,22 @@ fun AdminPermissionMatrixScreen(
             }
         } else if (roles.isEmpty() || permissions.isEmpty()) {
             AdminEmptyState(
-                title = "No Roles/Permissions Found",
-                description = "Role-based access matrix records could not be retrieved from the cloud services. Please initialize your roles table.",
+                title = "Access Control Sync Failed",
+                description = "Role-based access matrix records could not be retrieved. Please initialize your security tables.",
                 icon = { Icon(Icons.Default.Security, contentDescription = null, modifier = Modifier.size(64.dp), tint = AdminDesign.Error) },
                 actionButton = {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                            onClick = { supabaseManager.fetchRolesAndPermissions() },
-                            colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Primary),
-                            shape = AdminDesign.ButtonShape
-                        ) {
-                            Text("RETRY CONNECTION")
-                        }
-                        OutlinedButton(
-                            onClick = { supabaseManager.initializeSystemRoles() },
-                            shape = AdminDesign.ButtonShape
-                        ) {
-                            Text("SEED SYSTEM DATA")
-                        }
+                        Button(onClick = { supabaseManager.fetchRolesAndPermissions() }, shape = AdminDesign.ButtonShape) { Text("RETRY") }
+                        OutlinedButton(onClick = { supabaseManager.initializeSystemRoles() }, shape = AdminDesign.ButtonShape) { Text("SEED SYSTEM") }
                     }
                 }
             )
         } else {
-            val publicUserRole = remember(roles) { roles.find { it.name.lowercase() == "publicuser" } }
-            val playerRole = remember(roles) { roles.find { it.name.lowercase() == "player" } }
-            val adminRole = remember(roles) { roles.find { it.name.lowercase() == "admin" } }
-
             Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-                // Header Row
+                // Roles Summary Bar
+                RoleHierarchyBar(roles)
+                
+                // Horizontal Matrix Header
                 Surface(
                     color = AdminDesign.Surface,
                     shadowElevation = 2.dp,
@@ -342,24 +332,26 @@ fun AdminPermissionMatrixScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = AdminDesign.SpacingMedium, vertical = AdminDesign.SpacingMedium),
+                            .padding(horizontal = AdminDesign.SpacingMedium, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "SYSTEM PERMISSIONS",
+                            text = "SECURITY PERMISSIONS",
                             fontWeight = FontWeight.Black,
                             fontSize = 11.sp,
                             color = AdminDesign.OnSurfaceVariant,
-                            modifier = Modifier.weight(1.5f)
+                            modifier = Modifier.width(160.dp)
                         )
-                        Row(
-                            modifier = Modifier.weight(2f),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically
+                        androidx.compose.foundation.lazy.LazyRow(
+                            modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp)
                         ) {
-                            Text("PUBLIC", fontWeight = FontWeight.Bold, fontSize = 9.sp, color = AdminDesign.OnSurfaceVariant, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                            Text("PLAYER", fontWeight = FontWeight.Bold, fontSize = 9.sp, color = AdminDesign.OnSurfaceVariant, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                            Text("ADMIN", fontWeight = FontWeight.Bold, fontSize = 9.sp, color = AdminDesign.OnSurfaceVariant, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            items(roles) { role ->
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(60.dp)) {
+                                    Text(role.name.uppercase(), fontWeight = FontWeight.Bold, fontSize = 8.sp, color = AdminDesign.OnSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                }
+                            }
                         }
                     }
                 }
@@ -370,113 +362,142 @@ fun AdminPermissionMatrixScreen(
                     contentPadding = PaddingValues(bottom = AdminDesign.SpacingLarge)
                 ) {
                     items(permissions) { perm ->
-                        val prettyName = perm.name.replace("_", " ").uppercase()
-                        
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = AdminDesign.SpacingMedium, vertical = 4.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        PermissionMatrixRow(perm, roles, rolePermissions)
+                    }
+                    
+                    item {
+                        PermissionSimulatorSection(roles, permissions, rolePermissions)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RoleHierarchyBar(roles: List<SupabaseRole>) {
+    androidx.compose.foundation.lazy.LazyRow(
+        modifier = Modifier.fillMaxWidth().padding(AdminDesign.SpacingMedium),
+        horizontalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)
+    ) {
+        items(roles) { role ->
+            val color = when(role.name.lowercase()) {
+                "admin", "superadmin" -> AdminDesign.Secondary
+                "moderator" -> Color(0xFF8B5CF6)
+                "support" -> Color(0xFFF59E0B)
+                "player" -> AdminDesign.Primary
+                else -> AdminDesign.OnSurfaceVariant
+            }
+            Card(
+                colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f)),
+                shape = AdminDesign.CardShape,
+                border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.3f))
+            ) {
+                Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Shield, contentDescription = null, modifier = Modifier.size(12.dp), tint = color)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(role.name.uppercase(), fontWeight = FontWeight.Black, fontSize = 10.sp, color = color)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PermissionMatrixRow(perm: SupabasePermission, roles: List<SupabaseRole>, rolePermissions: List<SupabaseRolePermission>) {
+    val prettyName = perm.name.replace("_", " ").uppercase()
+    
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = AdminDesign.SpacingMedium, vertical = 4.dp),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, AdminDesign.OnSurfaceVariant.copy(alpha = 0.05f))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = AdminDesign.SpacingMedium, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.width(160.dp)) {
+                Text(text = prettyName, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp, color = AdminDesign.OnSurface)
+                Text(text = perm.description ?: "Grants ${perm.name} access", fontSize = 9.sp, color = AdminDesign.OnSurfaceVariant, maxLines = 1)
+            }
+
+            androidx.compose.foundation.lazy.LazyRow(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp)
+            ) {
+                items(roles) { role ->
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.width(60.dp)) {
+                        val isChecked = rolePermissions.any { it.roleId == role.id && it.permissionId == perm.id }
+                        Checkbox(
+                            checked = isChecked,
+                            onCheckedChange = { checked ->
+                                if (checked) {
+                                    supabaseManager.addRolePermission(role.id, perm.id)
+                                } else {
+                                    supabaseManager.removeRolePermission(role.id, perm.id)
+                                }
+                            },
+                            colors = CheckboxDefaults.colors(checkedColor = AdminDesign.Primary)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+fun PermissionSimulatorSection(roles: List<SupabaseRole>, permissions: List<SupabasePermission>, rolePermissions: List<SupabaseRolePermission>) {
+    var selectedRole by remember { mutableStateOf<SupabaseRole?>(null) }
+    
+    Column(modifier = Modifier.padding(AdminDesign.SpacingMedium)) {
+        Divider(modifier = Modifier.padding(vertical = AdminDesign.SpacingLarge), color = AdminDesign.OnSurfaceVariant.copy(alpha = 0.1f))
+        
+        Text("PERMISSIONS SIMULATOR", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = AdminDesign.OnSurface)
+        Text("Visualize active capabilities for a selected authorization group.", style = MaterialTheme.typography.bodySmall, color = AdminDesign.OnSurfaceVariant)
+        
+        Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+        
+        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(roles) { role ->
+                FilterChip(
+                    selected = selectedRole?.id == role.id,
+                    onClick = { selectedRole = role },
+                    label = { Text(role.name) },
+                    shape = RoundedCornerShape(16.dp)
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(AdminDesign.SpacingMedium))
+        
+        if (selectedRole != null) {
+            val activePerms = permissions.filter { p -> rolePermissions.any { it.roleId == selectedRole!!.id && it.permissionId == p.id } }
+            
+            if (activePerms.isEmpty()) {
+                Text("This role has zero active permissions assigned.", color = AdminDesign.Error, fontSize = 12.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+            } else {
+                androidx.compose.foundation.layout.FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    activePerms.forEach { perm ->
+                        Surface(
+                            color = AdminDesign.Secondary.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(4.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, AdminDesign.Secondary.copy(alpha = 0.3f))
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = AdminDesign.SpacingMedium, vertical = AdminDesign.SpacingSmall),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Left side: Permission Name and desc
-                                Column(modifier = Modifier.weight(1.5f)) {
-                                    Text(
-                                        text = prettyName,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 12.sp,
-                                        color = AdminDesign.OnSurface
-                                    )
-                                    Text(
-                                        text = perm.description ?: "Grants access to ${perm.name}",
-                                        fontSize = 10.sp,
-                                        color = AdminDesign.OnSurfaceVariant
-                                    )
-                                }
-
-                                // Right side: Role column toggles
-                                Row(
-                                    modifier = Modifier.weight(2f),
-                                    horizontalArrangement = Arrangement.SpaceEvenly,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    // Public User Role Checkbox
-                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.width(56.dp)) {
-                                        if (publicUserRole != null) {
-                                            val isChecked = rolePermissions.any { it.roleId == publicUserRole.id && it.permissionId == perm.id }
-                                            Checkbox(
-                                                checked = isChecked,
-                                                onCheckedChange = { checked ->
-                                                    if (checked) {
-                                                        supabaseManager.addRolePermission(publicUserRole.id, perm.id)
-                                                    } else {
-                                                        supabaseManager.removeRolePermission(publicUserRole.id, perm.id)
-                                                    }
-                                                },
-                                                colors = CheckboxDefaults.colors(
-                                                    checkedColor = AdminDesign.Primary,
-                                                    uncheckedColor = AdminDesign.OnSurfaceVariant.copy(alpha = 0.5f)
-                                                )
-                                            )
-                                        } else {
-                                            Text("-", color = AdminDesign.OnSurfaceVariant)
-                                        }
-                                    }
-
-                                    // Player Role Checkbox
-                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.width(56.dp)) {
-                                        if (playerRole != null) {
-                                            val isChecked = rolePermissions.any { it.roleId == playerRole.id && it.permissionId == perm.id }
-                                            Checkbox(
-                                                checked = isChecked,
-                                                onCheckedChange = { checked ->
-                                                    if (checked) {
-                                                        supabaseManager.addRolePermission(playerRole.id, perm.id)
-                                                    } else {
-                                                        supabaseManager.removeRolePermission(playerRole.id, perm.id)
-                                                    }
-                                                },
-                                                colors = CheckboxDefaults.colors(
-                                                    checkedColor = AdminDesign.Primary,
-                                                    uncheckedColor = AdminDesign.OnSurfaceVariant.copy(alpha = 0.5f)
-                                                )
-                                            )
-                                        } else {
-                                            Text("-", color = AdminDesign.OnSurfaceVariant)
-                                        }
-                                    }
-
-                                    // Admin Role Checkbox
-                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.width(56.dp)) {
-                                        if (adminRole != null) {
-                                            val isChecked = rolePermissions.any { it.roleId == adminRole.id && it.permissionId == perm.id }
-                                            Checkbox(
-                                                checked = isChecked,
-                                                onCheckedChange = { checked ->
-                                                    if (checked) {
-                                                        supabaseManager.addRolePermission(adminRole.id, perm.id)
-                                                    } else {
-                                                        supabaseManager.removeRolePermission(adminRole.id, perm.id)
-                                                    }
-                                                },
-                                                colors = CheckboxDefaults.colors(
-                                                    checkedColor = AdminDesign.Secondary,
-                                                    uncheckedColor = AdminDesign.OnSurfaceVariant.copy(alpha = 0.5f)
-                                                )
-                                            )
-                                        } else {
-                                            Text("-", color = AdminDesign.OnSurfaceVariant)
-                                        }
-                                    }
-                                }
-                            }
+                            Text(
+                                text = perm.name.replace("_", " ").uppercase(),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AdminDesign.Secondary
+                            )
                         }
                     }
                 }
