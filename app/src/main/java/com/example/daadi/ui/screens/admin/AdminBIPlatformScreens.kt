@@ -287,8 +287,8 @@ fun AdminNotificationCenter(adminViewModel: com.example.daadi.viewmodel.AdminVie
             title = { Text("Compose Push Matrix", fontWeight = FontWeight.Black) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
-                    OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Campaign Subject") }, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape)
-                    OutlinedTextField(value = body, onValueChange = { body = it }, label = { Text("Broadcast Payload") }, minLines = 3, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape)
+                    AdminTextField(value = title, onValueChange = { title = it }, label = "Campaign Subject")
+                    AdminTextField(value = body, onValueChange = { body = it }, label = "Broadcast Payload", minLines = 3)
                     Text("Target Segment", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         RadioButton(selected = segment == "all", onClick = { segment = "all" })

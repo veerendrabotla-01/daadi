@@ -440,20 +440,7 @@ val isConfigured: Boolean
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
 
-        if (!parsedHost.isNullOrBlank()) {
-            val pinner = CertificatePinner.Builder()
-                .add(parsedHost, "sha256/YLg6S03b9gCHJF396q9FtZYTT68RPAv8278p8vdiSCo=") // Let's Encrypt Authority X3
-                .add(parsedHost, "sha256/sRHwX997b7ILeS9NclGPtWv6ToLhU767VMyR889vBy0=") // Let's Encrypt R3
-                .add(parsedHost, "sha256/C5laE1ALgHjxoD30JdI3YytSZ9NFDqvjhDAd6G/S78M=") // Let's Encrypt R4
-                .add(parsedHost, "sha256/ZcJbApTb7wyllleAjHw2vYAskqdT+DhMY9aPDFwAtf4=") // Supabase Active Leaf
-                .add(parsedHost, "sha256/kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4=") // Google Trust Services Intermediate
-                .add(parsedHost, "sha256/mEflZT5enoR1FuXLgYYGqnVEoZvmf9c2bVBpiOjYQ0c=") // Google Trust Services Root
-                .add(parsedHost, "sha256/i77ffXN58CjZ9Z94270B7788P5988F4RPASUPABASE=") // Fallback
-                .build()
-            builder.certificatePinner(pinner).build()
-        } else {
-            builder.build()
-        }
+        builder.build()
     }
 
 catch (e: Exception) {
@@ -808,7 +795,7 @@ fun fetchBans() {
         if (isConfigured) {
             scope.launch {
                 val request = Request.Builder()
-                    .url("$supabaseUrl/rest/v1/bans?select=*&order=createdAt.desc&limit=100")
+                    .url("$supabaseUrl/rest/v1/bans?select=*&order=created_at.desc&limit=100")
                     .headers(getHeaders())
                     .get()
                     .build()
@@ -839,7 +826,7 @@ fun fetchReports() {
         if (isConfigured) {
             scope.launch {
                 val request = Request.Builder()
-                    .url("$supabaseUrl/rest/v1/reports?select=*&order=createdAt.desc&limit=100")
+                    .url("$supabaseUrl/rest/v1/reports?select=*&order=created_at.desc&limit=100")
                     .headers(getHeaders())
                     .get()
                     .build()
@@ -2285,6 +2272,7 @@ fun loadInitialData() {
     }
 
     internal suspend fun fetchRemoteUsers() = withContext(Dispatchers.IO) {
+        if (!isConfigured) return@withContext
         val request = Request.Builder()
             .url("$supabaseUrl/rest/v1/users?select=*&order=rating.desc&limit=200")
             .headers(getHeaders())
@@ -2314,6 +2302,7 @@ fun loadInitialData() {
     }
 
     internal suspend fun fetchRemoteMatches() = withContext(Dispatchers.IO) {
+        if (!isConfigured) return@withContext
         val request = Request.Builder()
             .url("$supabaseUrl/rest/v1/matches?select=*&order=createdAt.desc&limit=100")
             .headers(getHeaders())
@@ -2337,6 +2326,7 @@ fun loadInitialData() {
     }
 
     internal suspend fun fetchRemoteAnnouncements() = withContext(Dispatchers.IO) {
+        if (!isConfigured) return@withContext
         val now = System.currentTimeMillis()
         if (now - lastAnnouncementsFetchTime < CACHE_TTL_MS && _announcements.value.isNotEmpty()) {
             Log.d(tag, "Returning cached announcements (TTL valid)")
@@ -2367,6 +2357,7 @@ fun loadInitialData() {
     }
 
     internal suspend fun fetchRemoteSettings() = withContext(Dispatchers.IO) {
+        if (!isConfigured) return@withContext
         val now = System.currentTimeMillis()
         if (now - lastSettingsFetchTime < CACHE_TTL_MS && _systemSettings.value.isNotEmpty()) {
             Log.d(tag, "Returning cached system settings (TTL valid)")
@@ -4701,12 +4692,12 @@ fun logBIEvent(category: String, message: String, level: String = "INFO", stackT
                 .build()
             client.newCall(request).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
-                    Log.e(tag, "Failed to log BI event: ${e.message}", e)
+                    Log.w(tag, "Failed to log BI event: ${e.message}", e)
                 }
                 override fun onResponse(call: Call, response: Response) {
                     response.use {
                         if (!response.isSuccessful) {
-                            Log.e(tag, "Log BI event failed: ${response.code}")
+                            Log.w(tag, "Log BI event failed: ${response.code}")
                         }
                     }
                 }

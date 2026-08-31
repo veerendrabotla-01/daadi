@@ -103,6 +103,18 @@ fun StatsScreen(
                         StatItem(label = "Victory", value = stats.totalWins.toString(), color = Color(0xFF2E7D32))
                         StatItem(label = "Defeat", value = stats.totalLosses.toString(), color = Color(0xFFC62828))
                     }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Divider(color = Color(0xFFE5A93B).copy(alpha = 0.2f), thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceAround
+                    ) {
+                        StatItem(label = "Current Streak", value = "${stats.currentWinStreak} 🔥", color = if (stats.currentWinStreak > 0) Color(0xFFC75D27) else Color.Gray)
+                        StatItem(label = "Max Streak", value = "${stats.maxWinStreak} 🏆", color = if (stats.maxWinStreak > 0) Color(0xFFE5A93B) else Color.Gray)
+                    }
                 }
             }
 

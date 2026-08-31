@@ -109,7 +109,9 @@ data class PlayerStats(
     val lossesVsMediumAI: Int = 0,
     val winsVsHardAI: Int = 0,
     val lossesVsHardAI: Int = 0,
-    val passAndPlayGames: Int = 0
+    val passAndPlayGames: Int = 0,
+    val currentWinStreak: Int = 0,
+    val maxWinStreak: Int = 0
 )
 
 @JsonClass(generateAdapter = true)

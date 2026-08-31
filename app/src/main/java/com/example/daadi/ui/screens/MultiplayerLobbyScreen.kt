@@ -298,7 +298,7 @@ fun MultiplayerLobbyScreen(
                                 onClick = { multiplayerManager.startSimulatorNow() },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC75D27)),
                                 shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth().testTag("launch_simulator_button")
                             ) {
                                 Text(
                                     if (isLobbyEmpty) "LAUNCH GUARDIAN SIMULATOR INSTANTLY" else "PLAY GUARDIAN SIMULATOR NOW",

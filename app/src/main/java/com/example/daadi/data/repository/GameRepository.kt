@@ -99,6 +99,9 @@ class StatsRepositoryImpl(context: Context) : StatsRepository {
         val isLoss = winner == Player.PLAYER_2
         val isDraw = winner == null
 
+        val nextStreak = if (isWin) current.currentWinStreak + 1 else if (isLoss) 0 else current.currentWinStreak
+        val nextMaxStreak = maxOf(current.maxWinStreak, nextStreak)
+
         val updated = current.copy(
             totalGamesPlayed = current.totalGamesPlayed + 1,
             totalWins = if (isWin) current.totalWins + 1 else current.totalWins,
@@ -110,7 +113,9 @@ class StatsRepositoryImpl(context: Context) : StatsRepository {
             lossesVsMediumAI = if (mode == GameMode.VS_AI && difficulty == AIDifficulty.MEDIUM && isLoss) current.lossesVsMediumAI + 1 else current.lossesVsMediumAI,
             winsVsHardAI = if (mode == GameMode.VS_AI && difficulty == AIDifficulty.HARD && isWin) current.winsVsHardAI + 1 else current.winsVsHardAI,
             lossesVsHardAI = if (mode == GameMode.VS_AI && difficulty == AIDifficulty.HARD && isLoss) current.lossesVsHardAI + 1 else current.lossesVsHardAI,
-            passAndPlayGames = if (mode == GameMode.PASS_AND_PLAY) current.passAndPlayGames + 1 else current.passAndPlayGames
+            passAndPlayGames = if (mode == GameMode.PASS_AND_PLAY) current.passAndPlayGames + 1 else current.passAndPlayGames,
+            currentWinStreak = nextStreak,
+            maxWinStreak = nextMaxStreak
         )
         saveStats(updated)
     }

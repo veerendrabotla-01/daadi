@@ -33,4 +33,10 @@ object SecureLog {
             Log.w(tag, message)
         }
     }
+
+    fun w(tag: String, message: String, tr: Throwable) {
+        if (BuildConfig.DEBUG) {
+            Log.w(tag, message, tr)
+        }
+    }
 }

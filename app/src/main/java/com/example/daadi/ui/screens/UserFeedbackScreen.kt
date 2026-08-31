@@ -36,7 +36,7 @@ fun UserFeedbackScreen(
         topBar = {
             TopAppBar(
                 title = { Text("App Feedback", fontWeight = FontWeight.Bold) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = null) } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") } },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color(0xFFFDF3E3),
                     titleContentColor = Color(0xFF5C2D0A),

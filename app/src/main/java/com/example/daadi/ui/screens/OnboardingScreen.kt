@@ -89,25 +89,31 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 )
         )
 
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxSize()
-        ) { page ->
-            OnboardingPageContent(pages[page], pagerState.currentPage == page)
-        }
-
-        // Bottom Controls
         Column(
             modifier = Modifier
                 .fillMaxSize()
+        ) {
+            // Pager takes up full screen behind
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                OnboardingPageContent(pages[page], pagerState.currentPage == page)
+            }
+        }
+
+        // Bottom Controls (Always visible, non-overlapping, and fully clickable overlay)
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = 48.dp, start = 32.dp, end = 32.dp),
-            verticalArrangement = Arrangement.Bottom,
+                .padding(bottom = 32.dp, start = 32.dp, end = 32.dp)
+                .fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Page Indicator
             Row(
-                modifier = Modifier.padding(bottom = 40.dp),
+                modifier = Modifier.padding(bottom = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -137,31 +143,31 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(64.dp)
-                    .clip(RoundedCornerShape(20.dp)),
+                    .height(58.dp)
+                    .clip(RoundedCornerShape(18.dp)),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = pages[pagerState.currentPage].accentColor,
                     contentColor = Color.Black
                 ),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp)
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp)
             ) {
                 Text(
                     text = if (pagerState.currentPage == pages.size - 1) "ENTER THE ARENA" else "CONTINUE",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 1.5.sp
+                    letterSpacing = 1.sp
                 )
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(18.dp)
                 )
             }
             
             TextButton(
                 onClick = onFinish,
-                modifier = Modifier.padding(top = 16.dp)
+                modifier = Modifier.padding(top = 12.dp)
             ) {
                 Text(
                     "SKIP TOUR",
@@ -180,14 +186,17 @@ fun OnboardingPageContent(page: OnboardingPage, isVisible: Boolean) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 80.dp, start = 40.dp, end = 40.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .statusBarsPadding()
+            // Pad the bottom significantly to make sure content is pushed above the bottom controls overlay
+            .padding(top = 24.dp, bottom = 180.dp, start = 32.dp, end = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceEvenly
     ) {
         // Illustration with floating animation
         val infiniteTransition = rememberInfiniteTransition(label = "")
         val offsetY by infiniteTransition.animateValue(
             initialValue = 0.dp,
-            targetValue = 15.dp,
+            targetValue = 10.dp,
             typeConverter = Dp.VectorConverter,
             animationSpec = infiniteRepeatable(
                 animation = tween(2000, easing = LinearOutSlowInEasing),
@@ -199,9 +208,10 @@ fun OnboardingPageContent(page: OnboardingPage, isVisible: Boolean) {
         Box(
             modifier = Modifier
                 .fillMaxWidth(0.85f)
-                .aspectRatio(3f / 4f)
+                .weight(1f, fill = false)
+                .aspectRatio(1.2f)
                 .offset(y = offsetY)
-                .clip(RoundedCornerShape(32.dp))
+                .clip(RoundedCornerShape(24.dp))
                 .background(page.accentColor.copy(alpha = 0.05f))
         ) {
             Image(
@@ -226,40 +236,40 @@ fun OnboardingPageContent(page: OnboardingPage, isVisible: Boolean) {
             )
         }
         
-        Spacer(modifier = Modifier.height(60.dp))
+        Spacer(modifier = Modifier.height(16.dp))
         
         AnimatedVisibility(
             visible = isVisible,
-            enter = fadeIn(tween(600)) + slideInVertically(initialOffsetY = { 40 }, animationSpec = tween(600))
+            enter = fadeIn(tween(600)) + slideInVertically(initialOffsetY = { 30 }, animationSpec = tween(600))
         ) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.03f)),
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(20.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
-                modifier = Modifier.padding(horizontal = 4.dp)
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(24.dp)
+                    modifier = Modifier.padding(16.dp)
                 ) {
                     Text(
                         text = page.title,
-                        style = MaterialTheme.typography.headlineLarge,
+                        style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color.White,
                         textAlign = TextAlign.Center,
                         letterSpacing = (-0.5).sp
                     )
                     
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     
                     Text(
                         text = page.description,
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = Color.White.copy(alpha = 0.6f),
                         textAlign = TextAlign.Center,
-                        lineHeight = 26.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp)
+                        lineHeight = 20.sp,
+                        modifier = Modifier.padding(horizontal = 4.dp)
                     )
                 }
             }

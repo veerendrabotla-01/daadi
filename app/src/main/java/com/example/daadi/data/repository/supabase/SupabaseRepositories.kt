@@ -1352,12 +1352,12 @@ class AnalyticsRepository(val network: SupabaseManager) {
                     .build()
                 network.client.newCall(request).enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
-                        Log.e(network.tag, "Failed to network.log BI event: ${e.message}", e)
+                        Log.w(network.tag, "Failed to network.log BI event: ${e.message}", e)
                     }
                     override fun onResponse(call: Call, response: Response) {
                         response.use {
                             if (!response.isSuccessful) {
-                                Log.e(network.tag, "Log BI event failed: ${response.code}")
+                                Log.w(network.tag, "Log BI event failed: ${response.code}")
                             }
                         }
                     }

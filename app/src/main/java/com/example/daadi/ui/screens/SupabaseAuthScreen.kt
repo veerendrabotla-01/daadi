@@ -216,7 +216,16 @@ fun SupabaseAuthScreen(
                                             onValueChange = { editUsername = it },
                                             label = { Text("Display Username") },
                                             modifier = Modifier.fillMaxWidth(),
-                                            colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color.White, unfocusedContainerColor = Color.White, focusedTextColor = Color(0xFF5C2D0A), unfocusedTextColor = Color(0xFF5C2D0A), focusedBorderColor = Color(0xFF5C2D0A), focusedLabelColor = Color(0xFF5C2D0A))
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedContainerColor = Color.White,
+                                                unfocusedContainerColor = Color.White,
+                                                focusedTextColor = Color(0xFF5C2D0A),
+                                                unfocusedTextColor = Color(0xFF5C2D0A),
+                                                focusedBorderColor = Color(0xFF5C2D0A),
+                                                unfocusedBorderColor = Color(0xFFE5A93B),
+                                                focusedLabelColor = Color(0xFF5C2D0A),
+                                                unfocusedLabelColor = Color(0xFF8B5E3C)
+                                            )
                                         )
                                         Spacer(modifier = Modifier.height(16.dp))
                                         Text("Choose Strategic Avatar:", fontWeight = FontWeight.Bold, color = Color(0xFF5C2D0A), fontSize = 12.sp)
@@ -853,11 +862,15 @@ fun SupabaseAuthScreen(
                                 label = { Text("Enter Promo Code") },
                                 modifier = Modifier.fillMaxWidth().testTag("promo_code_input"),
                                 singleLine = true,
-                                colors = TextFieldDefaults.colors(
+                                colors = OutlinedTextFieldDefaults.colors(
                                     focusedTextColor = Color(0xFF5C2D0A),
                                     unfocusedTextColor = Color(0xFF5C2D0A),
                                     focusedContainerColor = Color(0xFFFFFDF8),
-                                    unfocusedContainerColor = Color(0xFFFFFDF8)
+                                    unfocusedContainerColor = Color(0xFFFFFDF8),
+                                    focusedBorderColor = Color(0xFFC75D27),
+                                    unfocusedBorderColor = Color(0xFFE5A93B),
+                                    focusedLabelColor = Color(0xFFC75D27),
+                                    unfocusedLabelColor = Color(0xFF8B5E3C)
                                 )
                             )
                             
@@ -927,7 +940,16 @@ fun SupabaseAuthScreen(
                                 label = { Text("Subject") },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
-                                colors = TextFieldDefaults.colors(focusedContainerColor = Color(0xFFFFFDF8), unfocusedContainerColor = Color(0xFFFFFDF8))
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = Color(0xFFFFFDF8),
+                                    unfocusedContainerColor = Color(0xFFFFFDF8),
+                                    focusedTextColor = Color(0xFF5C2D0A),
+                                    unfocusedTextColor = Color(0xFF5C2D0A),
+                                    focusedBorderColor = Color(0xFFC75D27),
+                                    unfocusedBorderColor = Color(0xFFE5A93B),
+                                    focusedLabelColor = Color(0xFFC75D27),
+                                    unfocusedLabelColor = Color(0xFF8B5E3C)
+                                )
                             )
                             
                             Spacer(modifier = Modifier.height(8.dp))
@@ -937,7 +959,16 @@ fun SupabaseAuthScreen(
                                 onValueChange = { messageText = it },
                                 label = { Text("Describe your issue / request") },
                                 modifier = Modifier.fillMaxWidth().height(80.dp),
-                                colors = TextFieldDefaults.colors(focusedContainerColor = Color(0xFFFFFDF8), unfocusedContainerColor = Color(0xFFFFFDF8))
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = Color(0xFFFFFDF8),
+                                    unfocusedContainerColor = Color(0xFFFFFDF8),
+                                    focusedTextColor = Color(0xFF5C2D0A),
+                                    unfocusedTextColor = Color(0xFF5C2D0A),
+                                    focusedBorderColor = Color(0xFFC75D27),
+                                    unfocusedBorderColor = Color(0xFFE5A93B),
+                                    focusedLabelColor = Color(0xFFC75D27),
+                                    unfocusedLabelColor = Color(0xFF8B5E3C)
+                                )
                             )
                             
                             Spacer(modifier = Modifier.height(12.dp))

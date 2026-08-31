@@ -317,19 +317,17 @@ fun EconomyAdjustmentDialog(
         title = { Text("Manual Economy Overwrite", fontWeight = FontWeight.Black) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
-                OutlinedTextField(
+                AdminTextField(
                     value = userId, 
                     onValueChange = { userId = it }, 
-                    label = { Text("Target User ID") }, 
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = AdminDesign.InputShape
+                    label = "Target User ID", 
+                    modifier = Modifier.fillMaxWidth()
                 )
-                OutlinedTextField(
+                AdminTextField(
                     value = amount, 
                     onValueChange = { amount = it }, 
-                    label = { Text("Amount (+/-)") }, 
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = AdminDesign.InputShape
+                    label = "Amount (+/-)", 
+                    modifier = Modifier.fillMaxWidth()
                 )
                 
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
@@ -348,12 +346,11 @@ fun EconomyAdjustmentDialog(
                     )
                 }
                 
-                OutlinedTextField(
+                AdminTextField(
                     value = reason, 
                     onValueChange = { reason = it }, 
-                    label = { Text("Reason for Adjustment") }, 
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = AdminDesign.InputShape
+                    label = "Reason for Adjustment", 
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         },

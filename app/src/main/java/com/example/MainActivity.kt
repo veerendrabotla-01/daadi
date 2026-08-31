@@ -218,6 +218,8 @@ class MainActivity : ComponentActivity() {
 
     private fun playEffect(event: SoundEvent) {
         if (!soundsLoaded) return
+        val soundEnabled = (applicationContext as? DaadiApplication)?.settingsRepository?.getSettings()?.soundEnabled ?: true
+        if (!soundEnabled) return
         val soundId = soundMap[event] ?: return
         soundPool?.play(soundId, 1f, 1f, 1, 0, 1f)
     }
@@ -226,6 +228,7 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         soundPool?.release()
         soundPool = null
+        (applicationContext as? com.example.daadi.DaadiApplication)?.soundManager?.release()
     }
 
     override fun onNewIntent(intent: android.content.Intent) {

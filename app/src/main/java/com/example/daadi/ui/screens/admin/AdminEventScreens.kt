@@ -132,9 +132,9 @@ fun CreateEventDialog(onDismiss: () -> Unit, onConfirm: (String, String, Double)
         title = { Text("Initiate Bonus Event", fontWeight = FontWeight.Black) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
-                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Campaign Name") }, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape)
-                OutlinedTextField(value = type, onValueChange = { type = it }, label = { Text("Event Type ID") }, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape)
-                OutlinedTextField(value = multiplier, onValueChange = { multiplier = it }, label = { Text("Benefit Multiplier") }, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape)
+                AdminTextField(value = title, onValueChange = { title = it }, label = "Campaign Name")
+                AdminTextField(value = type, onValueChange = { type = it }, label = "Event Type ID")
+                AdminTextField(value = multiplier, onValueChange = { multiplier = it }, label = "Benefit Multiplier")
             }
         },
         confirmButton = {

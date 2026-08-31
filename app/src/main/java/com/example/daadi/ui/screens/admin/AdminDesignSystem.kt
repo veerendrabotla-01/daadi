@@ -335,7 +335,11 @@ fun AdminTextField(
         minLines = minLines,
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = AdminDesign.Primary,
-            unfocusedBorderColor = AdminDesign.OnSurfaceVariant.copy(alpha = 0.2f)
+            unfocusedBorderColor = AdminDesign.OnSurfaceVariant.copy(alpha = 0.2f),
+            focusedTextColor = AdminDesign.OnSurface,
+            unfocusedTextColor = AdminDesign.OnSurface,
+            focusedLabelColor = AdminDesign.Primary,
+            unfocusedLabelColor = AdminDesign.OnSurfaceVariant
         )
     )
 }

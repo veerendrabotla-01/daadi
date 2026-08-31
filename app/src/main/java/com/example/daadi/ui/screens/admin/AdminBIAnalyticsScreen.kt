@@ -75,7 +75,7 @@ fun AdminBIAnalyticsScreen(adminViewModel: com.example.daadi.viewmodel.AdminView
     var exportStatus by remember { mutableStateOf<String?>(null) }
     var isExporting by remember { mutableStateOf(false) }
 
-    AdminFoundationScaffold("Business Intelligence", supabaseManager, onBack) { padding ->
+    AdminFoundationScaffold("Business Intelligence", adminViewModel, onBack) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             
             // Tab Header Row

@@ -193,9 +193,11 @@ fun AdminAIAssistantScreen(adminViewModel: com.example.daadi.viewmodel.AdminView
                             unfocusedContainerColor = Color.Transparent,
                             disabledContainerColor = Color.Transparent,
                             focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
+                            unfocusedIndicatorColor = Color.Transparent,
+                            focusedTextColor = AdminDesign.OnSurface,
+                            unfocusedTextColor = AdminDesign.OnSurface
                         ),
-                        textStyle = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold),
+                        textStyle = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AdminDesign.OnSurface),
                         singleLine = true
                     )
                     

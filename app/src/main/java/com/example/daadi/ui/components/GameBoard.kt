@@ -16,6 +16,8 @@ import androidx.compose.ui.unit.dp
 import com.example.daadi.engine.BoardDefinition
 import com.example.daadi.model.Board
 import com.example.daadi.model.Player
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import kotlin.math.sqrt
 
 @Composable
@@ -156,6 +158,7 @@ fun GameBoard(
             .fillMaxWidth()
             .padding(12.dp)
             .testTag("game_board_canvas")
+            .semantics { contentDescription = "Game Board. Interactive Nine Men's Morris grid." }
             .onGloballyPositioned { coordinates ->
                 canvasSize = coordinates.size
             }

@@ -72,21 +72,17 @@ fun AdminTaskSchedulerScreen(
                     title = { Text("Create Scheduled Task", fontWeight = FontWeight.Bold) },
                     text = {
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            OutlinedTextField(
+                            AdminTextField(
                                 value = name,
                                 onValueChange = { name = it },
-                                label = { Text("Task Name") },
-                                placeholder = { Text("e.g. Purge Temporary Data") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true
+                                label = "Task Name",
+                                modifier = Modifier.fillMaxWidth()
                             )
-                            OutlinedTextField(
+                            AdminTextField(
                                 value = schedule,
                                 onValueChange = { schedule = it },
-                                label = { Text("Cron Schedule") },
-                                placeholder = { Text("e.g. */10 * * * *") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true
+                                label = "Cron Schedule",
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
                     },

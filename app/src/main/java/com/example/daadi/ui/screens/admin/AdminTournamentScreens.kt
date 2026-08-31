@@ -231,8 +231,8 @@ fun TournamentAnnouncementsTab(tournament: SupabaseTournament, adminViewModel: c
         Card(colors = CardDefaults.cardColors(containerColor = AdminDesign.Surface)) {
             Column(modifier = Modifier.padding(AdminDesign.SpacingMedium), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("NEW ANNOUNCEMENT", fontWeight = FontWeight.Black, fontSize = 10.sp)
-                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = message, onValueChange = { message = it }, label = { Text("Message") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                AdminTextField(value = title, onValueChange = { title = it }, label = "Title")
+                AdminTextField(value = message, onValueChange = { message = it }, label = "Message", minLines = 2)
                 Button(
                     onClick = {
                         val ann = com.example.daadi.data.supabase.SupabaseTournamentAnnouncement(
@@ -319,11 +319,11 @@ fun CreateTournamentDialog(onDismiss: () -> Unit, onConfirm: (String, String, In
         title = { Text("Orchestrate Tournament", fontWeight = FontWeight.Black) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
-                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Tournament Title") }, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape)
-                OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("Mission Statement / Rules") }, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape, minLines = 2)
+                AdminTextField(value = title, onValueChange = { title = it }, label = "Tournament Title")
+                AdminTextField(value = desc, onValueChange = { desc = it }, label = "Mission Statement / Rules", minLines = 2)
                 Row(horizontalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
-                    OutlinedTextField(value = fee, onValueChange = { fee = it }, label = { Text("Buy-in Fee") }, modifier = Modifier.weight(1f), shape = AdminDesign.InputShape)
-                    OutlinedTextField(value = prize, onValueChange = { prize = it }, label = { Text("Grand Prize") }, modifier = Modifier.weight(1f), shape = AdminDesign.InputShape)
+                    AdminTextField(modifier = Modifier.weight(1f), value = fee, onValueChange = { fee = it }, label = "Buy-in Fee")
+                    AdminTextField(modifier = Modifier.weight(1f), value = prize, onValueChange = { prize = it }, label = "Grand Prize")
                 }
             }
         },

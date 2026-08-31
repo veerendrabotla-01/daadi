@@ -682,7 +682,13 @@ fun AdminTopBar(
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f)
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f),
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
                     Spacer(modifier = Modifier.height(16.dp))
@@ -832,6 +838,12 @@ fun AdminTopBar(
                                                         onValueChange = { editValue = it },
                                                         modifier = Modifier.weight(1f).height(54.dp),
                                                         singleLine = true,
+                                                        colors = OutlinedTextFieldDefaults.colors(
+                                                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                                                        ),
                                                         trailingIcon = {
                                                             IconButton(
                                                                 onClick = {

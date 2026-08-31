@@ -337,8 +337,8 @@ fun CreateLiveOpsDialog(onDismiss: () -> Unit, onConfirm: (String, String, Strin
         title = { Text("Schedule LiveOps Cluster", fontWeight = FontWeight.Black) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
-                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Event Title") }, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape)
-                OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("Campaign Description") }, modifier = Modifier.fillMaxWidth(), shape = AdminDesign.InputShape, minLines = 2)
+                AdminTextField(value = title, onValueChange = { title = it }, label = "Event Title")
+                AdminTextField(value = desc, onValueChange = { desc = it }, label = "Campaign Description", minLines = 2)
                 
                 Text("EVENT TYPE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AdminDesign.OnSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -352,8 +352,8 @@ fun CreateLiveOpsDialog(onDismiss: () -> Unit, onConfirm: (String, String, Strin
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(AdminDesign.SpacingSmall)) {
-                    OutlinedTextField(value = xpMultiplier, onValueChange = { xpMultiplier = it }, label = { Text("XP Mult") }, modifier = Modifier.weight(1f), shape = AdminDesign.InputShape)
-                    OutlinedTextField(value = coinMultiplier, onValueChange = { coinMultiplier = it }, label = { Text("Coin Mult") }, modifier = Modifier.weight(1f), shape = AdminDesign.InputShape)
+                    AdminTextField(modifier = Modifier.weight(1f), value = xpMultiplier, onValueChange = { xpMultiplier = it }, label = "XP Mult")
+                    AdminTextField(modifier = Modifier.weight(1f), value = coinMultiplier, onValueChange = { coinMultiplier = it }, label = "Coin Mult")
                 }
             }
         },

@@ -395,18 +395,18 @@ fun SafetyActionDialog(
                 }
                 
                 if (selectedAction == "temp_ban" || selectedAction == "mute") {
-                    OutlinedTextField(
+                    AdminTextField(
                         value = duration,
                         onValueChange = { duration = it },
-                        label = { Text("Duration (Days)") },
+                        label = "Duration (Days)",
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
                 
-                OutlinedTextField(
+                AdminTextField(
                     value = reason,
                     onValueChange = { reason = it },
-                    label = { Text("Official Reason (Required)") },
+                    label = "Official Reason (Required)",
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3
                 )

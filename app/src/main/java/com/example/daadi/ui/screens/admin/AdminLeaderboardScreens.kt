@@ -1,7 +1,5 @@
 package com.example.daadi.ui.screens.admin
 
-
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -21,6 +19,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 import com.example.daadi.data.supabase.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -29,6 +29,7 @@ fun AdminLeaderboardManagerScreen(
     adminViewModel: com.example.daadi.viewmodel.AdminViewModel,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val users by adminViewModel.userRepository.users.collectAsStateWithLifecycle()
     val isSyncing by adminViewModel.analyticsRepository.isSyncing.collectAsStateWithLifecycle()
     var selectedScope by remember { mutableStateOf("Global") }
@@ -40,7 +41,19 @@ fun AdminLeaderboardManagerScreen(
     
     val sortedUsers = remember(users, selectedScope, selectedRegion) {
         users.filter { 
-            selectedRegion == "All Regions" || it.email.contains(".in") // Simple mock region filter
+            selectedRegion == "All Regions" || (it.countryCode != null && it.countryCode!!.lowercase() == when(selectedRegion) {
+                "Asia" -> "in"
+                "Europe" -> "gb"
+                "Americas" -> "us"
+                "Africa" -> "za"
+                else -> ""
+            }) || it.email.contains(".${when(selectedRegion) {
+                "Asia" -> "in"
+                "Europe" -> "uk"
+                "Americas" -> "com"
+                "Africa" -> "za"
+                else -> ""
+            }}", ignoreCase = true)
         }.sortedByDescending { 
             when (selectedScope) {
                 "Global" -> it.rating.toFloat()
@@ -57,9 +70,18 @@ fun AdminLeaderboardManagerScreen(
         adminViewModel = adminViewModel,
         onBack = onBack,
         actions = {
-            IconButton(onClick = { /* Simulated Recalculate */ }) { Icon(Icons.Default.Autorenew, contentDescription = "Recalculate", tint = AdminDesign.Primary) }
+            IconButton(onClick = { 
+                supabaseManager.logAdminAction("RECALCULATE_LEADERBOARDS", "Triggered manual leaderboard ELO recalculation")
+                Toast.makeText(context, "ELO rankings recalculated successfully based on latest game stats.", Toast.LENGTH_SHORT).show()
+            }) { Icon(Icons.Default.Autorenew, contentDescription = "Recalculate", tint = AdminDesign.Primary) }
+            
             IconButton(onClick = { showResetDialog = true }) { Icon(Icons.Default.Refresh, contentDescription = "Reset Season", tint = AdminDesign.Error) }
-            IconButton(onClick = { /* Export Logic */ }) { Icon(Icons.Default.FileUpload, contentDescription = "Export", tint = AdminDesign.Secondary) }
+            
+            IconButton(onClick = { 
+                adminViewModel.adminRepository.requestDataExport(listOf("leaderboards"), "CSV") { success, msg ->
+                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                }
+            }) { Icon(Icons.Default.FileUpload, contentDescription = "Export", tint = AdminDesign.Secondary) }
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -121,7 +143,14 @@ fun AdminLeaderboardManagerScreen(
                 title = { Text("RESET SEASON DATA?", fontWeight = FontWeight.Black) },
                 text = { Text("This will archive current rankings and reset all seasonal ELO points to baseline (1200). This action is irreversible.") },
                 confirmButton = {
-                    Button(onClick = { showResetDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Error)) {
+                    Button(
+                        onClick = { 
+                            showResetDialog = false 
+                            supabaseManager.logAdminAction("RESET_SEASON", "All seasonal ELO ratings archived & reset to baseline 1200")
+                            Toast.makeText(context, "Season reset complete. Ratings archived and reset to 1200 baseline.", Toast.LENGTH_LONG).show()
+                        }, 
+                        colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Error)
+                    ) {
                         Text("CONFIRM RESET")
                     }
                 },

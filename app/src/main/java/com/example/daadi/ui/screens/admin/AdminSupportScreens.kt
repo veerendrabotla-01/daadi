@@ -107,9 +107,15 @@ fun AdminSupportHubScreen(
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
                     shape = RoundedCornerShape(12.dp),
                     singleLine = true,
-                    colors = TextFieldDefaults.colors(
+                    colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = AdminDesign.Surface,
-                        unfocusedContainerColor = AdminDesign.Surface
+                        unfocusedContainerColor = AdminDesign.Surface,
+                        focusedTextColor = AdminDesign.OnSurface,
+                        unfocusedTextColor = AdminDesign.OnSurface,
+                        focusedBorderColor = AdminDesign.Primary,
+                        unfocusedBorderColor = AdminDesign.OnSurfaceVariant.copy(alpha = 0.2f),
+                        focusedLabelColor = AdminDesign.Primary,
+                        unfocusedLabelColor = AdminDesign.OnSurfaceVariant
                     )
                 )
                 
@@ -273,7 +279,14 @@ fun TicketList(tickets: List<SupabaseSupportTicket>, users: List<SupabaseUser>, 
                         onValueChange = { replyText = it },
                         placeholder = { Text("Enter response to user...", fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth().height(80.dp),
-                        colors = TextFieldDefaults.colors(focusedContainerColor = Color.White, unfocusedContainerColor = Color.White, focusedTextColor = Color.Black, unfocusedTextColor = Color.Black),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = AdminDesign.Surface,
+                            unfocusedContainerColor = AdminDesign.Surface,
+                            focusedTextColor = AdminDesign.OnSurface,
+                            unfocusedTextColor = AdminDesign.OnSurface,
+                            focusedBorderColor = AdminDesign.Primary,
+                            unfocusedBorderColor = AdminDesign.OnSurfaceVariant.copy(alpha = 0.2f)
+                        ),
                         shape = RoundedCornerShape(8.dp)
                     )
                 }

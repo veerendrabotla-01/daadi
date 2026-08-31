@@ -166,7 +166,7 @@ class SoundManager(private val context: Context, private val settingsRepository:
 
     fun playWin() {
         if (isBackgroundMuted) return
-        playSound(R.raw.game_over)
+        playSound(R.raw.mill_formed) // Use mill_formed as a temporary distinct win sound if game_over is generic
     }
 
     fun playLose() {

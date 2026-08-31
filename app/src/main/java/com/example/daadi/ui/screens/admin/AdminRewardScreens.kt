@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
@@ -141,7 +142,8 @@ fun MissionRewardList(
             Text("Active Missions", style = AdminDesign.HeadingStyle)
             Button(
                 onClick = onCreate,
-                colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Primary)
+                colors = ButtonDefaults.buttonColors(containerColor = AdminDesign.Primary),
+                modifier = Modifier.testTag("admin_create_mission_button")
             ) {
                 Icon(Icons.Default.Add, null)
                 Spacer(Modifier.width(8.dp))
@@ -402,12 +404,11 @@ fun EditDailyRewardDialog(
                     }
                 }
 
-                OutlinedTextField(
+                AdminTextField(
                     value = amount,
                     onValueChange = { amount = it },
-                    label = { Text("Reward Amount") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = AdminDesign.InputShape
+                    label = "Reward Amount",
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         },
@@ -451,20 +452,18 @@ fun EditSpinWheelRewardDialog(
                     }
                 }
 
-                OutlinedTextField(
+                AdminTextField(
                     value = amount,
                     onValueChange = { amount = it },
-                    label = { Text("Reward Amount") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = AdminDesign.InputShape
+                    label = "Reward Amount",
+                    modifier = Modifier.fillMaxWidth()
                 )
 
-                OutlinedTextField(
+                AdminTextField(
                     value = weight,
                     onValueChange = { weight = it },
-                    label = { Text("Probability Weight (Higher = More Common)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = AdminDesign.InputShape
+                    label = "Probability Weight (Higher = More Common)",
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         },
