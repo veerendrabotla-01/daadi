@@ -159,7 +159,7 @@ internal val crashLogListAdapter = moshi.adapter<List<SupabaseCrashLog>>(Types.n
 
 internal val fraudAlertListAdapter = moshi.adapter<List<SupabaseFraudAlert>>(Types.newParameterizedType(List::class.java, SupabaseFraudAlert::class.java))
 
-internal val financeReportListAdapter = moshi.adapter<List<SupabaseFinanceReport>>(Types.newParameterizedType(List::class.java, SupabaseFinanceReport::class.java))
+internal val financeListAdapter = moshi.adapter<List<SupabaseFinanceReport>>(Types.newParameterizedType(List::class.java, SupabaseFinanceReport::class.java))
 
 internal val queueMetricListAdapter = moshi.adapter<List<SupabaseQueueMetric>>(Types.newParameterizedType(List::class.java, SupabaseQueueMetric::class.java))
 
@@ -1217,7 +1217,7 @@ fun applyBan(userId: String, reason: String, expiresAt: String? = null) {
         }
     }
 
-fun resolveReport(reportId: String, status: String) {
+fun resolve(reportId: String, status: String) {
         if (isConfigured) {
             if (!userHasPermission("moderate_users")) return
             scope.launch {
@@ -1618,7 +1618,7 @@ fun signUp(email: String, username: String, pass: String, onResult: (Boolean, St
                                         onResult(true, null) 
                                     }
                                 }
-                                override fun onResponse(call: Call, r: Response) {
+                                override fun onResponse(call: Call, response: Response) {
                                     runOnMain {
                                         val finalUser = processUserAndPromoteIfAdmin(userObj)
                                         _currentUser.value = finalUser
@@ -1720,9 +1720,9 @@ fun login(email: String, pass: String, onResult: (Boolean, String?) -> Unit) {
                                     override fun onFailure(call: Call, e: IOException) {
                                         runOnMain { onResult(false, "Login succeeded but failed to fetch profile. Please try again.") }
                                     }
-                                    override fun onResponse(call: Call, r: Response) {
-                                        val uBody = r.body?.string()
-                                        if (r.isSuccessful && uBody != null) {
+                                    override fun onResponse(call: Call, response: Response) {
+                                        val uBody = response.body?.string()
+                                        if (response.isSuccessful && uBody != null) {
                                             try {
                                                 @Suppress("UNCHECKED_CAST")
                                                 val list = userListAdapter.fromJson(uBody)
@@ -1767,7 +1767,7 @@ fun login(email: String, pass: String, onResult: (Boolean, String?) -> Unit) {
                                                                 onResult(true, null) 
                                                             }
                                                         }
-                                                        override fun onResponse(call: Call, res: Response) {
+                                                        override fun onResponse(call: Call, response: Response) {
                                                             runOnMain {
                                                                 _currentUser.value = finalNewUser
                                                                 _currentAdminRole.value = finalNewUser.role
@@ -1782,7 +1782,7 @@ fun login(email: String, pass: String, onResult: (Boolean, String?) -> Unit) {
                                                 runOnMain { onResult(false, "Failed to parse user profile. Please try again.") }
                                             }
                                         } else {
-                                            runOnMain { onResult(false, "Failed to fetch user record (Code: ${r.code}).") }
+                                            runOnMain { onResult(false, "Failed to fetch user record (Code: ${response.code}).") }
                                         }
                                     }
                                 })
@@ -1897,7 +1897,7 @@ fun fetchUserProfileWithToken(token: String, onResult: (Boolean, String?) -> Uni
                 .build()
 
             client.newCall(request).enqueue(object : Callback {
-                override fun onFailure(call: Call, e: java.io.IOException) {
+                override fun onFailure(call: Call, e: IOException) {
                     runOnMain { onResult(false, "An error occurred. Please try again.") }
                 }
 
@@ -1921,13 +1921,13 @@ fun fetchUserProfileWithToken(token: String, onResult: (Boolean, String?) -> Uni
                                 .build()
 
                             client.newCall(publicUserRequest).enqueue(object : Callback {
-                                override fun onFailure(call: Call, e: java.io.IOException) {
+                                override fun onFailure(call: Call, e: IOException) {
                                     runOnMain { onResult(false, "Failed to check player record. Please try again.") }
                                 }
 
-                                override fun onResponse(call: Call, res: Response) {
-                                    val uBody = res.body?.string()
-                                    if (res.isSuccessful && uBody != null) {
+                                override fun onResponse(call: Call, response: Response) {
+                                    val uBody = response.body?.string()
+                                    if (response.isSuccessful && uBody != null) {
                                         try {
                                             val list = userListAdapter.fromJson(uBody)
                                             if (!list.isNullOrEmpty()) {
@@ -1965,7 +1965,7 @@ fun fetchUserProfileWithToken(token: String, onResult: (Boolean, String?) -> Uni
                                                     .build()
 
                                                 client.newCall(createReq).enqueue(object : Callback {
-                                                    override fun onFailure(call: Call, e: java.io.IOException) {
+                                                    override fun onFailure(call: Call, e: IOException) {
                                                         runOnMain {
                                                             _currentUser.value = finalNewUser
                                                             _currentAdminRole.value = finalNewUser.role
@@ -1973,7 +1973,7 @@ fun fetchUserProfileWithToken(token: String, onResult: (Boolean, String?) -> Uni
                                                         }
                                                     }
 
-                                                    override fun onResponse(call: Call, res: Response) {
+                                                    override fun onResponse(call: Call, response: Response) {
                                                         runOnMain {
                                                             _currentUser.value = finalNewUser
                                                             _currentAdminRole.value = finalNewUser.role
@@ -1988,7 +1988,7 @@ fun fetchUserProfileWithToken(token: String, onResult: (Boolean, String?) -> Uni
                                             runOnMain { onResult(false, "Failed to parse player record. Please try again.") }
                                         }
                                     } else {
-                                        runOnMain { onResult(false, "Failed to fetch player record (Code: ${res.code}).") }
+                                        runOnMain { onResult(false, "Failed to fetch player record (Code: ${response.code}).") }
                                     }
                                 }
                             })
@@ -2213,8 +2213,8 @@ fun loadInitialData() {
             _isLoading.value = true
             _errorMessage.value = null
             if (isConfigured) {
-                // Read from real Supabase endpoints
-                Log.d(tag, "Contacting remote Supabase API...")
+                // Read from real SupabaseReport endpoints
+                Log.d(tag, "Contacting remote SupabaseReport API...")
                 fetchRemoteUsers()
                 fetchRemoteMatches()
                 fetchRemoteAnnouncements()
@@ -2234,14 +2234,14 @@ fun loadInitialData() {
                 fetchBIMetrics()
                 fetchCrashLogs()
                 fetchFraudAlerts()
-                fetchFinanceReports()
+                fetchFinances()
                 fetchQueueMetrics()
                 fetchDeviceRecords()
                 fetchHealthMetrics()
                 fetchRolesAndPermissions()
             } else {
                 // Fallback to local storage simulator (fully functional so buttons are active!)
-                Log.d(tag, "Supabase Credentials Missing. Loading robust local database simulation...")
+                Log.d(tag, "SupabaseReport Credentials Missing. Loading robust local database simulation...")
                 loadSimulatorData()
                 fetchAdConfiguration() // Simulated load
             }
@@ -3199,7 +3199,7 @@ fun deleteUserRemote(userId: String) {
         val finSaved = prefs.getString("sim_finance_reports", null)
         if (finSaved != null) {
             try {
-                _financeReports.value = financeReportListAdapter.fromJson(finSaved) ?: emptyList()
+                _financeReports.value = financeListAdapter.fromJson(finSaved) ?: emptyList()
             } catch (e: Exception) {
                 _financeReports.value = emptyList()
             }
@@ -3216,7 +3216,7 @@ fun deleteUserRemote(userId: String) {
                     recordedAt = "2026-07-08T00:00:00"
                 )
             )
-            saveSimulatorFinanceReports()
+            saveSimulatorFinances()
         }
 
         // Queue Metrics
@@ -3564,8 +3564,8 @@ fun deleteUserRemote(userId: String) {
         prefs.edit().putString("sim_fraud_alerts", fraudAlertListAdapter.toJson(_fraudAlerts.value)).apply()
     }
 
-    internal fun saveSimulatorFinanceReports() {
-        prefs.edit().putString("sim_finance_reports", financeReportListAdapter.toJson(_financeReports.value)).apply()
+    internal fun saveSimulatorFinances() {
+        prefs.edit().putString("sim_finance_reports", financeListAdapter.toJson(_financeReports.value)).apply()
     }
 
     internal fun saveSimulatorQueueMetrics() {
@@ -3999,12 +3999,12 @@ fun submitFeedback(content: String, category: String, onResult: (Boolean, String
                                         .build()
                                         
                                     client.newCall(reportRequest).enqueue(object : Callback {
-                                        override fun onFailure(callReport: Call, eReport: IOException) {}
-                                        override fun onResponse(callReport: Call, responseReport: Response) {
-                                            if (responseReport.isSuccessful) {
+                                        override fun onFailure(call: Call, e: IOException) {}
+                                        override fun onResponse(call: Call, response: Response) {
+                                            if (response.isSuccessful) {
                                                 fetchReports()
                                             }
-                                            responseReport.close()
+                                            response.close()
                                         }
                                     })
                                 }
@@ -4135,12 +4135,12 @@ fun submitFeedback(content: String, category: String, onResult: (Boolean, String
                                 .build()
                                 
                             client.newCall(reportRequest).enqueue(object : Callback {
-                                override fun onFailure(callReport: Call, eReport: IOException) {}
-                                override fun onResponse(callReport: Call, responseReport: Response) {
-                                    if (responseReport.isSuccessful) {
+                                override fun onFailure(call: Call, e: IOException) {}
+                                override fun onResponse(call: Call, response: Response) {
+                                    if (response.isSuccessful) {
                                         fetchReports()
                                     }
-                                    responseReport.close()
+                                    response.close()
                                 }
                             })
                         }
@@ -4327,14 +4327,14 @@ fun reportUser(
                                     .build()
                                     
                                 client.newCall(reportRequest).enqueue(object : Callback {
-                                    override fun onFailure(callReport: Call, eReport: IOException) {
+                                    override fun onFailure(call: Call, e: IOException) {
                                         runOnMain { onResult(true) } // Succeeded in patching user
                                     }
-                                    override fun onResponse(callReport: Call, responseReport: Response) {
-                                        if (responseReport.isSuccessful) {
+                                    override fun onResponse(call: Call, response: Response) {
+                                        if (response.isSuccessful) {
                                             scope.launch { fetchReports() }
                                         }
-                                        responseReport.close()
+                                        response.close()
                                         runOnMain { onResult(true) } // Report logging is secondary to successful user patch
                                     }
                                 })
@@ -4600,9 +4600,9 @@ fun registerMatchResult(roomCode: String, hostName: String, opponentName: String
                                     .patch(patchJson.toRequestBody("application/json".toMediaType()))
                                     .build()
                                 client.newCall(patchRequest).enqueue(object : Callback {
-                                    override fun onFailure(call: Call, e: java.io.IOException) {}
-                                    override fun onResponse(call: Call, r: Response) {
-                                        if (r.isSuccessful) { scope.launch { fetchRemoteUsers() } }
+                                    override fun onFailure(call: Call, e: IOException) {}
+                                    override fun onResponse(call: Call, response: Response) {
+                                        if (response.isSuccessful) { scope.launch { fetchRemoteUsers() } }
                                     }
                                 })
                             }
@@ -5600,9 +5600,9 @@ fun fetchFraudAlerts() {
         fetchList("/rest/v1/fraud_alerts?select=*&order=created_at.desc", fraudAlertListAdapter) { _fraudAlerts.value = it }
     }
 
-fun fetchFinanceReports() {
+fun fetchFinances() {
         if (!isConfigured) return
-        fetchList("/rest/v1/finance_reports?select=*&order=recorded_at.desc", financeReportListAdapter) { _financeReports.value = it }
+        fetchList("/rest/v1/finance_reports?select=*&order=recorded_at.desc", financeListAdapter) { _financeReports.value = it }
     }
 
 fun fetchQueueMetrics() {
@@ -5796,7 +5796,7 @@ suspend fun askAiAssistant(prompt: String): String = withContext(Dispatchers.IO)
             }
             else -> {
                 sb.append("👋 **WELCOME TO DAADI SYSTEM CONSOLE**\n\n")
-                sb.append("Our local analysis engine delivers instant, fully secure telemetry diagnostics directly from the active SQLite/Supabase synchronization bounds.\n\n")
+                sb.append("Our local analysis engine delivers instant, fully secure telemetry diagnostics directly from the active SQLite/SupabaseReport synchronization bounds.\n\n")
                 sb.append("**Available diagnostic probes:**\n")
                 sb.append("• `health` - Check server latency, CPU stats, and connection indicators.\n")
                 sb.append("• `users` - Audit total registered users and active session volumes.\n")
@@ -5815,24 +5815,34 @@ suspend fun askAiAssistant(prompt: String): String = withContext(Dispatchers.IO)
     }
 
     internal fun <T> fetchList(endpoint: String, adapter: com.squareup.moshi.JsonAdapter<List<T>>, onResult: (List<T>) -> Unit) {
-        scope.launch {
-            try {
-                val request = Request.Builder()
-                    .url("$supabaseUrl$endpoint")
-                    .headers(getHeaders())
-                    .get()
-                    .build()
-                client.newCall(request).execute().use { response ->
-                    if (response.isSuccessful) {
-                        val json = response.body?.string() ?: "[]"
-                        val list = adapter.fromJson(json) ?: emptyList()
-                        onResult(list)
+        if (!isConfigured) return
+        val request = Request.Builder()
+            .url("$supabaseUrl$endpoint")
+            .headers(getHeaders())
+            .get()
+            .build()
+
+        client.newCall(request).enqueueWithRetry(
+            onFailure = { call, e ->
+                Log.e(tag, "Fetch Exception: $endpoint", e)
+            },
+            onResponse = { call, response ->
+                response.use { resp ->
+                    if (resp.isSuccessful) {
+                        val json = resp.body?.string() ?: "[]"
+                        try {
+                            val list = adapter.fromJson(json) ?: emptyList()
+                            runOnMain { onResult(list) }
+                        } catch (e: Exception) {
+                            Log.e(tag, "Parse Error: $endpoint", e)
+                        }
+                    } else {
+                        val errorBody = resp.body?.string() ?: ""
+                        Log.e(tag, "Fetch Error: $endpoint | Code: ${resp.code} | Body: $errorBody")
                     }
                 }
-            } catch (e: Exception) {
-                Log.e(tag, "Fetch Error: $endpoint", e)
             }
-        }
+        )
     }
 
 // --- GAME OPERATIONS UPDATERS ---

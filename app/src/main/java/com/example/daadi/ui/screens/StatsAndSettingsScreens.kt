@@ -10,7 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -50,7 +50,7 @@ fun StatsScreen(
                 title = { Text("Honor & Statistics", fontFamily = androidx.compose.ui.text.font.FontFamily.Serif, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack, modifier = Modifier.testTag("back_button")) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Go Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Go Back")
                     }
                 },
                 actions = {
@@ -105,7 +105,7 @@ fun StatsScreen(
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
-                    Divider(color = Color(0xFFE5A93B).copy(alpha = 0.2f), thickness = 1.dp)
+                    HorizontalDivider(color = Color(0xFFE5A93B).copy(alpha = 0.2f), thickness = 1.dp)
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Row(
@@ -240,7 +240,7 @@ fun SettingsScreen(
                 title = { Text("Settings & Custom", fontFamily = androidx.compose.ui.text.font.FontFamily.Serif, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack, modifier = Modifier.testTag("back_button")) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Go Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Go Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
