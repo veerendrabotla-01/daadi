@@ -58,9 +58,6 @@ import kotlinx.coroutines.Dispatchers
 import com.example.daadi.viewmodel.SoundEvent
 
 class MainActivity : ComponentActivity() {
-    private var soundPool: SoundPool? = null
-    private val soundMap = ConcurrentHashMap<SoundEvent, Int>()
-    private var soundsLoaded = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -80,14 +77,11 @@ class MainActivity : ComponentActivity() {
             }
         })
 
-        // 16. Prevent tapjacking / overlay attacks
+        // Prevent tapjacking / overlay attacks
         window.decorView.filterTouchesWhenObscured = true
         
         // Handle incoming deep link
         handleDeepLink(intent)
-        
-        // Initialize Sound Effects Engine asynchronously
-        initSoundPool()
 
         // Gather GDPR/EEA Consent using User Messaging Platform (UMP) before initializing ads
         app.adManager.gatherConsent(this) {
@@ -126,9 +120,7 @@ class MainActivity : ComponentActivity() {
                     val currentUser by sharedGameViewModel.authRepository.currentUser.collectAsStateWithLifecycle()
 
                     androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize()) {
-                        DaadiAppNavigation(
-                            onPlaySound = { event -> playEffect(event) }
-                        )
+                        DaadiAppNavigation()
 
                         // 1. GLOBAL BROADCAST BANNER (Overlays Navigation)
                         globalBroadcast?.let { message ->
@@ -190,47 +182,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun initSoundPool() {
-        val attr = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_GAME)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build()
-        
-        soundPool = SoundPool.Builder()
-            .setMaxStreams(3)
-            .setAudioAttributes(attr)
-            .build()
-            
-        soundPool?.setOnLoadCompleteListener { _, _, _ ->
-            soundsLoaded = true
-        }
-
-        // Load assets asynchronously from res/raw
-        lifecycleScope.launch(Dispatchers.IO) {
-            soundPool?.let { pool ->
-                soundMap[SoundEvent.PLACE] = pool.load(this@MainActivity, R.raw.place_piece, 1)
-                soundMap[SoundEvent.MILL] = pool.load(this@MainActivity, R.raw.mill_formed, 1)
-                soundMap[SoundEvent.WIN] = pool.load(this@MainActivity, R.raw.game_over, 1)
-                soundMap[SoundEvent.LOSE] = pool.load(this@MainActivity, R.raw.game_over, 1)
-            }
-        }
-    }
-
-    private fun playEffect(event: SoundEvent) {
-        if (!soundsLoaded) return
-        val soundEnabled = (applicationContext as? DaadiApplication)?.settingsRepository?.getSettings()?.soundEnabled ?: true
-        if (!soundEnabled) return
-        val soundId = soundMap[event] ?: return
-        soundPool?.play(soundId, 1f, 1f, 1, 0, 1f)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        soundPool?.release()
-        soundPool = null
-        (applicationContext as? com.example.daadi.DaadiApplication)?.soundManager?.release()
-    }
-
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -249,7 +200,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun DaadiAppNavigation(onPlaySound: (SoundEvent) -> Unit) {
+fun DaadiAppNavigation() {
     val navController = rememberNavController()
     val context = LocalContext.current
     val application = context.applicationContext as DaadiApplication
@@ -260,12 +211,6 @@ fun DaadiAppNavigation(onPlaySound: (SoundEvent) -> Unit) {
     val sharedGameViewModel: GameViewModel = viewModel(factory = ViewModelFactory(application))
     val settingsViewModel: SettingsViewModel = viewModel(factory = ViewModelFactory(application))
     val settingsState by settingsViewModel.settings.collectAsStateWithLifecycle()
-
-    // Advanced Device Sound Engine integration
-    DisposableEffect(sharedGameViewModel) {
-        sharedGameViewModel.onPlaySound = onPlaySound
-        onDispose { sharedGameViewModel.onPlaySound = null }
-    }
 
     // Advanced Device Haptic Engine integration
     val vibrator = remember {
@@ -500,7 +445,7 @@ fun DaadiAppNavigation(onPlaySound: (SoundEvent) -> Unit) {
                 } else {
                     val moves = GameEngine.getLegalMoves(state, state.currentPlayer)
                     if (state.phase == GamePhase.PLACEMENT) {
-                        moves.map { it.second }
+                        emptyList() // Clean elegant board during placement (player can tap any empty dot)
                     } else {
                         moves.filter { it.first == selectedNodeId }.map { it.second }
                     }

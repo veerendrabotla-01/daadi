@@ -49,7 +49,6 @@ class GameViewModel(
     }
 
     var onPerformHaptic: ((HapticPattern) -> Unit)? = null
-    var onPlaySound: ((SoundEvent) -> Unit)? = null
 
     private val _gameState = MutableStateFlow(GameState())
     val gameState: StateFlow<GameState> = _gameState.asStateFlow()
@@ -488,11 +487,9 @@ class GameViewModel(
                     if (nextState != currentState) {
                         if (nextState.isCapturePending) {
                             soundManager.playMillFormed()
-                            onPlaySound?.invoke(SoundEvent.MILL)
                             onPerformHaptic?.invoke(HapticPattern.MILL)
                         } else {
                             soundManager.playPlace()
-                            onPlaySound?.invoke(SoundEvent.PLACE)
                             onPerformHaptic?.invoke(HapticPattern.TICK)
                         }
                         updateStateAndTriggerAI(nextState)
@@ -516,11 +513,9 @@ class GameViewModel(
                         _selectedNodeId.value = null
                         if (nextState.isCapturePending) {
                             soundManager.playMillFormed()
-                            onPlaySound?.invoke(SoundEvent.MILL)
                             onPerformHaptic?.invoke(HapticPattern.MILL)
                         } else {
                             soundManager.playMove()
-                            onPlaySound?.invoke(SoundEvent.PLACE)
                             onPerformHaptic?.invoke(HapticPattern.TICK)
                         }
                         updateStateAndTriggerAI(nextState)
@@ -578,13 +573,10 @@ class GameViewModel(
             incrementMatchAdCounter() // Tracking match completion for fatigue control
             if (nextState.winner == Player.PLAYER_1) {
                 soundManager.playWin()
-                onPlaySound?.invoke(SoundEvent.WIN)
             } else if (nextState.winner == Player.PLAYER_2 && nextState.gameMode == GameMode.VS_AI) {
                 soundManager.playLose()
-                onPlaySound?.invoke(SoundEvent.LOSE)
             } else {
                 soundManager.playWin()
-                onPlaySound?.invoke(SoundEvent.WIN)
             }
             statsRepository.updateStats(nextState.winner, nextState.gameMode, nextState.aiDifficulty)
             if (nextState.gameMode == GameMode.ONLINE_MULTIPLAYER) {
@@ -647,7 +639,6 @@ class GameViewModel(
 
                     if (nextState.isCapturePending) {
                         soundManager.playMillFormed()
-                        onPlaySound?.invoke(SoundEvent.MILL)
                         val captureTarget = withContext(Dispatchers.Default) {
                             AIEngine.selectCapture(nextState, Player.PLAYER_1)
                         }
@@ -659,10 +650,8 @@ class GameViewModel(
                     } else {
                         if (aiMove.first == null) {
                             soundManager.playPlace()
-                            onPlaySound?.invoke(SoundEvent.PLACE)
                         } else {
                             soundManager.playMove()
-                            onPlaySound?.invoke(SoundEvent.PLACE)
                         }
                     }
                 }

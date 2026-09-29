@@ -252,10 +252,16 @@ fun GameBoard(
                         center = center
                     )
                 } else {
-                    // Draw normal empty marker
+                    // Draw a gorgeous, high-fidelity traditional empty socket/marker
                     drawCircle(
-                        color = emptyNodeColor,
-                        radius = emptyRadius * 0.7f,
+                        color = boardLineColor.copy(alpha = 0.8f),
+                        radius = emptyRadius * 1.1f,
+                        center = center,
+                        style = Stroke(width = 1.5.dp.toPx())
+                    )
+                    drawCircle(
+                        color = Color.White.copy(alpha = 0.9f),
+                        radius = emptyRadius * 0.8f,
                         center = center
                     )
                 }

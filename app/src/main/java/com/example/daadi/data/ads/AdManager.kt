@@ -132,7 +132,7 @@ class AdManager(
             },
             { requestConsentError ->
                 isConsentGatheringInProgress.set(false)
-                Log.e(tag, "Consent Info update request failed: ${requestConsentError.message}")
+                Log.w(tag, "Consent Info update request failed: ${requestConsentError.message}")
                 
                 // Recovery: Attempt Mobile Ads initialization as best effort if allowed
                 if (consentInformation.canRequestAds()) {

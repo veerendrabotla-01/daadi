@@ -88,7 +88,7 @@ fun StatsScreen(
                     modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("STRATEGY PERFORMANCE", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE5A93B), letterSpacing = 2.sp)
+                    Text("STRATEGY PERFORMANCE", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFC75D27), letterSpacing = 2.sp)
                     Spacer(modifier = Modifier.height(14.dp))
                     Text("$winRate%", fontSize = 54.sp, fontWeight = FontWeight.Black, color = Color(0xFF5C2D0A))
                     Text("Overall Win Rate", fontSize = 12.sp, color = Color.Gray)
@@ -275,7 +275,7 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Traditional Audio Beeps", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
-                        Text("Synthesized beep-ack for placements, mills, and wins", fontSize = 11.sp, color = Color.Gray)
+                        Text("Synthesized beep-ack for placements, mills, and wins", fontSize = 11.sp, color = Color(0xFF8B5E3C))
                     }
                     Switch(
                         checked = settings.soundEnabled,
@@ -299,7 +299,7 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Background Music", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
-                        Text("Play ambient traditional music during the game", fontSize = 11.sp, color = Color.Gray)
+                        Text("Play ambient traditional music during the game", fontSize = 11.sp, color = Color(0xFF8B5E3C))
                     }
                     Switch(
                         checked = settings.musicEnabled,
@@ -323,7 +323,7 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Turn Timer Warnings", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
-                        Text("Soft audio feedback during the final 3 seconds of your turn", fontSize = 11.sp, color = Color.Gray)
+                        Text("Soft audio feedback during the final 3 seconds of your turn", fontSize = 11.sp, color = Color(0xFF8B5E3C))
                     }
                     Switch(
                         checked = settings.countdownSoundEnabled,
@@ -347,7 +347,7 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Tactile Vibration", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
-                        Text("Gentle haptic feedback during placement and mills", fontSize = 11.sp, color = Color.Gray)
+                        Text("Gentle haptic feedback during placement and mills", fontSize = 11.sp, color = Color(0xFF8B5E3C))
                     }
                     Switch(
                         checked = settings.vibrationEnabled,
@@ -373,7 +373,7 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Highlight Last Move", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
-                        Text("Show a gold aura around the most recent move", fontSize = 11.sp, color = Color.Gray)
+                        Text("Show a gold aura around the most recent move", fontSize = 11.sp, color = Color(0xFF8B5E3C))
                     }
                     Switch(
                         checked = settings.highlightLastMove,
@@ -396,8 +396,8 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Blitz Mode Styles", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                        Text("Reduce visual delays for faster board transitions", fontSize = 11.sp, color = Color.Gray)
+                        Text("Blitz Mode Styles", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
+                        Text("Reduce visual delays for faster board transitions", fontSize = 11.sp, color = Color(0xFF8B5E3C))
                     }
                     Switch(
                         checked = settings.fastAnimations,
@@ -420,8 +420,8 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Show Rules on Match Start", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                        Text("Automatically popup the How-to-Play guide before every new game", fontSize = 11.sp, color = Color.Gray)
+                        Text("Show Rules on Match Start", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
+                        Text("Automatically popup the How-to-Play guide before every new game", fontSize = 11.sp, color = Color(0xFF8B5E3C))
                     }
                     Switch(
                         checked = settings.showRulesOnStart,
@@ -447,8 +447,8 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Show Latest Activity", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                        Text("Display a live match notation log during gameplay", fontSize = 11.sp, color = Color.Gray)
+                        Text("Show Latest Activity", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
+                        Text("Display a live match notation log during gameplay", fontSize = 11.sp, color = Color(0xFF8B5E3C))
                     }
                     Switch(
                         checked = settings.showLatestActivity,
@@ -494,8 +494,8 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
-                        Text("Royal Sandalwood Skin", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                        Text("Traditional yellow-gold sandalwood with dark lines", fontSize = 11.sp, color = Color.Gray)
+                        Text("Royal Sandalwood Skin", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
+                        Text("Traditional yellow-gold sandalwood with dark lines", fontSize = 11.sp, color = Color(0xFF8B5E3C))
                     }
                 }
             }
@@ -528,8 +528,8 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
-                        Text("Dark Stone Slate Skin", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                        Text("Steel obsidian slate board with dark graphite lines", fontSize = 11.sp, color = Color.Gray)
+                        Text("Dark Stone Slate Skin", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
+                        Text("Steel obsidian slate board with dark graphite lines", fontSize = 11.sp, color = Color(0xFF8B5E3C))
                     }
                 }
             }
@@ -561,7 +561,7 @@ fun SettingsScreen(
                         Text(
                             "Manage registered game players, historic matches, publish announcements, and adjust real-time strategic settings.", 
                             fontSize = 11.sp, 
-                            color = Color.Gray,
+                            color = Color(0xFF8B5E3C),
                             lineHeight = 15.sp
                         )
                         Spacer(modifier = Modifier.height(16.dp))
@@ -600,7 +600,7 @@ fun SettingsScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Ad Consent & Privacy", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
-                            Text("Manage personalized advertising preferences and GDPR choices", fontSize = 11.sp, color = Color.Gray)
+                            Text("Manage personalized advertising preferences and GDPR choices", fontSize = 11.sp, color = Color(0xFF8B5E3C))
                         }
                         TextButton(
                             onClick = {
@@ -632,7 +632,7 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Download My Data", style = MaterialTheme.typography.titleMedium, color = Color(0xFF5C2D0A), fontWeight = FontWeight.Bold)
-                        Text("Request a copy of your game history and profile data", fontSize = 11.sp, color = Color.Gray)
+                        Text("Request a copy of your game history and profile data", fontSize = 11.sp, color = Color(0xFF8B5E3C))
                     }
                     TextButton(onClick = onExportData) {
                         Text("REQUEST", fontWeight = FontWeight.Bold)
@@ -653,7 +653,7 @@ fun SettingsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Delete Account", style = MaterialTheme.typography.titleMedium, color = Color(0xFFC62828), fontWeight = FontWeight.Bold)
-                        Text("Permanently remove all data and identity", fontSize = 11.sp, color = Color.Gray)
+                        Text("Permanently remove all data and identity", fontSize = 11.sp, color = Color(0xFF8B5E3C))
                     }
                     TextButton(onClick = onDeleteAccount) {
                         Text("DELETE", color = Color(0xFFC62828), fontWeight = FontWeight.Bold)
@@ -676,7 +676,7 @@ fun SettingsScreen(
                     Text(
                         "Review our commitment to DPDP Act (India) and Fair Play guidelines via the official web portal.", 
                         fontSize = 11.sp, 
-                        color = Color.Gray
+                        color = Color(0xFF8B5E3C)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -713,7 +713,7 @@ fun SettingsScreen(
                     Text(
                         "This game is founded and developed by Botla Veerendra and Macha Praveen. Dedicated to preserving traditional board gaming culture.", 
                         fontSize = 11.sp, 
-                        color = Color.Gray
+                        color = Color(0xFF8B5E3C)
                     )
                 }
             }

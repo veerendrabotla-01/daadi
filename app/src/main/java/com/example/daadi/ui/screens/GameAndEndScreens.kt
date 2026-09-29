@@ -622,8 +622,8 @@ fun GameScreen(
             if (showDrawConfirmation) {
                 AlertDialog(
                     onDismissRequest = { showDrawConfirmation = false },
-                    title = { Text("Offer Handshake Draw?", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) },
-                    text = { Text("Are you sure you want to end this game with a friendly handshake Draw? Stats will register a Draw match.", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    title = { Text("Offer Handshake Draw?", fontWeight = FontWeight.Bold, color = Color(0xFF5C2D0A)) },
+                    text = { Text("Are you sure you want to end this game with a friendly handshake Draw? Stats will register a Draw match.", fontSize = 14.sp, color = Color(0xFF8B5E3C)) },
                     confirmButton = {
                         Button(
                             onClick = {
@@ -652,7 +652,7 @@ fun GameScreen(
                 AlertDialog(
                     onDismissRequest = { showResignConfirmation = false },
                     title = { Text("Forfeit Match?", fontWeight = FontWeight.Bold, color = Color(0xFFD32F2F)) },
-                    text = { Text("Are you sure you want to surrender this matchup? The Opponent will receive an immediate victory.", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    text = { Text("Are you sure you want to surrender this matchup? The Opponent will receive an immediate victory.", fontSize = 14.sp, color = Color(0xFF8B5E3C)) },
                     confirmButton = {
                         Button(
                             onClick = {
@@ -1112,7 +1112,7 @@ fun GameScreen(
                             Text(
                                 text = "🏆 MATCH RESOLVED",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFFE5A93B),
+                                color = Color(0xFFC75D27),
                                 letterSpacing = 2.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -1233,8 +1233,8 @@ fun GameScreen(
             if (showResetConfirmation) {
                 AlertDialog(
                     onDismissRequest = { showResetConfirmation = false },
-                    title = { Text("Restart Match?") },
-                    text = { Text("Are you sure you want to discard this board and start from scratch?") },
+                    title = { Text("Restart Match?", fontWeight = FontWeight.Bold, color = Color(0xFF5C2D0A)) },
+                    text = { Text("Are you sure you want to discard this board and start from scratch?", color = Color(0xFF8B5E3C)) },
                     confirmButton = {
                         Button(
                             onClick = {
@@ -1245,7 +1245,7 @@ fun GameScreen(
                         ) { Text("Yes, Reset") }
                     },
                     dismissButton = {
-                        TextButton(onClick = { showResetConfirmation = false }) { Text("Cancel") }
+                        TextButton(onClick = { showResetConfirmation = false }) { Text("Cancel", color = Color(0xFF8B5E3C)) }
                     },
                     containerColor = Color(0xFFFFFBF4)
                 )
@@ -1254,8 +1254,8 @@ fun GameScreen(
             if (showQuitConfirmation) {
                 AlertDialog(
                     onDismissRequest = { showQuitConfirmation = false },
-                    title = { Text("Abandon Match?") },
-                    text = { Text("Are you sure you want to end this session? Your current progress will be lost and the board will be reset.") },
+                    title = { Text("Abandon Match?", fontWeight = FontWeight.Bold, color = Color(0xFF5C2D0A)) },
+                    text = { Text("Are you sure you want to end this session? Your current progress will be lost and the board will be reset.", color = Color(0xFF8B5E3C)) },
                     confirmButton = {
                         Button(
                             onClick = {
@@ -1266,7 +1266,7 @@ fun GameScreen(
                         ) { Text("Yes, Abandon Match") }
                     },
                     dismissButton = {
-                        TextButton(onClick = { showQuitConfirmation = false }) { Text("Stay & Play") }
+                        TextButton(onClick = { showQuitConfirmation = false }) { Text("Stay & Play", color = Color(0xFF8B5E3C)) }
                     },
                     containerColor = Color(0xFFFFFBF4)
                 )
@@ -1334,7 +1334,7 @@ fun MoveHistoryPanel(
                     text = "MATCH NOTATION LOG",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFFE5A93B),
+                    color = if (boardTheme == "classic_wood") Color(0xFFC75D27) else Color(0xFFE5A93B),
                     letterSpacing = 1.5.sp
                 )
                 Text(

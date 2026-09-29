@@ -192,7 +192,7 @@ fun SupabaseAuthScreen(
                                 Text(
                                     text = user.username.take(2).uppercase(),
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White,
+                                    color = Color(0xFF5C2D0A),
                                     fontSize = 18.sp
                                 )
                             }

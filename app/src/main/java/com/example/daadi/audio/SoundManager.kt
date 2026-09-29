@@ -20,6 +20,8 @@ class SoundManager(private val context: Context, private val settingsRepository:
     private val soundMap = mutableMapOf<Int, Int>()
     private var isLoaded = false
     private var musicEnabled = true
+    private var isSoundPoolInitializing = false
+    private var isAudioBypassed = false
 
     private val vibrator: Vibrator? by lazy {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -32,7 +34,6 @@ class SoundManager(private val context: Context, private val settingsRepository:
     }
 
     init {
-        initializeSoundPool()
         observeSettings()
     }
 
@@ -50,6 +51,14 @@ class SoundManager(private val context: Context, private val settingsRepository:
     }
 
     private fun initializeSoundPool() {
+        if (com.example.daadi.util.SecurityUtils.isEmulator()) {
+            android.util.Log.i("SoundManager", "Running inside Android emulator context. Bypassing SoundPool codec loading to prevent platform driver errors.")
+            isAudioBypassed = true
+            isLoaded = true
+            isSoundPoolInitializing = false
+            return
+        }
+
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_GAME)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
@@ -62,6 +71,7 @@ class SoundManager(private val context: Context, private val settingsRepository:
 
         soundPool?.setOnLoadCompleteListener { _, _, _ ->
             isLoaded = true
+            isSoundPoolInitializing = false
         }
 
         // Asynchronously load sound samples from res/raw
@@ -96,7 +106,12 @@ class SoundManager(private val context: Context, private val settingsRepository:
     }
 
     private fun playSound(resId: Int) {
-        if (!isSoundEnabled() || isBackgroundMuted) return
+        if (!isSoundEnabled() || isBackgroundMuted || isAudioBypassed) return
+        if (soundPool == null) {
+            if (isSoundPoolInitializing) return
+            isSoundPoolInitializing = true
+            initializeSoundPool()
+        }
         val soundId = soundMap[resId]
         if (soundId != null && isLoaded) {
             soundPool?.play(soundId, 1f, 1f, 1, 0, 1f)
@@ -200,5 +215,8 @@ class SoundManager(private val context: Context, private val settingsRepository:
         soundPool?.release()
         soundPool = null
         soundMap.clear()
+        isLoaded = false
+        isSoundPoolInitializing = false
+        isAudioBypassed = false
     }
 }

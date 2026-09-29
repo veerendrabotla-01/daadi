@@ -334,7 +334,7 @@ fun MultiplayerLobbyScreen(
                         Text(
                             "YOUR PRIVATE ROOM CODE",
                             style = MaterialTheme.typography.labelLarge,
-                            color = Color(0xFFE5A93B),
+                            color = Color(0xFFC75D27),
                             letterSpacing = 2.sp
                         )
                         Spacer(modifier = Modifier.height(12.dp))
