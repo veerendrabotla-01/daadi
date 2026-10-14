@@ -214,7 +214,7 @@ class MultiplayerManager(
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.e(tag, "WebSocket failure: ${t.message}")
+                Log.w(tag, "WebSocket notice: ${t.message}")
                 scope.launch {
                     if (_status.value == MultiplayerStatus.CONNECTING) {
                         activateSimulatorFallback()

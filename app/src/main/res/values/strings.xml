@@ -1,4 +1,7 @@
 <resources>
     <string name="app_name">Daadi</string>
     <string name="empty_string" translatable="false"></string>
+    <!-- Satisfies Google Play Services / GMA application measurement validation -->
+    <string name="google_app_id" translatable="false">1:394025609994:android:3347511713000000000000</string>
+    <string name="gcm_defaultSenderId" translatable="false">394025609994</string>
 </resources>

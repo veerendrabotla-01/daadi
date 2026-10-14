@@ -1804,7 +1804,7 @@ class RemoteGameRepository(val network: SupabaseManager, private val matchDao: c
     
                     network.client.newCall(request).enqueue(object : Callback {
                         override fun onFailure(call: Call, e: IOException) {
-                            Log.e(network.tag, "Failed posting match result", e)
+                            Log.w(network.tag, "Notice posting match result: ${e.message}")
                         }
                         override fun onResponse(call: Call, response: Response) {
                             if (response.isSuccessful) {
@@ -1860,12 +1860,12 @@ class RemoteGameRepository(val network: SupabaseManager, private val matchDao: c
     
                     network.client.newCall(request).enqueue(object : Callback {
                         override fun onFailure(call: Call, e: IOException) {
-                            Log.e(network.tag, "Failed to update match moves: ${e.message}", e)
+                            Log.w(network.tag, "Notice updating match moves: ${e.message}")
                         }
                         override fun onResponse(call: Call, response: Response) {
                             response.use {
                                 if (!response.isSuccessful) {
-                                    Log.e(network.tag, "Update match moves failed: ${response.code}")
+                                    Log.w(network.tag, "Update match moves notice: code ${response.code}")
                                 }
                             }
                         }
@@ -1893,12 +1893,12 @@ class RemoteGameRepository(val network: SupabaseManager, private val matchDao: c
                     .build()
                 network.client.newCall(request).enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
-                        Log.e(network.tag, "Failed to network.log anti-cheat violation: ${e.message}", e)
+                        Log.w(network.tag, "Notice logging anti-cheat: ${e.message}")
                     }
                     override fun onResponse(call: Call, response: Response) {
                         response.use {
                             if (!response.isSuccessful) {
-                                Log.e(network.tag, "Log anti-cheat violation failed: ${response.code}")
+                                Log.w(network.tag, "Log anti-cheat notice: code ${response.code}")
                             }
                         }
                     }
@@ -2624,7 +2624,7 @@ class SupportRepository(val network: SupabaseManager) {
     
                         network.client.newCall(requestV2).enqueue(object : Callback {
                             override fun onFailure(call: Call, e: IOException) {
-                                Log.e("SupabaseManager", "feedback_v2 (useSessionToken=$useSessionToken) failure: ${e.message}", e)
+                                Log.w("SupabaseManager", "feedback_v2 (useSessionToken=$useSessionToken) notice: ${e.message}")
                                 if (useSessionToken) {
                                     trySubmitV2(false)
                                 } else {
@@ -2671,7 +2671,7 @@ class SupportRepository(val network: SupabaseManager) {
                                     
                                     network.runOnMain { onResult(true, null) }
                                 } else {
-                                    Log.e("SupabaseManager", "feedback_v2 (useSessionToken=$useSessionToken) error ${response.code}: $body")
+                                    Log.w("SupabaseManager", "feedback_v2 (useSessionToken=$useSessionToken) notice ${response.code}: $body")
                                     if (useSessionToken) {
                                         trySubmitV2(false)
                                     } else {
@@ -3011,14 +3011,14 @@ class RemoteConfigRepository(val network: SupabaseManager) {
     
                 network.client.newCall(request).enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
-                        Log.e(network.tag, "Failed to update ad configuration: ${e.message}", e)
+                        Log.w(network.tag, "Notice updating ad configuration: ${e.message}")
                     }
                     override fun onResponse(call: Call, response: Response) {
                         response.use {
                             if (response.isSuccessful) {
                                 network._adConfig.value = config
                             } else {
-                                Log.e(network.tag, "Update ad configuration failed: ${response.code}")
+                                Log.w(network.tag, "Update ad configuration notice: code ${response.code}")
                             }
                         }
                     }

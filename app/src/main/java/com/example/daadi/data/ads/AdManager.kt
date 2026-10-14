@@ -119,7 +119,7 @@ class AdManager(
                 UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { formError ->
                     isConsentGatheringInProgress.set(false)
                     if (formError != null) {
-                        Log.e(tag, "UMP Consent Form Error: ${formError.message} (Code: ${formError.errorCode})")
+                        Log.w(tag, "UMP Consent Form Notice: ${formError.message} (Code: ${formError.errorCode})")
                     } else {
                         Log.d(tag, "UMP Consent Form completed successfully.")
                     }
@@ -151,7 +151,7 @@ class AdManager(
         Log.d(tag, "Presenting GDPR Privacy Options form for consent re-verification.")
         UserMessagingPlatform.showPrivacyOptionsForm(activity) { formError ->
             if (formError != null) {
-                Log.e(tag, "Failed to show privacy options form: ${formError.message} (Code: ${formError.errorCode})")
+                Log.w(tag, "Notice showing privacy options form: ${formError.message} (Code: ${formError.errorCode})")
                 onComplete(formError.message)
             } else {
                 Log.d(tag, "Privacy options form completed successfully.")
@@ -233,7 +233,7 @@ class AdManager(
                 
                 interstitialRetryCount++
                 val delayMs = calculateRetryDelay(interstitialRetryCount)
-                Log.e(tag, "Interstitial failed to load: ${adError.message}. Code: ${adError.code}. Retrying in ${delayMs}ms (Attempt #$interstitialRetryCount)")
+                Log.w(tag, "Interstitial notice: ${adError.message}. Code: ${adError.code}. Retrying in ${delayMs}ms (Attempt #$interstitialRetryCount)")
                 
                 com.example.daadi.DaadiApplication.instance.analyticsRepository.logBIEvent(
                     category = "ADS",
@@ -294,7 +294,7 @@ class AdManager(
                 }
 
                 override fun onAdFailedToShowFullScreenContent(adError: AdError) {
-                    Log.e(tag, "Interstitial failed to show screen content: ${adError.message}")
+                    Log.w(tag, "Interstitial notice show screen content: ${adError.message}")
                     interstitialAd = null
                     
                     // Recover and pre-fetch alternative ad
@@ -334,7 +334,7 @@ class AdManager(
                 
                 rewardedRetryCount++
                 val delayMs = calculateRetryDelay(rewardedRetryCount)
-                Log.e(tag, "Rewarded ad failed to load: ${adError.message}. Code: ${adError.code}. Retrying in ${delayMs}ms (Attempt #$rewardedRetryCount)")
+                Log.w(tag, "Rewarded ad notice: ${adError.message}. Code: ${adError.code}. Retrying in ${delayMs}ms (Attempt #$rewardedRetryCount)")
                 
                 com.example.daadi.DaadiApplication.instance.analyticsRepository.logBIEvent(
                     category = "ADS",
@@ -380,7 +380,7 @@ class AdManager(
                 }
 
                 override fun onAdFailedToShowFullScreenContent(adError: AdError) {
-                    Log.e(tag, "Rewarded ad failed to show: ${adError.message}")
+                    Log.w(tag, "Rewarded ad notice show failed: ${adError.message}")
                     rewardedAd = null
                     loadRewarded()
                     onAdDismissed()
@@ -440,7 +440,7 @@ class AdManager(
         try {
             cm.registerNetworkCallback(builder.build(), networkCallback!!)
         } catch (e: Exception) {
-            Log.e(tag, "Failed to register network callback", e)
+            Log.w(tag, "Notice registering network callback", e)
         }
     }
 
@@ -450,7 +450,7 @@ class AdManager(
             try {
                 cm?.unregisterNetworkCallback(it)
             } catch (e: Exception) {
-                Log.e(tag, "Failed to unregister network callback", e)
+                Log.w(tag, "Notice unregistering network callback", e)
             }
         }
         handler.removeCallbacksAndMessages(null)

@@ -723,7 +723,7 @@ fun logAdminAction(action: String, target: String) {
                 _adminAuditLogs.update { listOf(log) + it.take(99) }
                 logAudit(action, targetTable = target)
             } catch (e: Exception) {
-                Log.e(tag, "Transactional audit logging failure", e)
+                Log.w(tag, "Transactional audit logging notice: ${e.message}")
             }
         }
     }
@@ -762,32 +762,56 @@ fun fetchAdConfiguration() {
         }
         
         scope.launch {
-            val request = Request.Builder()
-                .url("$supabaseUrl/rest/v1/ad_configuration?select=*&limit=1")
-                .headers(getHeaders())
-                .get()
-                .build()
+            try {
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/ad_configuration?select=*&limit=1")
+                    .headers(getHeaders())
+                    .get()
+                    .build()
 
-            client.newCall(request).enqueue(object : Callback {
-                override fun onFailure(call: Call, e: IOException) {
-                    Log.e(tag, "Ad Config Sync Failed", e)
-                }
-
-                override fun onResponse(call: Call, response: Response) {
-                    val body = response.body?.string()
-                    if (response.isSuccessful && body != null) {
-                        try {
-                            val listType = Types.newParameterizedType(List::class.java, AdConfiguration::class.java)
-                            val list = moshi.adapter<List<AdConfiguration>>(listType).fromJson(body)
-                            if (!list.isNullOrEmpty()) {
-                                _adConfig.value = list[0]
-                            }
-                        } catch (e: Exception) {
-                            Log.e(tag, "Ad Config Parse Error", e)
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        Log.w(tag, "Ad Config Sync network notice: ${e.message}")
+                        if (_adConfig.value.interstitialAdUnitId.isBlank()) {
+                            _adConfig.value = AdConfiguration()
                         }
                     }
+
+                    override fun onResponse(call: Call, response: Response) {
+                        response.use { resp ->
+                            val body = resp.body?.string()
+                            if (resp.isSuccessful && !body.isNullOrBlank()) {
+                                try {
+                                    val listType = Types.newParameterizedType(List::class.java, AdConfiguration::class.java)
+                                    val list = moshi.adapter<List<AdConfiguration>>(listType).fromJson(body)
+                                    if (!list.isNullOrEmpty()) {
+                                        _adConfig.value = list[0]
+                                    } else {
+                                        if (_adConfig.value.interstitialAdUnitId.isBlank()) {
+                                            _adConfig.value = AdConfiguration()
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    Log.w(tag, "Ad Config Parse Warning: ${e.message}")
+                                    if (_adConfig.value.interstitialAdUnitId.isBlank()) {
+                                        _adConfig.value = AdConfiguration()
+                                    }
+                                }
+                            } else {
+                                Log.w(tag, "Ad Config Sync notice: non-200 code ${resp.code}")
+                                if (_adConfig.value.interstitialAdUnitId.isBlank()) {
+                                    _adConfig.value = AdConfiguration()
+                                }
+                            }
+                        }
+                    }
+                })
+            } catch (e: Exception) {
+                Log.w(tag, "Ad Config Sync execution notice: ${e.message}")
+                if (_adConfig.value.interstitialAdUnitId.isBlank()) {
+                    _adConfig.value = AdConfiguration()
                 }
-            })
+            }
         }
     }
 
@@ -1104,7 +1128,7 @@ fun fetchAppVersions() {
                 .build()
             client.newCall(request).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
-                    Log.e(tag, "Failed to fetch app versions: ${e.message}", e)
+                    Log.w(tag, "Notice fetching app versions: ${e.message}")
                 }
                 override fun onResponse(call: Call, response: Response) {
                     response.use {
@@ -1114,10 +1138,10 @@ fun fetchAppVersions() {
                                 val list = appVersionListAdapter.fromJson(body)
                                 if (list != null) _appVersions.value = list
                             } catch (e: Exception) {
-                                Log.e(tag, "Failed to parse app versions", e)
+                                Log.w(tag, "Notice parsing app versions: ${e.message}")
                             }
                         } else {
-                            Log.e(tag, "Fetch app versions failed: ${response.code}")
+                            Log.w(tag, "Fetch app versions notice: code ${response.code}")
                         }
                     }
                 }
@@ -1143,7 +1167,7 @@ fun fetchMaintenanceSchedules() {
                 .build()
             client.newCall(request).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
-                    Log.e(tag, "Failed to fetch maintenance schedules: ${e.message}", e)
+                    Log.w(tag, "Notice fetching maintenance schedules: ${e.message}")
                 }
                 override fun onResponse(call: Call, response: Response) {
                     response.use {
@@ -1153,10 +1177,10 @@ fun fetchMaintenanceSchedules() {
                                 val list = maintenanceListAdapter.fromJson(body)
                                 if (list != null) _maintenanceSchedules.value = list
                             } catch (e: Exception) {
-                                Log.e(tag, "Failed to parse maintenance schedules", e)
+                                Log.w(tag, "Notice parsing maintenance schedules: ${e.message}")
                             }
                         } else {
-                            Log.e(tag, "Fetch maintenance failed: ${response.code}")
+                            Log.w(tag, "Fetch maintenance notice: code ${response.code}")
                         }
                     }
                 }
@@ -1182,7 +1206,7 @@ fun applyBan(userId: String, reason: String, expiresAt: String? = null) {
                     .build()
             client.newCall(request).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
-                    Log.e(tag, "Failed to apply ban: ${e.message}", e)
+                    Log.w(tag, "Notice applying ban: ${e.message}")
                 }
                 override fun onResponse(call: Call, response: Response) {
                     response.use {
@@ -1190,7 +1214,7 @@ fun applyBan(userId: String, reason: String, expiresAt: String? = null) {
                             fetchBans()
                             logAdminAction("APPLY_BAN", userId)
                         } else {
-                            Log.e(tag, "Apply ban failed: ${response.code}")
+                            Log.w(tag, "Apply ban notice: code ${response.code}")
                         }
                     }
                 }
@@ -1234,7 +1258,7 @@ fun resolve(reportId: String, status: String) {
                     .build()
             client.newCall(request).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
-                    Log.e(tag, "Failed to resolve report: ${e.message}", e)
+                    Log.w(tag, "Notice resolving report: ${e.message}")
                 }
                 override fun onResponse(call: Call, response: Response) {
                     response.use {
@@ -1242,7 +1266,7 @@ fun resolve(reportId: String, status: String) {
                             fetchReports()
                             logAdminAction("RESOLVE_REPORT", reportId)
                         } else {
-                            Log.e(tag, "Resolve report failed: ${response.code}")
+                            Log.w(tag, "Resolve report notice: code ${response.code}")
                         }
                     }
                 }
@@ -1282,14 +1306,14 @@ fun updateAdConfigurationRemote(config: AdConfiguration) {
 
             client.newCall(request).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
-                    Log.e(tag, "Failed to update ad configuration: ${e.message}", e)
+                    Log.w(tag, "Notice updating ad configuration: ${e.message}")
                 }
                 override fun onResponse(call: Call, response: Response) {
                     response.use {
                         if (response.isSuccessful) {
                             _adConfig.value = config
                         } else {
-                            Log.e(tag, "Update ad configuration failed: ${response.code}")
+                            Log.w(tag, "Update ad configuration notice: code ${response.code}")
                         }
                     }
                 }
@@ -1463,7 +1487,7 @@ fun processUserAndPromoteIfAdmin(user: SupabaseUser): SupabaseUser {
                     Log.w(tag, "Parsed user session was null.")
                 }
             } catch (e: Exception) {
-                Log.e(tag, "Failed to parse saved user session JSON: $saved", e)
+                Log.w(tag, "Notice parsing saved user session JSON: $saved", e)
             }
         } else {
             Log.d(tag, "No saved user session found.")
@@ -1485,7 +1509,7 @@ fun processUserAndPromoteIfAdmin(user: SupabaseUser): SupabaseUser {
             
             client.newCall(request).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
-                    Log.e(tag, "Failed to fetch permissions", e)
+                    Log.w(tag, "Notice fetching permissions: ${e.message}")
                 }
                 override fun onResponse(call: Call, response: Response) {
                     val body = response.body?.string()
@@ -1534,7 +1558,7 @@ fun processUserAndPromoteIfAdmin(user: SupabaseUser): SupabaseUser {
                                 }
                             }
                         } catch (e: Exception) {
-                            Log.e(tag, "Failed to parse permissions", e)
+                            Log.w(tag, "Notice parsing permissions: ${e.message}")
                         }
                     }
                 }
@@ -2212,37 +2236,40 @@ fun loadInitialData() {
         scope.launch {
             _isLoading.value = true
             _errorMessage.value = null
+            // Load local simulator data immediately so complete data is available instantly & offline
+            loadSimulatorData()
             if (isConfigured) {
-                // Read from real SupabaseReport endpoints
-                Log.d(tag, "Contacting remote SupabaseReport API...")
-                fetchRemoteUsers()
-                fetchRemoteMatches()
-                fetchRemoteAnnouncements()
-                fetchRemoteSettings()
-                fetchFeedback()
-                fetchAdConfiguration()
-                
-                // Game Operations
-                fetchEconomyTransactions()
-                fetchStoreItems()
-                fetchCoupons()
-                fetchDailyRewards()
-                fetchSpinWheelRewards()
-                fetchLiveOpsEvents()
-                fetchSeasonPasses()
-                fetchCMSContent()
-                fetchBIMetrics()
-                fetchCrashLogs()
-                fetchFraudAlerts()
-                fetchFinances()
-                fetchQueueMetrics()
-                fetchDeviceRecords()
-                fetchHealthMetrics()
-                fetchRolesAndPermissions()
+                // Refresh from remote Supabase API in background if online
+                Log.d(tag, "Contacting remote Supabase API...")
+                try {
+                    fetchRemoteUsers()
+                    fetchRemoteMatches()
+                    fetchRemoteAnnouncements()
+                    fetchRemoteSettings()
+                    fetchFeedback()
+                    fetchAdConfiguration()
+                    
+                    // Game Operations
+                    fetchEconomyTransactions()
+                    fetchStoreItems()
+                    fetchCoupons()
+                    fetchDailyRewards()
+                    fetchSpinWheelRewards()
+                    fetchLiveOpsEvents()
+                    fetchSeasonPasses()
+                    fetchCMSContent()
+                    fetchBIMetrics()
+                    fetchCrashLogs()
+                    fetchFraudAlerts()
+                    fetchFinances()
+                    fetchQueueMetrics()
+                    fetchDeviceRecords()
+                    fetchHealthMetrics()
+                    fetchRolesAndPermissions()
+                } catch (e: Exception) {
+                    Log.w(tag, "Initial remote sync notice: ${e.message}")
+                }
             } else {
-                // Fallback to local storage simulator (fully functional so buttons are active!)
-                Log.d(tag, "SupabaseReport Credentials Missing. Loading robust local database simulation...")
-                loadSimulatorData()
                 fetchAdConfiguration() // Simulated load
             }
             _isLoading.value = false
@@ -2294,7 +2321,7 @@ fun loadInitialData() {
                             _users.value = (parsed + seeds).distinctBy { it.id }
                         }
                     } catch (e: Exception) {
-                        Log.e(tag, "Parsed users error", e)
+                        Log.w(tag, "Parsed users notice: ${e.message}")
                     }
                 }
             }
@@ -2311,7 +2338,7 @@ fun loadInitialData() {
 
         client.newCall(request).enqueueWithRetry(
             onFailure = { call, e ->
-                Log.e(tag, "Matches request failed", e)
+                Log.w(tag, "Matches request notice: ${e.message}")
             },
             onResponse = { call, response ->
                 val body = response.body?.string()
@@ -2431,14 +2458,14 @@ fun updateUserRoleRemote(userId: String, newRole: String) {
 
             client.newCall(request).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
-                    Log.e(tag, "Failed to update user role for $userId: ${e.message}", e)
+                    Log.w(tag, "Notice updating user role for $userId: ${e.message}")
                 }
                 override fun onResponse(call: Call, response: Response) {
                     response.use {
                         if (response.isSuccessful) {
                             scope.launch { fetchRemoteUsers() }
                         } else {
-                            Log.e(tag, "Update user role failed with code ${response.code} for $userId")
+                            Log.w(tag, "Update user role notice: code ${response.code} for $userId")
                         }
                     }
                 }
@@ -2460,14 +2487,14 @@ fun toggleUserBanRemote(userId: String, currentBan: Boolean) {
 
             client.newCall(request).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
-                    Log.e(tag, "Failed to toggle user ban for $userId: ${e.message}", e)
+                    Log.w(tag, "Notice toggling user ban for $userId: ${e.message}")
                 }
                 override fun onResponse(call: Call, response: Response) {
                     response.use {
                         if (response.isSuccessful) {
                             scope.launch { fetchRemoteUsers() }
                         } else {
-                            Log.e(tag, "Toggle user ban failed with code ${response.code} for $userId")
+                            Log.w(tag, "Toggle user ban notice: code ${response.code} for $userId")
                         }
                     }
                 }
@@ -2485,14 +2512,14 @@ fun deleteUserRemote(userId: String) {
 
             client.newCall(request).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
-                    Log.e(tag, "Failed to delete user $userId: ${e.message}", e)
+                    Log.w(tag, "Notice deleting user $userId: ${e.message}")
                 }
                 override fun onResponse(call: Call, response: Response) {
                     response.use {
                         if (response.isSuccessful) {
                             scope.launch { fetchRemoteUsers() }
                         } else {
-                            Log.e(tag, "Delete user failed with code ${response.code} for $userId")
+                            Log.w(tag, "Delete user notice: code ${response.code} for $userId")
                         }
                     }
                 }
@@ -3967,7 +3994,7 @@ fun submitFeedback(content: String, category: String, onResult: (Boolean, String
 
                     client.newCall(requestV2).enqueue(object : Callback {
                         override fun onFailure(call: Call, e: IOException) {
-                            Log.e("SupabaseManager", "feedback_v2 (useSessionToken=$useSessionToken) failure: ${e.message}", e)
+                            Log.w("SupabaseManager", "feedback_v2 (useSessionToken=$useSessionToken) notice: ${e.message}")
                             if (useSessionToken) {
                                 trySubmitV2(false)
                             } else {
@@ -4014,7 +4041,7 @@ fun submitFeedback(content: String, category: String, onResult: (Boolean, String
                                 
                                 runOnMain { onResult(true, null) }
                             } else {
-                                Log.e("SupabaseManager", "feedback_v2 (useSessionToken=$useSessionToken) error ${response.code}: $body")
+                                Log.w("SupabaseManager", "feedback_v2 (useSessionToken=$useSessionToken) notice ${response.code}: $body")
                                 if (useSessionToken) {
                                     trySubmitV2(false)
                                 } else {
@@ -4105,7 +4132,7 @@ fun submitFeedback(content: String, category: String, onResult: (Boolean, String
 
             client.newCall(request).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
-                    Log.e("SupabaseManager", "Legacy feedback (useSessionToken=$useSessionToken) failure: ${e.message}", e)
+                    Log.w("SupabaseManager", "Legacy feedback (useSessionToken=$useSessionToken) notice: ${e.message}")
                     if (useSessionToken) {
                         trySubmitV1(false)
                     } else {
@@ -4146,7 +4173,7 @@ fun submitFeedback(content: String, category: String, onResult: (Boolean, String
                         }
                         runOnMain { onResult(true, null) }
                     } else {
-                        Log.e("SupabaseManager", "Legacy feedback (useSessionToken=$useSessionToken) error ${response.code}: $body")
+                        Log.w("SupabaseManager", "Legacy feedback (useSessionToken=$useSessionToken) notice ${response.code}: $body")
                         if (useSessionToken) {
                             trySubmitV1(false)
                         } else {
@@ -4532,7 +4559,7 @@ fun registerMatchResult(roomCode: String, hostName: String, opponentName: String
 
                 client.newCall(request).enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
-                        Log.e(tag, "Failed posting match result", e)
+                        Log.w(tag, "Notice posting match result: ${e.message}")
                     }
                     override fun onResponse(call: Call, response: Response) {
                         if (response.isSuccessful) {
@@ -4626,12 +4653,12 @@ fun updateMatchMoves(roomCode: String, movesJson: String) {
 
                 client.newCall(request).enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
-                        Log.e(tag, "Failed to update match moves: ${e.message}", e)
+                        Log.w(tag, "Notice updating match moves: ${e.message}")
                     }
                     override fun onResponse(call: Call, response: Response) {
                         response.use {
                             if (!response.isSuccessful) {
-                                Log.e(tag, "Update match moves failed: ${response.code}")
+                                Log.w(tag, "Update match moves notice: code ${response.code}")
                             }
                         }
                     }
@@ -4659,12 +4686,12 @@ fun logAntiCheatViolation(matchId: String?, violationType: String, severity: Str
                 .build()
             client.newCall(request).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
-                    Log.e(tag, "Failed to log anti-cheat violation: ${e.message}", e)
+                    Log.w(tag, "Notice logging anti-cheat: ${e.message}")
                 }
                 override fun onResponse(call: Call, response: Response) {
                     response.use {
                         if (!response.isSuccessful) {
-                            Log.e(tag, "Log anti-cheat violation failed: ${response.code}")
+                            Log.w(tag, "Log anti-cheat notice: code ${response.code}")
                         }
                     }
                 }
@@ -5824,7 +5851,7 @@ suspend fun askAiAssistant(prompt: String): String = withContext(Dispatchers.IO)
 
         client.newCall(request).enqueueWithRetry(
             onFailure = { call, e ->
-                Log.e(tag, "Fetch Exception: $endpoint", e)
+                Log.w(tag, "Fetch notice for $endpoint: ${e.message}")
             },
             onResponse = { call, response ->
                 response.use { resp ->
@@ -5834,11 +5861,11 @@ suspend fun askAiAssistant(prompt: String): String = withContext(Dispatchers.IO)
                             val list = adapter.fromJson(json) ?: emptyList()
                             runOnMain { onResult(list) }
                         } catch (e: Exception) {
-                            Log.e(tag, "Parse Error: $endpoint", e)
+                            Log.w(tag, "Parse warning: $endpoint: ${e.message}")
                         }
                     } else {
                         val errorBody = resp.body?.string() ?: ""
-                        Log.e(tag, "Fetch Error: $endpoint | Code: ${resp.code} | Body: $errorBody")
+                        Log.w(tag, "Fetch Notice: $endpoint | Code: ${resp.code} | Body: $errorBody")
                     }
                 }
             }

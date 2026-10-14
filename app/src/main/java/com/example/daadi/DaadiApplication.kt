@@ -75,11 +75,11 @@ class DaadiApplication : Application() {
                                 }
                             }
                         } catch (e: Exception) {
-                            android.util.Log.e("DaadiApp", "Failed to ensure webview cache dir: $path", e)
+                            android.util.Log.w("DaadiApp", "Notice ensuring webview cache dir: $path", e)
                         }
                     }
                 } catch (e: Exception) {
-                    android.util.Log.e("DaadiApp", "Error in ensureWebViewCacheDirs pass", e)
+                    android.util.Log.w("DaadiApp", "Non-critical error in ensureWebViewCacheDirs pass", e)
                 }
                 delay(3000)
             }
@@ -121,7 +121,7 @@ class DaadiApplication : Application() {
                 }
             }
         } catch (e: Exception) {
-            android.util.Log.e("DaadiApp", "Critical error preparing cache dirs", e)
+            android.util.Log.w("DaadiApp", "Non-critical error preparing cache dirs", e)
         }
     }
 

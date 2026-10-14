@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ad-services-config>
+    <!-- Disable ad partners measurement binding when AdServices measurement is unavailable -->
+    <attribution allowAdPartners="false" />
+</ad-services-config>

@@ -95,7 +95,7 @@ class MainActivity : ComponentActivity() {
             val isDebugger = com.example.daadi.util.SecurityUtils.isDebuggerConnected()
             
             if (isRooted) {
-                com.example.daadi.util.SecureLog.e("SECURITY", "Rooted device detected. Logging violation.")
+                com.example.daadi.util.SecureLog.w("SECURITY", "Rooted device detected. Logging violation.")
                 app.remoteGameRepository.logAntiCheatViolation("", "ROOT_DETECTION", "high", "Device is rooted")
             }
             if (isEmulator) {
