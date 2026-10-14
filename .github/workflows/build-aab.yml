@@ -24,9 +24,15 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
 
-      - name: Generate Gradle Wrapper
-        run: gradle wrapper
+      - name: Make Gradle wrapper executable
+        run: |
+          if [ ! -f gradlew ]; then
+            gradle wrapper
+          fi
+          chmod +x gradlew
 
       - name: Set up Environment Variables (.env)
         run: |
@@ -47,13 +53,22 @@ jobs:
         id: signing
         run: |
           if [ -z "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" ]; then
-            echo "⚠️ No release keystore secret found. Generating a temporary self-signed keystore for this build..."
-            keytool -genkey -v -keystore my-upload-key.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass tempstorepass -keypass tempstorepass -dname "CN=Daadi, O=VeeruStudio, C=IN"
-            echo "KEYSTORE_PATH=${{ github.workspace }}/my-upload-key.jks" >> $GITHUB_ENV
-            echo "STORE_PASSWORD=tempstorepass" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=tempstorepass" >> $GITHUB_ENV
-            echo "KEY_ALIAS=upload" >> $GITHUB_ENV
+            if [ -f my-upload-key.jks ]; then
+              echo "✅ Using repository upload keystore..."
+              echo "KEYSTORE_PATH=${{ github.workspace }}/my-upload-key.jks" >> $GITHUB_ENV
+              echo "STORE_PASSWORD=daadi123" >> $GITHUB_ENV
+              echo "KEY_PASSWORD=daadi123" >> $GITHUB_ENV
+              echo "KEY_ALIAS=upload" >> $GITHUB_ENV
+            else
+              echo "⚠️ No release keystore secret found. Generating keystore for build..."
+              rm -f my-upload-key.jks
+              keytool -genkeypair -v -keystore my-upload-key.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000 \
+                -storepass daadi123 -keypass daadi123 -dname "CN=Daadi, O=VeeruStudio, C=IN"
+              echo "KEYSTORE_PATH=${{ github.workspace }}/my-upload-key.jks" >> $GITHUB_ENV
+              echo "STORE_PASSWORD=daadi123" >> $GITHUB_ENV
+              echo "KEY_PASSWORD=daadi123" >> $GITHUB_ENV
+              echo "KEY_ALIAS=upload" >> $GITHUB_ENV
+            fi
           else
             echo "✅ Decoding production release keystore..."
             echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > my-upload-key.jks
@@ -62,9 +77,6 @@ jobs:
             echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
             echo "KEY_ALIAS=${{ secrets.KEY_ALIAS || 'upload' }}" >> $GITHUB_ENV
           fi
-
-      - name: Make Gradle wrapper executable
-        run: chmod +x gradlew
 
       - name: Build Android App Bundle (AAB)
         run: ./gradlew :app:bundleRelease
